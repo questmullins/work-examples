@@ -1,0 +1,1013 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script id="demo-backend">
+/* Demo backend. Answers this page's Quickbase calls in the browser from made-up records, so the tool runs with no
+   server and no account. Every company, product, person and address here is fictional. Changes last until reload. */
+(function () {
+  var HOST = 'demo.quickbase.example';
+  window.__DEMO_HOST = HOST;
+
+  var BRANDS = [
+    {customer: 'Trailhead Pet Co', code: 'TH', prefix: '00011'},
+    {customer: 'Northfield Pet Foods', code: 'NF', prefix: '00012'},
+    {customer: 'Sunny Paws Kitchen', code: 'SP', prefix: '00013'},
+    {customer: 'Bramble & Bone', code: 'BB', prefix: '00014'},
+    {customer: 'Copper Creek Provisions', code: 'CC', prefix: '00015'},
+    {customer: 'Little Harbor Treats', code: 'LH', prefix: '00016'},
+    {customer: 'Meadowlark Mills', code: 'MM', prefix: '00017'},
+    {customer: 'Oak & Ember Foods', code: 'OE', prefix: '00018'},
+    {customer: 'Tidewater Snacks', code: 'TW', prefix: '00019'},
+    {customer: 'Pine Ridge Grains', code: 'PR', prefix: '00020'}
+  ];
+  // Every shape here has a template in the mockup tool.
+  var SHAPES = [
+    {format: 'Quad Seal Bag', style: 'Flat Bottom', gusset: 'Terminated Gusset', sizes: [[7, 11.5, 3.5, '12 oz'], [8.5, 14, 4, '2 lb'], [10, 16, 4.5, '4 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Non-Terminated Gusset', sizes: [[11.5, 18.25, 4.125, '10 lb'], [13, 22, 5, '15 lb'], [15.75, 26.5, 4.5, '25 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Terminated Gusset', sizes: [[8, 13, 4, '3.5 lb'], [9.5, 15, 4, '5 lb'], [12, 20, 4.5, '12 lb']]},
+    {format: 'Stand-Up Pouch', style: 'Angle Plow', gusset: '', sizes: [[5, 7.75, 2.5, '5 oz'], [6, 9, 3, '8 oz'], [7.25, 11, 3.5, '1 lb']]},
+    {format: 'Stand-Up Pouch', style: 'K-Seal', gusset: '', sizes: [[7, 10, 3.25, '10 oz'], [6, 8.5, 2.75, '6 oz'], [8, 12, 3.5, '1.5 lb']]}
+  ];
+  var RECIPES = ['Grain-Free Salmon Kibble', 'Turkey Training Bites', 'Pumpkin Berry Minis', 'Chicken Recipe Kibble', 'Freeze-Dried Beef Morsels', 'Duck & Sweet Potato Bites', 'Lamb & Rice Dinner', 'Peanut Butter Crunch', 'Ancient Grain Granola', 'Sea Salt Veggie Crisps', 'Dark Roast Coffee', 'Honey Oat Clusters'];
+  var LAYERS = ['MATTE / PET / FOIL / LLDPE', 'MATTE / PET / MET PET / LLDPE', 'GLOSS / PET / MET PET / LLDPE', 'SOFT TOUCH / PET / FOIL / LLDPE', 'SOFT TOUCH / PET / MET PET / LLDPE', 'MATTE / PET / PET / LLDPE', 'GLOSS / PET / EVOH / LLDPE', 'MATTE / PE / EVOH / PE', 'GLOSS / KRAFT / MET PET / LLDPE', 'SOFT TOUCH / PET / ALOX / LLDPE'];
+  var COLORS = ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'PMS 186 C', 'PMS 2728 C', 'PMS 349 C', 'PMS 7406 C', 'PMS 485 C', 'PMS 2607 C', 'PMS 7421 C'];
+  var PEOPLE = ['Demo Designer', 'Alex Morgan', 'Jordan Lee', 'Priya Nair', 'Casey Tran', 'Riley Brooks'];
+  var ZIPPERS = ['Small Zipper', 'No Zipper', 'Small Zipper', 'Pocket Zipper'];
+  var PRODUCTS = [];
+  BRANDS.forEach(function (brand, b) {
+    for (var i = 0; i < 6; i++) {
+      var shape = SHAPES[(b + i) % SHAPES.length], size = shape.sizes[(b + i * 2) % 3];
+      PRODUCTS.push({b: b, name: RECIPES[(b * 2 + i) % RECIPES.length], weight: size[3], format: shape.format, style: shape.style, gusset: shape.gusset, w: size[0], h: size[1], g: size[2], layers: LAYERS[(b + i * 3) % LAYERS.length]});
+    }
+  });
+  var ADDRESSES = [
+    ['100 Example Way', 'Dock 2', 'Springfield', 'IL', '62704'],
+    ['250 Sample Road', '', 'Riverton', 'WY', '82501'],
+    ['17 Placeholder Ave', 'Suite 300', 'Fairview', 'TN', '37062'],
+    ['900 Demo Parkway', '', 'Madison', 'WI', '53703'],
+    ['44 Mockup Lane', 'Building B', 'Georgetown', 'TX', '78626'],
+    ['312 Fictional Blvd', '', 'Salem', 'OR', '97301'],
+    ['8 Test Harbor Rd', 'Unit 12', 'Clinton', 'IA', '52732'],
+    ['1200 Sample Mill Dr', '', 'Franklin', 'KY', '42134'],
+    ['75 Placeholder Pier', 'Dock 9', 'Bristol', 'RI', '02809'],
+    ['560 Example Ridge', '', 'Greenville', 'SC', '29601']
+  ];
+  function day(offset) { var d = new Date(Date.UTC(2026, 8, 20) - offset * 864e5); return d.toISOString().slice(0, 10); }
+  function pick(list, i) { return list[i % list.length]; }
+  function colorBank(row, start, n) { for (var c = 0; c < 10; c++) row[start + c] = c < 4 ? COLORS[c] : c < 4 + (n % 4) ? COLORS[4 + (n + c) % 8] : ''; }
+  function ms(offset) { return String(Date.UTC(2026, 8, 20) - offset * 864e5); }
+
+  var tables = {
+    bdemocust: [], bdemoopps: [], bdemofami: [], bdemospec: [], bdemostyl: [], bdemoaddr: [], bdemoship: [],
+    bdemoprod: [], bdemoordr: [], bdemoitem: [], bdemoartv: [], bdemomock: [], bdemorevw: [], bdemodens: [],
+    bdemofont: [], bdemolayr: [], bdemofill: [], bdemolist: [], bdemotask: [], bdemotime: [], bdemosrvc: []
+  };
+  var labels = {
+    bdemoprod: {name: 'Products', 2209: 'Filing #', 3: 'Record ID#', 12: 'Item Name', 13: 'Legacy Item Name', 14: 'Legacy UPC', 128: 'Art Versions', 132: 'UPC', 136: 'Art Version Count', 141: 'Brand', 353: 'Current Vendor Proof', 604: 'Approved Color Standard', 662: 'Current Customer Proof'},
+    bdemoitem: {name: 'Order Items', 1: 'Date Created', 3: 'Record ID#', 7: 'Customer', 13: 'UPC', 14: 'Item', 161: 'Weight', 184: 'PO', 329: 'Artwork Link', 382: 'Brand', 506: 'Family', 710: 'Layers', 711: 'Dimensions', 2122: 'Format', 2243: 'Style'},
+    bdemoartv: {name: 'Art Versions', 3: 'Record ID#', 11: 'Version Date', 12: 'Art Type', 37: 'Related Item', 61: 'Art REV', 152: 'Version', 361: 'Vendor Proof', 583: 'Inactive Art', 588: 'Customer Proof'},
+    bdemocust: {name: 'Customers', 3: 'Record ID#', 6: 'Customer Name', 125: 'Inactive'},
+    bdemoordr: {name: 'Orders', 3: 'Record ID#', 18: 'Customer PO'},
+    bdemofami: {name: 'Families', 3: 'Record ID#', 6: 'Family', 31: 'Current Spec'},
+    bdemospec: {name: 'Family Specifications', 3: 'Record ID#', 15: 'Format', 14: 'Style', 151: 'Layers'},
+    bdemomock: {name: 'Mock-Ups', 3: 'Record ID#', 9: 'Format', 10: 'Style', 39: 'Product Name'},
+    bdemolist: {name: 'Art Checklists', 3: 'Record ID#', 13: 'Description', 18: 'Brand'},
+    bdemotask: {name: 'Checklist Tasks', 3: 'Record ID#', 27: 'Department', 28: 'Description'},
+    bdemofill: {name: 'Fill Recordings', 3: 'Record ID#', 12: 'Format', 13: 'Style'},
+    bdemodens: {name: 'Product Densities', 3: 'Record ID#', 6: 'Brand', 7: 'Product', 14: 'Average'},
+    bdemofont: {name: 'System Fonts', 3: 'Record ID#', 6: 'Font Name', 7: 'Font File'}
+  };
+
+  BRANDS.forEach(function (b, i) {
+    var rid = String(i + 1), a = ADDRESSES[i];
+    tables.bdemocust.push({3: rid, 6: b.customer, 125: '0'});
+    ['new pouch line', 'holiday pack', 'club size relaunch'].forEach(function (name, k) {
+      tables.bdemoopps.push({3: String(100 + i * 3 + k), 6: rid, 8: b.customer + ' ' + name, 23: k === 2 ? '1' : '0', 24: k === 2 ? 'Closed' : 'Open'});
+    });
+    tables.bdemoaddr.push({3: String(200 + i), 6: 'Main warehouse', 7: a[0], 8: a[1], 13: rid, 18: '1', 23: a[2], 24: a[3], 25: a[4]});
+    tables.bdemoaddr.push({3: String(250 + i), 6: 'Co-packer', 7: pick(ADDRESSES, i + 3)[0], 8: '', 13: rid, 18: '0', 23: pick(ADDRESSES, i + 3)[2], 24: pick(ADDRESSES, i + 3)[3], 25: pick(ADDRESSES, i + 3)[4]});
+    tables.bdemoship.push({3: String(300 + i), 8: a[0], 9: a[1], 10: a[2], 11: a[3], 12: a[4], 13: 'United States', 16: b.customer});
+  });
+  SHAPES.forEach(function (shape, s) {
+    shape.sizes.forEach(function (size, k) {
+      for (var r = 0; r < 4; r++) {
+        var area = size[0] * size[1], fill = 68 + (s * 3 + k * 5 + r * 4) % 24;
+        tables.bdemofill.push({3: String(400 + s * 12 + k * 4 + r), 1: ms(s * 30 + k * 11 + r * 17), 6: String(+(2 + r * 1.5 + k).toFixed(1)), 7: String(+(0.5 + k * 2 + r).toFixed(1)), 8: String(size[1]), 9: String(size[0]), 10: String(size[2]), 11: pick(BRANDS, s + r).prefix + '00' + (101 + s + r), 12: shape.format, 13: shape.style, 14: shape.gusset, 15: pick(ZIPPERS, k + r), 16: String(+area.toFixed(1)), 17: String(fill), 18: String(Math.round(area * size[2] * fill / 100))});
+      }
+    });
+  });
+  [['Quad Seal Bag', 'Flat Bottom'], ['Quad Seal Bag', 'Pinched Bottom'], ['Stand-Up Pouch', 'K-Seal'], ['Stand-Up Pouch', 'Doyen'], ['Three Side Seal', 'Flat Pouch']].forEach(function (s, i) {
+    tables.bdemostyl.push({3: String(i + 1), 6: s[1], 7: s[0]});
+  });
+
+  PRODUCTS.forEach(function (p, i) {
+    var b = BRANDS[p.b], n = i + 1, upc = b.prefix + '00' + (100 + n), rid = String(100 + n), title = b.customer + ' ' + p.name + ' ' + p.weight;
+    var dims = p.w + ' x ' + p.h + ' x ' + p.g, combo = [p.format, p.style, p.gusset].join(' / '), family = b.code + '-' + String(p.w * 100) + '-' + n;
+    var po = String(21000 + n), order = String(500 + n), art = 'https://files.demo-packaging.example/f/' + b.code + n;
+    var spec = String(300 + n), fam = String(200 + n);
+    tables.bdemospec.push({3: spec, 6: fam, 12: 'v1', 14: p.style, 15: p.format, 43: p.gusset, 53: String(p.w), 54: String(p.h), 55: String(p.g), 56: String(p.w * 25.4), 57: String(p.h * 25.4), 58: String(p.g * 25.4), 65: 'in', 146: 'Zipper', 149: '1.5', 151: p.layers, 154: dims, 155: p.format + ' / ' + p.style, 428: '1.5', 1543: 'Current'});
+    tables.bdemofami.push({3: fam, 6: family, 9: String(p.b + 1), 31: spec, 76: b.customer + ' ' + family, 144: '0'});
+    tables.bdemoprod.push({3: rid, 12: title, 13: title, 14: upc, 128: '2', 132: upc, 136: '2', 141: b.customer, 225: '', 2209: 'Shelf ' + n, 353: 'Rev ' + n, 539: 'Match the approved pantone swatch.', 604: 'On file', 662: 'Rev ' + n});
+    // The first order of each product keeps PO 21000 + n; some products reorder under later POs.
+    for (var o = 0; o < 1 + i % 3; o++) {
+      var line = String(1000 + n * 10 + o), orderId = String(+order + o * 100), thisPo = String(+po + o * 1000), age = i * 8 + o * 120, approved = (i + o) % 3 > 0;
+      tables.bdemoordr.push({3: orderId, 18: thisPo});
+      tables.bdemoitem.push({1: ms(age), 2: ms(age / 2), 3: line, 6: orderId, 7: b.customer, 8: orderId, 13: upc, 14: title, 151: rid, 161: p.weight, 162: title, 163: o ? 'Reorder' : 'New', 184: thisPo, 262: day(age), 265: '0' + (o + 1) + '.26', 329: art, 382: b.customer, 417: approved ? '1' : '0', 419: approved ? day(age / 2) : '', 420: 'Press sheet ' + thisPo, 506: family, 573: o ? 'Revised' : 'New', 710: p.layers, 711: dims, 712: combo, 794: 'Zipper at 1.5"', 2122: p.format, 2209: 'Shelf ' + n, 2243: p.style, 2331: String(p.w), 2332: String(p.h), 2333: String(p.g), 2412: '0', 2519: '0', 2693: '', 2694: '', 2695: '0', 2696: ''});
+      tables.bdemorevw.push({3: String(5000 + n * 10 + o), 7: '', 8: '', 10: '', 16: '', 17: '', 19: '', 31: '', 34: '', 35: line, 41: p.format, 42: p.style, 44: dims, 54: '0', 63: '0', 67: combo});
+    }
+    [0, 1, 2].slice(0, 2 + i % 2).forEach(function (v, index, all) {
+      var artRow = {3: String(2000 + n * 4 + v), 10: title, 11: day(i * 8 + v * 95), 12: v === all.length - 1 ? 'New' : 'Revised', 18: 'Art REV', 37: rid, 40: title, 58: upc, 59: title, 61: '0' + (all.length - v) + '.26', 84: b.customer, 127: fam, 152: String(all.length - v), 205: v ? '0' : '1', 330: b.customer, 361: art + '-vendor.pdf', 376: p.weight, 481: String(parseFloat(p.weight)), 522: dims, 523: combo, 524: 'Tear notch', 525: p.layers, 526: 'Zipper, tear notch', 583: v ? '1' : '0', 588: art + '-customer.pdf', 624: upc};
+      colorBank(artRow, 191, n); colorBank(artRow, 571, n + 1); colorBank(artRow, 589, n + 2);
+      tables.bdemoartv.push(artRow);
+    });
+    tables.bdemomock.push({1: ms(i * 7), 3: String(1500 + n), 6: 'Opportunity ' + n, 7: p.format, 9: p.format, 10: p.style, 11: p.style, 12: String(p.w), 13: String(p.h), 14: String(p.g), 15: p.weight, 16: '1', 18: '3', 19: 'Demo mockup request.', 22: day(-7), 26: pick(ZIPPERS, i), 27: 'PET12/LLDPE100', 33: p.gusset, 35: String(p.b + 1), 36: b.customer, 39: p.name, 40: '1.5', 49: 'Mockup', 51: 'Opportunity ' + n, 53: p.format, 54: p.style, 56: p.gusset, 57: String(p.w), 58: String(p.h), 59: String(p.g), 62: pick(ZIPPERS, i), 63: '1.5', 74: ADDRESSES[p.b][0], 75: ADDRESSES[p.b][1], 76: ADDRESSES[p.b][2], 77: ADDRESSES[p.b][3], 78: ADDRESSES[p.b][4], 79: 'United States'});
+    var cups = [0, 1, 2, 3, 4].map(function (c) { return (2.1 + (n % 7) * 0.12 + ((n + c * 3) % 5) * 0.02).toFixed(2); });
+    tables.bdemodens.push({3: String(i + 1), 1: ms(i * 5), 6: b.customer, 7: p.name, 8: '', 9: cups[0], 10: cups[1], 11: cups[2], 12: cups[3], 13: cups[4], 14: (cups.reduce(function (s, v) { return s + +v; }, 0) / 5).toFixed(2)});
+  });
+
+  ['Demo Sans Regular', 'Demo Sans Medium', 'Demo Sans Bold', 'Demo Serif Regular', 'Demo Serif Italic', 'Demo Mono', 'Demo Condensed'].forEach(function (name, i) { tables.bdemofont.push({3: String(i + 1), 6: name, 7: ''}); });
+  LAYERS.forEach(function (name, i) { tables.bdemolayr.push({3: String(i + 1), 6: name, 7: String(40 - i * 3)}); });
+  PRODUCTS.slice(0, 12).forEach(function (p, i) {
+    var lid = String(3000 + i), b = BRANDS[p.b], done = i % 5;
+    tables.bdemolist.push({3: lid, 10: String(501 + i), 13: 'Art checklist: ' + p.name, 14: '0', 16: '0', 17: String(p.b + 1), 18: b.customer, 19: String(21001 + i), 21: '4', 25: pick(PEOPLE, i), 29: String(1 + i % 4 * 0.5), 30: String(4 - Math.min(done, 4))});
+    ['Prepress', 'Proofreading', 'PC', 'Engineering'].forEach(function (dept, t) {
+      tables.bdemotask.push({3: String(3100 + i * 10 + t), 12: lid, 14: '0', 15: '', 16: t < done ? '1' : '0', 18: String(t + 1), 26: 'General', 27: dept, 28: dept + ' review of ' + p.name, 29: '', 32: String(t + 1), 34: '0'});
+    });
+  });
+  [['Prepress', 'Production Art'], ['Prepress', 'Proof Review'], ['Project Coordination', 'Scheduling'], ['Engineering', 'Dieline Review']].forEach(function (s, i) { tables.bdemosrvc.push({3: String(i + 1), 6: s[0], 7: s[1]}); });
+
+  var ids = {};
+  function nextRid(table) { ids[table] = ids[table] || Object.keys(tables[table] || {}).length + 90000; return String(++ids[table]); }
+  function rows(table) { return tables[table] || (tables[table] = []); }
+  function xmlEsc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+
+  // Quickbase query language: {fid.OP.'value'} joined by AND / OR, with parentheses.
+  function when(value) { return /^\d{10,}$/.test(value) ? +value : Date.parse(value) || 0; }
+  function test(row, fid, op, want) {
+    var have = String(row[fid] == null ? '' : row[fid]), h = have.toLowerCase(), w = String(want).toLowerCase(), n = parseFloat(have), m = parseFloat(want);
+    switch (op) {
+      case 'EX': case 'TV': return h === w;
+      case 'XEX': case 'XTV': return h !== w;
+      case 'CT': case 'HAS': return h.indexOf(w) >= 0;
+      case 'XCT': return h.indexOf(w) < 0;
+      case 'SW': return h.indexOf(w) === 0;
+      case 'XSW': return h.indexOf(w) !== 0;
+      case 'OAF': case 'AF': return when(have) >= when(want);
+      case 'OBF': case 'BF': return when(have) <= when(want);
+      case 'GT': return isNaN(n) ? have > want : n > m;
+      case 'GTE': return n >= m;
+      case 'LT': return isNaN(n) ? have < want : n < m;
+      case 'LTE': return n <= m;
+      default: return true;
+    }
+  }
+  function tokenize(q) {
+    var out = [], re = /\{\s*'?(\d+)'?\s*\.\s*([A-Z]+)\s*\.\s*'((?:\\.|[^'])*)'\s*\}|\(|\)|AND|OR/gi, m;
+    while ((m = re.exec(q))) out.push(m[1] ? {fid: m[1], op: m[2].toUpperCase(), value: m[3].replace(/\\(.)/g, '$1')} : m[0].toUpperCase());
+    return out;
+  }
+  function matcher(q) {
+    var t = tokenize(q || ''), i = 0;
+    if (!t.length) return function () { return true; };
+    function atom(row) {
+      var k = t[i++];
+      if (k === '(') { var v = or(row); i++; return v; }
+      return !k || !k.fid || test(row, k.fid, k.op, k.value);
+    }
+    function and(row) { var v = atom(row); while (t[i] === 'AND') { i++; var r = atom(row); v = v && r; } return v; }
+    function or(row) { var v = and(row); while (t[i] === 'OR') { i++; var r = and(row); v = v || r; } return v; }
+    return function (row) { i = 0; return or(row); };
+  }
+  function select(table, q, slist, options) {
+    var list = rows(table).filter(matcher(q)), opt = String(options || ''), sort = String(slist || '').split('.').filter(Boolean)[0];
+    if (sort) {
+      var desc = /sortorder-D/.test(opt);
+      list = list.slice().sort(function (a, b) { var x = a[sort], y = b[sort], nx = parseFloat(x), ny = parseFloat(y), c = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x || '').localeCompare(String(y || '')); return desc ? -c : c; });
+    }
+    var skip = /skp-(\d+)/.exec(opt), num = /num-(\d+)/.exec(opt);
+    if (skip) list = list.slice(+skip[1]);
+    if (num) list = list.slice(0, +num[1]);
+    return list;
+  }
+  function ok(body) { return '<?xml version="1.0"?><qdbapi><action>demo</action><errcode>0</errcode><errtext>No error</errtext>' + (body || '') + '</qdbapi>'; }
+  function labelOf(table, fid) { return (labels[table] && labels[table][fid]) || 'Field ' + fid; }
+  function fidsOf(table) { var seen = {}; rows(table).forEach(function (r) { Object.keys(r).forEach(function (k) { seen[k] = 1; }); }); Object.keys(labels[table] || {}).forEach(function (k) { if (k !== 'name') seen[k] = 1; }); return Object.keys(seen).sort(function (a, b) { return a - b; }); }
+  function doQuery(table, p) {
+    var list = select(table, p.query, p.slist, p.options), clist = String(p.clist || '').split('.').filter(function (x) { return /^\d+$/.test(x); });
+    if (!clist.length) clist = fidsOf(table);
+    var fields = clist.map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    var body = list.map(function (r) {
+      return '<record rid="' + xmlEsc(r[3]) + '">' + clist.map(function (f) { return '<f id="' + f + '">' + xmlEsc(r[f]) + '</f>'; }).join('') + '<update_id>1</update_id></record>';
+    }).join('');
+    return ok('<table><fields>' + fields + '</fields><records>' + body + '</records></table>');
+  }
+  function schema(table) {
+    if (!tables[table]) {
+      var kids = Object.keys(labels).map(function (t) { return '<chdbid name="_dbid_' + xmlEsc(labels[t].name.toLowerCase().replace(/\W+/g, '_')) + '">' + t + '</chdbid>'; }).join('');
+      return ok('<table><name>Demo Packaging</name><original><app_id>' + table + '</app_id></original><chdbids>' + kids + '</chdbids><fields></fields></table>');
+    }
+    var fields = fidsOf(table).map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    return ok('<table><name>' + xmlEsc((labels[table] || {}).name || table) + '</name><original><table_id>' + table + '</table_id></original><fields>' + fields + '</fields></table>');
+  }
+  function writeFields(p, body) {
+    var out = {}, k;
+    for (k in p) { var m = /^_fid_(\d+)$/.exec(k); if (m) out[m[1]] = p[k]; }
+    if (body && /<field/.test(body)) {
+      var doc = new DOMParser().parseFromString(body, 'text/xml');
+      [].forEach.call(doc.querySelectorAll('field'), function (n) { if (n.getAttribute('fid')) out[n.getAttribute('fid')] = n.textContent; });
+      var rid = doc.querySelector('rid'); if (rid) p.rid = rid.textContent;
+      ['query', 'clist', 'slist', 'options', 'varname'].forEach(function (name) { var e = doc.querySelector(name); if (e && !p[name]) p[name] = e.textContent; });
+    }
+    return out;
+  }
+  // The real page stores a generated script on the record. There is no record to open here, so hand it over as a download.
+  function saveUpload(body) {
+    var file = new DOMParser().parseFromString(body, 'text/xml').querySelector('field[filename]');
+    if (file) {
+      var bytes = Uint8Array.from(atob(file.textContent), function (c) { return c.charCodeAt(0); });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([bytes], {type: 'application/javascript'}));
+      link.download = file.getAttribute('filename');
+      window.__demoLastFile = {name: link.download, text: new TextDecoder().decode(bytes)};
+      link.click();
+    }
+    return ok('<rid>1</rid>');
+  }
+  function xmlApi(table, p, body) {
+    var fields = writeFields(p, body), row;
+    switch (p.a) {
+      case 'API_DoQuery': return doQuery(table, p);
+      case 'API_DoQueryCount': return ok('<numMatches>' + select(table, p.query).length + '</numMatches>');
+      case 'API_GetDBVar': return ok('<value>demo-value</value>');
+      case 'API_SetDBVar': return ok();
+      case 'API_GetUserInfo': return ok('<user id="1.demo"><firstName>Demo</firstName><lastName>User</lastName><login>demo.user</login><email>demo.user@demo-packaging.example</email><screenName>Demo User</screenName></user>');
+      case 'API_GetSchema': return schema(table);
+      case 'API_GetDBPage': return '';
+      case 'dbpage': return (window.__DEMO_PAGES || {})[p.pageID || p.pageid] || '';
+      case 'API_UploadFile': return saveUpload(body);
+      case 'API_AddRecord':
+        row = fields; row[3] = nextRid(table); row[1] = String(Date.now()); row[2] = row[1]; rows(table).unshift(row);
+        return ok('<rid>' + row[3] + '</rid><update_id>1</update_id>');
+      case 'API_EditRecord':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid || p.key); })[0];
+        if (row) Object.keys(fields).forEach(function (f) { row[f] = fields[f]; });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid><num_fields_changed>1</num_fields_changed><update_id>2</update_id>');
+      case 'API_DeleteRecord':
+        tables[table] = rows(table).filter(function (r) { return String(r[3]) !== String(p.rid); });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>');
+      case 'API_GetRecordInfo':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid); })[0] || {};
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>' + Object.keys(row).map(function (f) { return '<field><fid>' + f + '</fid><name>' + xmlEsc(labelOf(table, f)) + '</name><type>Text</type><value>' + xmlEsc(row[f]) + '</value></field>'; }).join(''));
+      default: return ok();
+    }
+  }
+  function restWhere(where) { return where || ''; }
+  function restApi(url, init) {
+    var path = url.pathname, body = {};
+    try { body = JSON.parse(init.body || '{}'); } catch (e) {}
+    if (/\/v1\/auth\/temporary\//.test(path)) return {temporaryAuthorization: 'demo-token'};
+    if (/\/v1\/records\/query/.test(path)) {
+      var select_ = body.select || [], sort = (body.sortBy || [])[0], list = select(body.from, restWhere(body.where), sort && sort.fieldId, sort && sort.order === 'DESC' ? 'sortorder-D' : '');
+      return {data: list.map(function (r) { var o = {}; select_.forEach(function (f) { o[f] = {value: r[f] == null ? '' : r[f]}; }); return o; }),
+        fields: select_.map(function (f) { return {id: f, label: labelOf(body.from, f), type: 'text'}; }),
+        metadata: {numRecords: list.length, numFields: select_.length, totalRecords: list.length, skip: 0}};
+    }
+    if (/\/v1\/records/.test(path)) {
+      var created = (body.data || []).map(function (src) { var row = {}; Object.keys(src).forEach(function (f) { row[f] = src[f] && src[f].value; }); row[3] = row[3] || nextRid(body.to); rows(body.to).unshift(row); return +row[3]; });
+      return {data: [], metadata: {createdRecordIds: created, updatedRecordIds: [], unchangedRecordIds: [], totalNumberOfRecordsProcessed: created.length}};
+    }
+    if (/\/v1\/fields/.test(path)) { var t = url.searchParams.get('tableId'); return fidsOf(t).map(function (f) { return {id: +f, label: labelOf(t, f), fieldType: 'text'}; }); }
+    if (/\/v1\/tables/.test(path)) return Object.keys(labels).map(function (t) { return {id: t, name: labels[t].name}; });
+    return {};
+  }
+  function params(url, init) {
+    var p = {};
+    url.searchParams.forEach(function (v, k) { p[k] = v; });
+    var b = init && init.body;
+    if (b && typeof b === 'string' && !/^\s*</.test(b)) new URLSearchParams(b).forEach(function (v, k) { p[k] = v; });
+    else if (b && b.forEach && !(b instanceof Blob)) b.forEach(function (v, k) { if (typeof v === 'string') p[k] = v; });
+    var h = init && init.headers, action = h && (h['QUICKBASE-ACTION'] || (h.get && h.get('QUICKBASE-ACTION')));
+    if (action) p.a = action;
+    return p;
+  }
+  function respond(url, init) {
+    var host = url.hostname;
+    if (host === 'api.quickbase.com') return new Response(JSON.stringify(restApi(url, init || {})), {status: 200, headers: {'Content-Type': 'application/json'}});
+    var m = /^\/db\/([^/?#]+)/.exec(url.pathname), p = params(url, init), text = m ? xmlApi(m[1], p, typeof (init || {}).body === 'string' ? init.body : '') : '';
+    return new Response(text, {status: 200, headers: {'Content-Type': 'text/xml'}});
+  }
+  var realFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var raw = input && input.url ? input.url : String(input), url = new URL(raw, location.href);
+    if (url.hostname === HOST || url.hostname === 'api.quickbase.com' || (url.origin === location.origin && /^\/db\//.test(url.pathname))) return Promise.resolve(respond(url, init || {}));
+    if (url.hostname.indexOf('.example') > 0) return Promise.resolve(new Response('', {status: 404}));
+    return realFetch.apply(this, arguments);
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var tag = document.createElement('div');
+    tag.textContent = 'Demo: fictional company and data';
+    tag.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 10px;border-radius:999px;background:#1f2937;color:#fff;font:600 12px/1 system-ui,sans-serif;opacity:.85;pointer-events:none';
+    document.body.appendChild(tag);
+  });
+})();
+
+</script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mock-Up Request</title>
+  <link rel="icon" type="image/png" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27%233b3f8f%27/%3E%3C/svg%3E">
+  <style id="demo-theme">
+    /* Demo Packaging app theme - shared tokens (see tools/README.md) */
+    :root{--x-brand:#3b3f8f;--x-brand-hover:#2d3070;--x-accent:#5257b8;--x-accent-soft:#e4f0f2;--x-ink:#132a35;--x-muted:#62757c;--x-line:#d6e0e3;--x-line-strong:#c3d2d6;--x-soft:#eef4f5;--x-paper:#fff;--x-canvas:#f3f6f7;--x-danger:#a73543;--x-success:#18705f;--x-warning:#8a5a00;--x-radius-card:14px;--x-radius-inner:11px;--x-radius-control:9px;--x-radius-small:7px;--x-shadow-card:0 1px 2px rgba(3,61,75,.05),0 6px 18px rgba(3,61,75,.06);--x-shadow-pop:0 14px 32px rgba(3,61,75,.16);--x-shadow-modal:0 24px 70px rgba(2,32,40,.3);--x-focus:0 0 0 3px rgba(13,99,114,.18);--x-font:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  </style>
+  <style>
+    *{box-sizing:border-box}
+    [hidden]{display:none!important}
+    body{margin:0;min-width:320px;background:var(--x-canvas);color:var(--x-ink);font:15px/1.45 var(--x-font)}
+    button,input,select,textarea{font:inherit;color:inherit}
+    button{cursor:pointer}
+    .shell{max-width:1180px;margin:0 auto;padding:26px 20px 56px}
+    .page-head{margin-bottom:18px}
+    .eyebrow{margin:0 0 5px;color:var(--x-accent);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    .page-head h1{margin:0;font-size:clamp(26px,3.2vw,36px);font-weight:750;line-height:1.08;letter-spacing:-.035em}
+    .page-head p{max-width:680px;margin:8px 0 0;color:var(--x-muted)}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start}
+    .steps{display:grid;gap:16px}
+    .step{border:1px solid var(--x-line);border-radius:var(--x-radius-card);background:var(--x-paper);box-shadow:var(--x-shadow-card);overflow:hidden;animation:step-in .28s cubic-bezier(.22,1,.36,1)}
+    @keyframes step-in{from{opacity:0;transform:translateY(8px)}}
+    @media (prefers-reduced-motion:reduce){.step{animation:none}}
+    .step-head{padding:16px 20px 0;display:flex;align-items:center;gap:12px}
+    .step-num{flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:var(--x-brand);color:#fff;font-size:13px;font-weight:800}
+    .step.done .step-num{background:var(--x-success)}
+    .step-head h2{margin:0;font-size:17px;letter-spacing:-.015em}
+    .step-body{padding:14px 20px 20px}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .field{position:relative;min-width:0;display:grid;align-content:start;gap:5px}
+    .field.wide{grid-column:1/-1}
+    .field>span{font-size:12.5px;font-weight:800}
+    .field>span b{color:var(--x-danger)}
+    .field small{color:var(--x-muted);font-size:11.5px;line-height:1.35}
+    .input,.field select,textarea{width:100%;min-height:44px;padding:0 12px;border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:#fff;font-size:15px;outline:0}
+    textarea{min-height:84px;padding:10px 12px;resize:vertical}
+    .input:focus,.field select:focus,textarea:focus{border-color:var(--x-accent);box-shadow:var(--x-focus)}
+    .input.invalid{border-color:var(--x-danger)}
+    .unit{position:relative}.unit .input{padding-right:40px}
+    .unit em{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--x-muted);font-size:12px;font-style:normal;font-weight:800;pointer-events:none}
+    .choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .choice{padding:16px 18px;border:1.5px solid var(--x-line-strong);border-radius:var(--x-radius-inner);background:#fff;text-align:left}
+    .choice strong{display:block;font-size:16px}
+    .choice span{color:var(--x-muted);font-size:13px}
+    .choice:hover{border-color:var(--x-accent)}
+    .choice[aria-pressed="true"]{border-color:var(--x-brand);background:var(--x-accent-soft);box-shadow:inset 0 0 0 1px var(--x-brand)}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{min-height:38px;padding:0 14px;border:1px solid var(--x-line-strong);border-radius:999px;background:#fff;font-size:13.5px;font-weight:700}
+    .chip:hover{border-color:var(--x-accent)}
+    .chip[aria-pressed="true"]{border-color:var(--x-brand);background:var(--x-brand);color:#fff}
+    .combo-list{position:absolute;z-index:30;top:100%;left:0;right:0;margin-top:4px;max-height:280px;overflow:auto;padding:5px;border:1px solid var(--x-line);border-radius:var(--x-radius-inner);background:#fff;box-shadow:var(--x-shadow-pop)}
+    .combo-list button{width:100%;min-height:40px;padding:6px 10px;display:block;border:0;border-radius:var(--x-radius-small);background:transparent;text-align:left}
+    .combo-list button:hover,.combo-list button.active{background:var(--x-soft)}
+    .combo-list small{display:block;color:var(--x-muted);font-size:12px}
+    .combo-list .none{padding:10px;color:var(--x-muted);font-size:13px}
+    .picked{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:6px 8px 6px 12px;border:1px solid var(--x-brand);border-radius:var(--x-radius-control);background:var(--x-accent-soft);font-weight:700}
+    .picked button{border:0;background:transparent;color:var(--x-accent);font-size:13px;font-weight:800}
+    .spec-card{padding:14px 16px;border-radius:var(--x-radius-inner);background:var(--x-soft);font-size:14px}
+    .spec-card dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px}
+    .spec-card dt{color:var(--x-muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+    .spec-card dd{margin:0;font-weight:650;overflow-wrap:anywhere}
+    .warn{margin:8px 0 0;padding:10px 12px;border-radius:var(--x-radius-small);background:#ffe7ea;color:var(--x-danger);font-size:13px;font-weight:650}
+    .warn button{margin-left:6px;border:0;background:none;color:var(--x-danger);font-weight:800;text-decoration:underline}
+    .note{color:var(--x-muted);font-size:12.5px}
+    .page-head{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:18px}.page-head>*{grid-column:1}
+    .test-toggle{grid-column:2!important;grid-row:1 / span 3;align-self:start;max-width:260px;display:flex;gap:10px;padding:10px 12px;border:1px dashed var(--x-line-strong);border-radius:var(--x-radius-inner);background:#fff;cursor:pointer;font-size:12.5px;color:var(--x-muted)}
+    .test-toggle input{width:18px;height:18px;margin:1px 0 0;accent-color:#c2661a}
+    .test-toggle b{display:block;color:var(--x-ink);font-size:13.5px}
+    .test-banner{grid-column:1 / -1!important;margin:12px 0 0;padding:10px 14px;border-radius:var(--x-radius-inner);background:#fff1e3;color:#8a4b12;font-weight:800;letter-spacing:.02em}
+    body.testing .summary-top{background:#8a4b12}
+    .test-payload{max-height:340px;overflow:auto;margin:0 0 14px;padding:12px;border-radius:var(--x-radius-small);background:var(--x-soft);font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+    .sizing-note{margin:0 0 14px;padding:10px 12px;border-radius:var(--x-radius-small);background:var(--x-accent-soft);color:var(--x-brand);font-size:13px;font-weight:650}
+    body.sizing [data-size] b{display:none}
+    .sizing-toggle{margin-top:12px;display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid var(--x-line-strong);border-radius:var(--x-radius-inner);cursor:pointer;font-size:13px;color:var(--x-muted)}
+    .sizing-toggle input{flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:var(--x-brand)}
+    .sizing-toggle b{display:block;color:var(--x-ink);font-size:14px}
+    body.sizing .sizing-toggle{border-color:var(--x-brand);background:var(--x-accent-soft)}
+    @media (max-width:640px){.page-head{grid-template-columns:1fr}.test-toggle{grid-column:1!important;grid-row:auto;max-width:none;margin-top:10px}.choices{grid-template-columns:1fr}}
+
+    .summary{position:sticky;top:18px;border:1px solid var(--x-line);border-radius:var(--x-radius-card);background:var(--x-paper);box-shadow:var(--x-shadow-card);overflow:hidden}
+    .summary-top{padding:18px 20px 16px;background:var(--x-brand);color:#fff}
+    .summary-top .eyebrow{color:#a9d3da}
+    .summary-top h2{margin:0;font-size:19px;line-height:1.25;overflow-wrap:anywhere}
+    .summary-top p{margin:4px 0 0;color:#cfe6ea;font-size:13px}
+    .summary dl{margin:0;padding:10px 20px 6px}
+    .summary dl div{padding:9px 0;border-bottom:1px solid var(--x-line)}
+    .summary dl div:last-child{border-bottom:0}
+    .summary dt{color:var(--x-muted);font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .summary dd{margin:2px 0 0;font-weight:650;overflow-wrap:anywhere}
+    .summary dd.empty{color:#a4b3b7;font-weight:500}
+    .save{padding:4px 20px 20px}
+    .button{width:100%;min-height:50px;padding:0 18px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--x-brand);border-radius:var(--x-radius-control);background:var(--x-brand);color:#fff;font-size:16px;font-weight:700;text-decoration:none}
+    .button:hover:not(:disabled){background:var(--x-brand-hover)}
+    .button:disabled{opacity:.5;cursor:not-allowed}
+    .button.secondary{border-color:var(--x-line-strong);background:#fff;color:var(--x-ink);font-size:14px;min-height:44px}
+    .button.secondary:hover{background:var(--x-soft)}
+    .missing{margin:10px 0 0;padding:0 0 0 18px;color:var(--x-muted);font-size:12.5px}
+    .status{margin:10px 0 0;font-size:13px;color:var(--x-muted)}.status.bad{color:var(--x-danger)}.status.good{color:var(--x-success)}
+    .done-card{padding:22px 20px}
+    .done-card h2{margin:0 0 4px;font-size:20px}
+    .done-card p{margin:0 0 14px;color:var(--x-muted)}
+    .done-links{display:grid;gap:8px}
+    @media (max-width:960px){.layout{grid-template-columns:1fr}.summary{position:static}}
+    @media (max-width:640px){.shell{padding:16px 12px 40px}.page-head p{display:none}.grid,.grid.two{grid-template-columns:1fr 1fr}.choices{grid-template-columns:1fr}.step-body{padding:12px 14px 16px}.step-head{padding:14px 14px 0}.input,.field select,textarea{font-size:16px}}
+    @media (max-width:420px){.grid,.grid.two{grid-template-columns:1fr}}
+
+    /* Demo Packaging app header - shared standard (see App Development/HEADER-STANDARD.md) */
+    :root{--xh-height:60px}
+    .xh{position:relative;z-index:20;background:#3b3f8f;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.18);font-family:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.2}
+    .xh-inner{height:var(--xh-height);padding:0 24px;display:flex;align-items:center;gap:16px}
+    .xh-logo{flex:none;display:block;width:auto;height:26px}
+    .xh-home{flex:none;display:flex;align-items:center;border-radius:6px;text-decoration:none;transition:opacity .15s}.xh-home:hover{opacity:.82}.xh-home:focus-visible{outline:2px solid #8fd6e1;outline-offset:5px}
+    .xh-symbol{flex:none;display:none;width:22px;height:22px}
+    .xh-divider{flex:none;width:1px;height:28px;background:rgba(255,255,255,.28)}
+    .xh-title{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .xh-title strong{overflow:hidden;color:#fff;font-size:16px;font-weight:700;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+    .xh-title span{overflow:hidden;color:#a3c9d1;font-size:11px;font-weight:700;letter-spacing:.1em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    @media(max-width:640px){:root{--xh-height:52px}.xh-inner{padding:0 14px;gap:11px}.xh-logo{height:21px}.xh-divider{height:24px}.xh-title strong{font-size:15px}.xh-title span{display:none}}
+    @media print{.xh{display:none!important}}
+  </style>
+  <style id="no-sideways-scroll">
+    /* Phones never scroll sideways. clip (unlike hidden) keeps sticky headers and inner scroll areas working. */
+    @media (max-width:760px){html,body{max-width:100%;overflow-x:clip}body{min-width:0!important}}
+  </style>
+  
+<!-- app-version:start (managed by demo_versions.py: change versions.json, not this copy) -->
+
+
+
+
+</head>
+<body>
+  <header class="xh">
+    <div class="xh-inner">
+      <a class="xh-home" href="#" title="All demo apps" aria-label="Demo Apps: all our tools"><img class="xh-logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27white%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging" width="89" height="26">
+      <img class="xh-symbol" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27white%27/%3E%3C/svg%3E" alt="Demo Packaging" width="22" height="22"></a>
+      <span class="xh-divider" aria-hidden="true"></span>
+      <div class="xh-title"><strong>Mock-Up Request</strong><span>New mock-up</span></div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="page-head">
+      <p class="eyebrow">Mock-Ups</p>
+      <h1>Request a mock-up</h1>
+      <label class="test-toggle"><input type="checkbox" id="testMode"> <span><b>Test mode</b> Walk through everything without saving anything.</span></label>
+      <p class="test-banner" id="testBanner" hidden>TEST MODE: nothing will be saved to Quickbase.</p>
+      <p>Answer each step and the next one opens. The summary on the right is the text that goes into the mock-up email, so you can check it before saving.</p>
+    </div>
+    <div class="layout">
+      <div class="steps" id="form">
+        <!-- 1 -->
+        <section class="step" id="step1">
+          <div class="step-head"><span class="step-num">1</span><h2>How are we specifying it?</h2></div>
+          <div class="step-body"><div class="choices">
+            <button type="button" class="choice" data-method="Manual" aria-pressed="false"><strong>Enter manually</strong><span>Type the format, style and size.</span></button>
+            <button type="button" class="choice" data-method="Family Specification" aria-pressed="false"><strong>From a family spec</strong><span>Use an existing family's specification.</span></button>
+          </div>
+          <label class="sizing-toggle"><input type="checkbox" id="sizingToggle"><span><b>Sizing project</b> Sizes aren't final yet. Sizes become optional and you'll describe the needs in the notes.</span></label></div>
+        </section>
+        <!-- 2 -->
+        <section class="step" id="step2" hidden>
+          <div class="step-head"><span class="step-num">2</span><h2>Who is it for?</h2></div>
+          <div class="step-body"><div class="grid two">
+            <div class="field wide" id="customerField"><span>Customer <b>*</b></span>
+              <input class="input" id="customerSearch" placeholder="Start typing a customer name" autocomplete="off" aria-autocomplete="list">
+              <div class="picked" id="customerPicked" hidden><span id="customerName"></span><button type="button" id="customerChange">Change</button></div>
+              <div class="combo-list" id="customerList" hidden></div></div>
+            <label class="field"><span>Opportunity</span><select id="opportunity" disabled><option value="">Pick a customer first</option></select><small>Optional.</small></label>
+            <label class="field" id="productField"><span>Product name <b>*</b></span><input class="input" id="productName" placeholder="e.g. 5lb Wild Meadow FD" autocomplete="off"></label>
+            <label class="field" id="familyField" hidden><span>Family <b>*</b></span><select id="family" disabled><option value="">Pick a customer first</option></select></label>
+            <label class="field" id="specField" hidden><span>Spec version <b>*</b></span><select id="spec" disabled><option value="">Pick a family first</option></select></label>
+          </div></div>
+        </section>
+        <!-- 3 -->
+        <section class="step" id="step3" hidden>
+          <div class="step-head"><span class="step-num">3</span><h2>The bag</h2></div>
+          <div class="step-body">
+            <div id="familyBag" hidden>
+              <p class="sizing-note" data-sizing-note hidden>Sizing project: the spec's sizes are a starting point, not final. Explain what needs to change in the notes (step 5).</p>
+              <div class="spec-card"><dl id="specDetails"></dl></div>
+              <label class="field" style="margin-top:14px"><span>Film <b>*</b></span><select id="filmFamily"></select></label>
+            </div>
+            <div id="manualBag" hidden>
+              <p class="sizing-note" data-sizing-note hidden>Sizing project: sizes are optional here. Explain what the customer needs in the notes (step 5).</p>
+              <div class="field wide"><span>Format <b>*</b></span><div class="chips" id="formats"></div></div>
+              <div class="grid" style="margin-top:14px">
+                <label class="field"><span>Style <b>*</b></span><select id="style" disabled><option value="">Pick a format first</option></select></label>
+                <label class="field" id="gussetStyleField" hidden><span>Gusset style <b>*</b></span><select id="gussetStyle"><option value="">Select one</option><option>Terminated</option><option>Non-Terminated</option></select></label>
+                <label class="field" data-size="W"><span>Width <b>*</b></span><span class="unit"><input class="input" id="width" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span></label>
+                <label class="field" data-size="H"><span>Height <b>*</b></span><span class="unit"><input class="input" id="height" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span></label>
+                <label class="field" data-size="G"><span>Gusset <b>*</b></span><span class="unit"><input class="input" id="gusset" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span></label>
+                <label class="field" data-size="WEB" hidden><span>Web width <b>*</b></span><span class="unit"><input class="input" id="webWidth" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span></label>
+                <label class="field" data-size="REP" hidden><span>Repeat <b>*</b></span><span class="unit"><input class="input" id="repeat" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span></label>
+                <label class="field" data-size="FO" hidden><span>Fold over (FO) <b>*</b></span><span class="unit"><input class="input" id="fo" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span></label>
+              </div>
+              <div class="grid" style="margin-top:14px">
+                <label class="field"><span>Fill weight</span><input class="input" id="fillWeight" type="number" min="0" step="any" inputmode="decimal"></label>
+                <label class="field"><span>Units</span><select id="pkgUnits"><option>lb</option><option>oz</option><option>count</option><option>pcs</option><option>kg</option><option>g</option><option>qt</option></select></label>
+                <label class="field"><span>Film <b>*</b></span><select id="film"></select></label>
+                <label class="field"><span>Closure <b>*</b></span><select id="closure"><option value="">Select one</option></select></label>
+                <label class="field" id="closureHeightField" hidden><span>Closure position</span><span class="unit"><input class="input" id="closureHeight" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span><small>From the top.</small></label>
+              </div>
+            </div>
+          </div>
+        </section>
+        <!-- 4 -->
+        <section class="step" id="stepShip" hidden>
+          <div class="step-head"><span class="step-num">4</span><h2>Ship to</h2></div>
+          <div class="step-body">
+            <label class="field wide"><span>Use an address</span><select id="addressPick" disabled><option value="">Pick a customer first</option></select><small id="addressNote"></small></label>
+            <!-- The browser's "save address" prompt and address autofill are switched off on these boxes: browsers ignore
+                 autocomplete="off" for address fields but respect a non-address type (one-time-code). The data-* flags do the
+                 same for LastPass, 1Password and Dashlane. -->
+            <div class="grid" style="margin-top:12px">
+              <label class="field wide"><span>Attention / company</span><input class="input" id="shipAttention" autocomplete="one-time-code" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="e.g. Example Co-Packer ATTN: Sam Rivera"><small>Optional. Saved on the Street 2 line.</small></label>
+              <label class="field wide"><span>Street 1 <b>*</b></span><input class="input" id="shipStreet1" autocomplete="one-time-code" data-lpignore="true" data-1p-ignore data-form-type="other"></label>
+              <label class="field wide"><span>Street 2</span><input class="input" id="shipStreet2" autocomplete="one-time-code" data-lpignore="true" data-1p-ignore data-form-type="other"></label>
+              <label class="field"><span>City <b>*</b></span><input class="input" id="shipCity" autocomplete="one-time-code" data-lpignore="true" data-1p-ignore data-form-type="other"></label>
+              <label class="field"><span>State / region <b>*</b></span><input class="input" id="shipState" autocomplete="one-time-code" data-lpignore="true" data-1p-ignore data-form-type="other"></label>
+              <label class="field"><span>Postal code <b>*</b></span><input class="input" id="shipPostal" autocomplete="one-time-code" data-lpignore="true" data-1p-ignore data-form-type="other"></label>
+              <label class="field"><span>Country <b>*</b></span><input class="input" id="shipCountry" value="United States" autocomplete="one-time-code" data-lpignore="true" data-1p-ignore data-form-type="other"></label>
+            </div>
+          </div>
+        </section>
+        <!-- 5 -->
+        <section class="step" id="step4" hidden>
+          <div class="step-head"><span class="step-num">5</span><h2>When and how many</h2></div>
+          <div class="step-body"><div class="grid">
+            <label class="field"><span>Date due <b>*</b></span><input class="input" id="dateDue" type="date"></label>
+            <label class="field"><span>Samples <b>*</b></span><input class="input" id="samples" type="number" min="1" step="1" inputmode="numeric" value="1"></label>
+            <div class="field"></div>
+            <label class="field wide"><span id="commentsLabel">Comments</span><textarea id="comments" placeholder="Anything engineering should know"></textarea><small id="commentsHint"></small></label>
+          </div>
+          <p class="warn" id="tooSoon" hidden></p></div>
+        </section>
+      </div>
+
+      <aside class="summary" aria-live="polite">
+        <div id="summaryView">
+          <div class="summary-top"><p class="eyebrow">Mock-up summary</p><h2 id="sumTitle">New mock-up</h2><p id="sumCustomer">No customer yet</p></div>
+          <dl>
+            <div><dt>Format / style</dt><dd id="sumFormat" class="empty">Not set</dd></div>
+            <div><dt>Dimensions</dt><dd id="sumDims" class="empty">Not set</dd></div>
+            <div><dt>Closure</dt><dd id="sumZipper" class="empty">Not set</dd></div>
+            <div><dt>Fill weight</dt><dd id="sumFill" class="empty">Not set</dd></div>
+            <div><dt>Film</dt><dd id="sumFilm" class="empty">Not set</dd></div>
+            <div><dt>Ship to</dt><dd id="sumShip" class="empty">Not set</dd></div>
+            <div><dt>Due / samples</dt><dd id="sumDue" class="empty">Not set</dd></div>
+          </dl>
+          <div class="save"><button class="button" id="saveButton" type="button" disabled>Create mock-up request</button><ul class="missing" id="missing"></ul><p class="status" id="saveStatus"></p></div>
+        </div>
+        <div class="done-card" id="doneView" hidden>
+          <p class="eyebrow" id="doneEyebrow">Saved</p><h2 id="doneTitle">Mock-up request created</h2><p id="doneNote"></p>
+          <pre class="test-payload" id="testPayload" hidden></pre>
+          <div class="done-links">
+            <a class="button" id="openRecord" target="_top">Open the record</a>
+            <a class="button secondary" id="openDieline" target="_top">Insta-Dieline</a>
+            <a class="button secondary" id="openPhoto" target="_top">Generate photo</a>
+            <a class="button secondary" id="openShipment" target="_top">Add a shipment</a>
+            <button class="button secondary" id="newRequest" type="button">Start another request</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    "use strict";
+    const REALM = 'demo.quickbase.example', APP = 'bdemoapp0';
+    const ON_QUICKBASE = window.__DEMO_HOST.toLowerCase() === REALM;
+    const MOCKUPS = {table: 'bdemomock', street1: 74, street2: 75, city: 76, state: 77, postal: 78, country: 79, opportunity: 6, format: 9, style: 10, width: 12, height: 13, gusset: 14, fillWeight: 15, pkgUnits: 16, samples: 18, comments: 19,
+      dateDue: 22, closure: 26, film: 27, gussetStyle: 33, customer: 35, productName: 39, closureHeight: 40, webWidth: 41, repeat: 42, fo: 43, entryMethod: 49, family: 50, spec: 52};
+    const CUSTOMERS = {table: 'bdemocust', name: 6, inactive: 125};
+    const OPPORTUNITIES = {table: 'bdemoopps', name: 8, customer: 6, closed: 23, status: 24};
+    const FAMILIES = {table: 'bdemofami', name: 6, fullName: 76, customer: 9, currentSpec: 31, inactive: 144};
+    const SPECS = {table: 'bdemospec', family: 6, version: 12, formatStyle: 155, dimensions: 154, layers: 151, reclosable: 146, reclosablePosition: 149, status: 1543};
+    const STYLES = {table: 'bdemostyl', format: 7, style: 6};
+    const FILMS = ['PET12/LLDPE100 (Clear & Standard thickness+barrier)', 'EVOH (Clear & Thin, High Barrier)', 'AlOX (Clear & Thin, High Barrier)', '4 Layer BW (Clear & Thick, High Barrier)', 'Nylon/Pet12 (White & Thin, Low Barrier)', 'VMPET12/LLDPE100 (Metalized & High Barrier)'];
+    const CLOSURES = ['Small Zipper', 'Med/Lg Zipper', 'Velcro', 'Hook-Seal', 'Pocket Zipper', 'None'];
+    // Formats in the order people use them. The Styles table calls one "Side Gusset"; mock-ups store it as "Side Gusset Bag".
+    const FORMAT_ORDER = ['Quad Seal Bag', 'Stand-up Pouch', 'Rollstock', '3-side Seal', 'Side Gusset', 'Tube Stock', 'Sheets', 'Retort', 'Printed Mock-ups from Virtual', 'Carded Rayon', 'Other'];
+    const FORMAT_SAVED_AS = {'Side Gusset': 'Side Gusset Bag'};
+    // Saved copy of the Styles table (2026-09-30); refreshed live on Quickbase.
+    let STYLE_LIST = [[49,'Carded Rayon','None'],[61,'Rollstock','HFFS'],[60,'Rollstock','VFFS'],[44,'Rollstock','None'],[46,'Tube Stock','T-Seal Bottom Fill'],[45,'Tube Stock','T-Seal Top Fill'],[43,'Tube Stock','None'],
+      [55,'Stand-up Pouch','None'],[33,'Stand-up Pouch','K-Seal Curved'],[27,'Stand-up Pouch','Shaped Pouch'],[6,'Stand-up Pouch','Angle Plow'],[10,'Stand-up Pouch','Folded'],[11,'Stand-up Pouch','K-seal'],[16,'Stand-up Pouch','Doyne'],
+      [56,'Quad Seal Bag','None'],[37,'Quad Seal Bag','Bottom Fill'],[34,'Quad Seal Bag','Pinched Bottom'],[35,'Quad Seal Bag','FOG Bottom'],[36,'Quad Seal Bag','Flat Bottom'],[54,'Side Gusset','Back Seal'],[53,'Side Gusset','Offset Seal'],
+      [28,'3-side Seal','Shaped Pouch'],[12,'3-side Seal','None'],[42,'Printed Mock-ups from Virtual','None'],[8,'Sheets','None'],[59,'Retort','Rollstock'],[58,'Retort','3-Side Seal'],[57,'Retort','Doyne SURP'],
+      [52,'Other','Assembly'],[51,'Other','Die Cutting - Large'],[50,'Other','White Material'],[48,'Other','Pad Box'],[47,'Other','Label'],[14,'Other','None']].map(([rid, format, style]) => ({rid: String(rid), format, style}));
+    // Form rules, as in Quickbase's "New Mock-Up Form".
+    const WEB_FORMATS = ['Rollstock', 'Sheets', 'Tube Stock'];          // Web width + Repeat instead of W/H/G
+    const GUSSET_STYLE_FORMATS = ['Quad Seal Bag', 'Side Gusset'];      // show Gusset Style
+    const NO_GUSSET_FORMATS = ['3-side Seal'];                           // gusset is 0
+    const LEAD_BUSINESS_DAYS = 7;                                        // "Too Soon" if the due date is sooner
+
+    const $ = selector => document.querySelector(selector);
+    const esc = value => String(value ?? '').replace(/[&<>'"]/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[ch]));
+    const num = value => { const n = Number(value); return value === '' || value === null || value === undefined || !Number.isFinite(n) ? null : n; };
+    const inch = value => `${Number(value).toString()}"`;
+
+    let form = {method: '', customer: null, opportunity: '', productName: '', family: '', spec: null, format: '', style: '', gussetStyle: '', width: null, height: null, gusset: null, webWidth: null, repeat: null, fo: null,
+      fillWeight: null, pkgUnits: 'lb', film: FILMS[0], closure: '', closureHeight: null, dateDue: '', samples: 1, comments: '',
+      sizing: false, ship: {attention: '', street1: '', street2: '', city: '', state: '', postal: '', country: 'United States'}};
+
+    // ---------- Quickbase (signed-in user's own session) ----------
+    const xml = text => new DOMParser().parseFromString(text, 'text/xml');
+    const errorOf = doc => { const code = (doc.querySelector('errcode')?.textContent || '').trim(); return code && code !== '0' ? `${(doc.querySelector('errtext')?.textContent || 'Quickbase error').trim()} ${(doc.querySelector('errdetail')?.textContent || '').trim()}`.trim() : ''; };
+    async function qbGet(table, params) {
+      const response = await fetch(`https://${REALM}/db/${table}?${new URLSearchParams(params)}`, {credentials: 'include'});
+      if (!response.ok) throw new Error(`Quickbase request failed (${response.status}).`);
+      const doc = xml(await response.text()), error = errorOf(doc); if (error) throw new Error(error);
+      return doc;
+    }
+    async function query(table, where, fids, extra = {}) {
+      const doc = await qbGet(table, {a: 'API_DoQuery', query: where, clist: fids.join('.'), fmt: 'structured', ...extra});
+      return [...doc.querySelectorAll('record')].map(record => { const out = {}; record.querySelectorAll('f').forEach(f => { out[f.getAttribute('id')] = cleanText(f.textContent || ''); }); return out; });
+    }
+    const qEsc = value => String(value).replace(/'/g, "\\'");
+    // Quickbase text can carry HTML (a <br /> in a spec's dimensions). Breaks become spaces; other tags are dropped.
+    const decoder = document.createElement('textarea');
+    function cleanText(value) { const text = String(value || '').trim(); if (!/[<&]/.test(text)) return text; decoder.innerHTML = text.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, ''); return decoder.value.replace(/\s+/g, ' ').trim(); }
+    const isManual = () => form.method === 'Manual';
+    const SIZING_MIN_NOTES = 100;
+    const rid = value => String(value || '').replace(/\.0+$/, '');
+
+    // ---------- Step 1: entry method ----------
+    document.querySelectorAll('[data-method]').forEach(button => button.addEventListener('click', () => {
+      form.method = button.dataset.method;
+      document.querySelectorAll('[data-method]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+      $('#productField').hidden = !isManual();
+
+      $('#familyField').hidden = $('#specField').hidden = form.method !== 'Family Specification';
+      if (form.customer && form.method === 'Family Specification') loadFamilies();
+      update();
+    }));
+
+    // ---------- Step 2: customer, opportunity, product or family/spec ----------
+    let searchTimer = 0, searchSeq = 0;
+    $('#customerSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(searchCustomers, 220); });
+    $('#customerSearch').addEventListener('keydown', event => {
+      const items = [...document.querySelectorAll('#customerList button')], active = items.findIndex(item => item.classList.contains('active'));
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); const next = items[(active + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]; items.forEach(item => item.classList.toggle('active', item === next)); next?.scrollIntoView({block: 'nearest'}); }
+      if (event.key === 'Enter') { event.preventDefault(); (items[active] || items[0])?.click(); }
+      if (event.key === 'Escape') $('#customerList').hidden = true;
+    });
+    document.addEventListener('click', event => { if (!$('#customerField').contains(event.target)) $('#customerList').hidden = true; });
+    async function searchCustomers() {
+      const term = $('#customerSearch').value.trim(), list = $('#customerList'), seq = ++searchSeq;
+      if (term.length < 2) { list.hidden = true; return; }
+      let rows = [];
+      try {
+        rows = ON_QUICKBASE
+          ? (await query(CUSTOMERS.table, `{${CUSTOMERS.name}.CT.'${qEsc(term)}'}AND{${CUSTOMERS.inactive}.EX.'0'}`, [3, CUSTOMERS.name], {slist: String(CUSTOMERS.name), options: 'num-15'})).map(row => ({rid: rid(row[3]), name: row[CUSTOMERS.name]}))
+          : SAMPLE.customers.filter(c => c.name.toLowerCase().includes(term.toLowerCase()));
+      } catch (error) { list.hidden = false; list.innerHTML = `<p class="none">${esc(error.message)}</p>`; return; }
+      if (seq !== searchSeq) return;
+      list.hidden = false;
+      list.innerHTML = rows.length ? rows.map((row, i) => `<button type="button" data-rid="${esc(row.rid)}" data-name="${esc(row.name)}"${i ? '' : ' class="active"'}>${esc(row.name)}</button>`).join('') : '<p class="none">No active customer matches.</p>';
+      list.querySelectorAll('button').forEach(button => button.addEventListener('click', () => pickCustomer({rid: button.dataset.rid, name: button.dataset.name})));
+    }
+    function pickCustomer(customer) {
+      form.customer = customer; form.opportunity = ''; form.family = ''; form.spec = null;
+      $('#customerSearch').hidden = true; $('#customerList').hidden = true;
+      $('#customerPicked').hidden = false; $('#customerName').textContent = customer.name;
+      loadOpportunities(); loadAddresses(); if (form.method === 'Family Specification') loadFamilies();
+      update();
+    }
+    // Ship-to choices for the customer, newest first and without repeats: addresses their mock-up shipments went to
+    // (Mock Up Items), the Ship To (field 73) on their past mock-ups, and the addresses saved on the customer.
+    const ADDRESSES = {table: 'bdemoaddr', customer: 13, name: 6, line1: 7, line2: 8, city: 23, state: 24, zip: 25, isDefault: 18};
+    const PAST = {street1: 74, street2: 75, city: 76, state: 77, postal: 78, country: 79, created: 1};
+    // Mock Up Items (shipments) carry the real ship-to addresses; they link to the customer by name only.
+    const SHIPMENTS = {table: 'bdemoship', customerName: 16, street1: 8, street2: 9, city: 10, state: 11, postal: 12, country: 13, created: 1};
+    let addressOptions = [];
+    // People often typed the company / "ATTN" line into Street 1 and the real street into Street 2. Put the street
+    // back in Street 1 and the rest in Attention (saved on the Street 2 line).
+    const looksLikeStreet = text => /^\s*(\d|p\.?\s*o\.?\s*box\b|one\b|two\b|rr\b|hc\b)/i.test(text || '');
+    function tidyAddress(a) {
+      const out = {attention: '', street1: '', street2: '', city: '', state: '', postal: '', country: 'United States', ...a};
+      out.street1 = String(out.street1 || '').trim(); out.street2 = String(out.street2 || '').trim();
+      if (!looksLikeStreet(out.street1) && looksLikeStreet(out.street2)) { out.attention = out.street1; out.street1 = out.street2; out.street2 = ''; }
+      ['street1', 'street2'].forEach(key => {
+        const match = out[key].match(/^(.*?)[,\s]*\b((?:attn|attention)\b[:.]?.*)$/i);
+        if (match && looksLikeStreet(match[1])) { out[key] = match[1].trim(); out.attention = [out.attention, match[2].trim()].filter(Boolean).join(' '); }
+        else if (match && key === 'street2' && !match[1].trim()) { out.attention = [out.attention, out[key]].filter(Boolean).join(' '); out[key] = ''; }
+      });
+      return out;
+    }
+    const addressKey = a => [a.street1, a.city, a.state, a.postal].map(v => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '')).join('|');
+    const addressText = a => [a.attention, a.street1, a.street2, [a.city, a.state].filter(Boolean).join(', '), a.postal, a.country && a.country !== 'United States' ? a.country : ''].filter(Boolean).join(', ');
+    async function loadAddresses() {
+      const select = $('#addressPick'), note = $('#addressNote');
+      select.disabled = true; select.innerHTML = '<option value="">Loading addresses...</option>'; note.textContent = '';
+      try {
+        const [shipped, past, saved] = ON_QUICKBASE ? await Promise.all([
+          query(SHIPMENTS.table, `{${SHIPMENTS.customerName}.EX.'${qEsc(form.customer.name)}'}AND{${SHIPMENTS.street1}.XEX.''}`, [3, SHIPMENTS.created, SHIPMENTS.street1, SHIPMENTS.street2, SHIPMENTS.city, SHIPMENTS.state, SHIPMENTS.postal, SHIPMENTS.country], {slist: String(SHIPMENTS.created), options: 'sortorder-D.num-300'}),
+          query(MOCKUPS.table, `{${MOCKUPS.customer}.EX.'${form.customer.rid}'}AND{${PAST.street1}.XEX.''}`, [3, PAST.created, PAST.street1, PAST.street2, PAST.city, PAST.state, PAST.postal, PAST.country], {slist: String(PAST.created), options: 'sortorder-D.num-300'}),
+          query(ADDRESSES.table, `{${ADDRESSES.customer}.EX.'${form.customer.rid}'}`, [3, ADDRESSES.name, ADDRESSES.line1, ADDRESSES.line2, ADDRESSES.city, ADDRESSES.state, ADDRESSES.zip, ADDRESSES.isDefault], {options: 'num-50'})
+        ]) : [SAMPLE.shipments, SAMPLE.pastShipTo, SAMPLE.addresses];
+        const seen = new Set(), add = (group, label, raw) => { const a = tidyAddress(raw), key = addressKey(a); if (!a.street1 || seen.has(key)) return; seen.add(key); addressOptions.push({group, label, address: a}); };
+        addressOptions = [];
+        shipped.forEach(row => add('shipped', '', {street1: row[SHIPMENTS.street1], street2: row[SHIPMENTS.street2], city: row[SHIPMENTS.city], state: row[SHIPMENTS.state], postal: row[SHIPMENTS.postal], country: row[SHIPMENTS.country] || 'United States'}));
+        past.forEach(row => add('past', '', {street1: row[PAST.street1], street2: row[PAST.street2], city: row[PAST.city], state: row[PAST.state], postal: row[PAST.postal], country: row[PAST.country] || 'United States'}));
+        saved.sort((a, b) => (b[ADDRESSES.isDefault] === '1') - (a[ADDRESSES.isDefault] === '1'))
+          .forEach(row => add('saved', `${row[ADDRESSES.name] || 'Address'}${row[ADDRESSES.isDefault] === '1' ? ' (default)' : ''}: `, {street1: row[ADDRESSES.line1], street2: row[ADDRESSES.line2], city: row[ADDRESSES.city], state: row[ADDRESSES.state], postal: row[ADDRESSES.zip], country: 'United States'}));
+        const group = (key, title) => { const items = addressOptions.map((o, i) => ({o, i})).filter(({o}) => o.group === key); return items.length ? `<optgroup label="${title}">${items.map(({o, i}) => `<option value="${i}">${esc(o.label + addressText(o.address))}</option>`).join('')}</optgroup>` : ''; };
+        if (!addressOptions.length) { select.innerHTML = '<option value="">No addresses on file for this customer</option>'; note.textContent = 'Type the address below.'; return; }
+        select.innerHTML = `<option value="">Choose an address (${addressOptions.length} on file)</option>` + group('shipped', 'Shipped to before (mock-up shipments)') + group('past', 'Used on past mock-ups') + group('saved', 'Saved on the customer') + '<option value="new">Enter a new address below</option>';
+        select.disabled = false;
+        note.textContent = 'Picking one fills in the address below; you can still edit it.';
+        // Fill in the most recent one straight away if nothing has been typed yet.
+        if (!form.ship.street1) { select.value = '0'; pickAddress('0'); }
+      } catch (error) { select.innerHTML = '<option value="">Couldn\u2019t load addresses</option>'; note.textContent = `${error.message}. Type the address below.`; }
+    }
+    function pickAddress(value) {
+      if (value === 'new') { Object.assign(form.ship, {attention: '', street1: '', street2: '', city: '', state: '', postal: '', country: 'United States'}); syncShip(); update(); $('#shipStreet1').focus(); return; }
+      const option = addressOptions[Number(value)];
+      if (!option) return;
+      Object.assign(form.ship, {attention: '', street1: '', street2: '', city: '', state: '', postal: '', country: 'United States'}, option.address);
+      syncShip(); update();
+    }
+    $('#addressPick').addEventListener('change', event => pickAddress(event.target.value));
+    const SHIP_FIELDS = [['#shipAttention', 'attention'], ['#shipStreet1', 'street1'], ['#shipStreet2', 'street2'], ['#shipCity', 'city'], ['#shipState', 'state'], ['#shipPostal', 'postal'], ['#shipCountry', 'country']];
+    function syncShip() { SHIP_FIELDS.forEach(([selector, key]) => { $(selector).value = form.ship[key] || ''; }); }
+    SHIP_FIELDS.forEach(([selector, key]) => $(selector).addEventListener('input', event => { form.ship[key] = event.target.value; update(); }));
+    $('#customerChange').addEventListener('click', () => {
+      form.customer = null; form.family = ''; form.spec = null;
+      Object.assign(form.ship, {attention: '', street1: '', street2: '', city: '', state: '', postal: '', country: 'United States'}); syncShip();
+      $('#addressPick').disabled = true; $('#addressPick').innerHTML = '<option value="">Pick a customer first</option>'; $('#addressNote').textContent = '';
+      $('#customerPicked').hidden = true; $('#customerSearch').hidden = false; $('#customerSearch').value = ''; $('#customerSearch').focus();
+      ['#opportunity', '#family', '#spec'].forEach(selector => { $(selector).disabled = true; $(selector).innerHTML = '<option value="">Pick a customer first</option>'; });
+      update();
+    });
+    async function loadOpportunities() {
+      const select = $('#opportunity');
+      select.disabled = true; select.innerHTML = '<option value="">Loading...</option>';
+      try {
+        const rows = ON_QUICKBASE
+          ? await query(OPPORTUNITIES.table, `{${OPPORTUNITIES.customer}.EX.'${form.customer.rid}'}`, [3, OPPORTUNITIES.name, OPPORTUNITIES.closed, OPPORTUNITIES.status], {slist: '2', options: 'sortorder-D.num-100'})
+          : SAMPLE.opportunities;
+        const open = rows.filter(row => row[OPPORTUNITIES.closed] !== '1');
+        select.innerHTML = '<option value="">None</option>' + open.map(row => `<option value="${esc(rid(row[3]))}">${esc(row[OPPORTUNITIES.name] || `Opportunity ${rid(row[3])}`)}${row[OPPORTUNITIES.status] ? ` (${esc(row[OPPORTUNITIES.status])})` : ''}</option>`).join('');
+        select.disabled = false;
+      } catch (error) { select.innerHTML = `<option value="">Couldn't load (${esc(error.message)})</option>`; }
+    }
+    $('#opportunity').addEventListener('change', event => { form.opportunity = event.target.value; update(); });
+    $('#productName').addEventListener('input', event => { form.productName = event.target.value; update(); });
+    async function loadFamilies() {
+      const select = $('#family');
+      select.disabled = true; select.innerHTML = '<option value="">Loading...</option>';
+      try {
+        const rows = ON_QUICKBASE
+          ? await query(FAMILIES.table, `{${FAMILIES.customer}.EX.'${form.customer.rid}'}AND{${FAMILIES.inactive}.EX.'0'}`, [3, FAMILIES.name, FAMILIES.fullName, FAMILIES.currentSpec], {slist: String(FAMILIES.name), options: 'num-500'})
+          : SAMPLE.families;
+        familyRows = rows;
+        select.innerHTML = rows.length ? '<option value="">Select a family</option>' + rows.map(row => `<option value="${esc(rid(row[3]))}">${esc(row[FAMILIES.name] || row[FAMILIES.fullName])}</option>`).join('') : '<option value="">This customer has no families</option>';
+        select.disabled = !rows.length;
+      } catch (error) { select.innerHTML = `<option value="">Couldn't load (${esc(error.message)})</option>`; }
+    }
+    let familyRows = [], specRows = [];
+    $('#family').addEventListener('change', async event => {
+      form.family = event.target.value; form.spec = null;
+      const select = $('#spec'), current = rid(familyRows.find(row => rid(row[3]) === form.family)?.[FAMILIES.currentSpec]);
+      select.disabled = true; select.innerHTML = '<option value="">Loading...</option>';
+      if (form.family) {
+        try {
+          specRows = ON_QUICKBASE
+            ? await query(SPECS.table, `{${SPECS.family}.EX.'${form.family}'}`, [3, SPECS.version, SPECS.formatStyle, SPECS.dimensions, SPECS.layers, SPECS.reclosable, SPECS.reclosablePosition, SPECS.status], {slist: String(SPECS.version), options: 'sortorder-D.num-50'})
+            : SAMPLE.specs;
+          select.innerHTML = '<option value="">Select a spec version</option>' + specRows.map(row => `<option value="${esc(rid(row[3]))}">Version ${esc(rid(row[SPECS.version]) || '?')}${rid(row[3]) === current ? ' (current)' : ''}${row[SPECS.status] ? ` - ${esc(row[SPECS.status])}` : ''}</option>`).join('');
+          select.disabled = false;
+          if (current && specRows.some(row => rid(row[3]) === current)) { select.value = current; pickSpec(current); }
+        } catch (error) { select.innerHTML = `<option value="">Couldn't load (${esc(error.message)})</option>`; }
+      } else select.innerHTML = '<option value="">Pick a family first</option>';
+      update();
+    });
+    $('#spec').addEventListener('change', event => { pickSpec(event.target.value); update(); });
+    function pickSpec(value) {
+      const row = specRows.find(r => rid(r[3]) === value);
+      form.spec = row ? {rid: value, formatStyle: row[SPECS.formatStyle], dimensions: row[SPECS.dimensions], layers: row[SPECS.layers], reclosable: row[SPECS.reclosable], position: row[SPECS.reclosablePosition]} : null;
+      $('#specDetails').innerHTML = form.spec ? [['Format / style', form.spec.formatStyle], ['Dimensions', form.spec.dimensions], ['Closure', [form.spec.reclosable, form.spec.position].filter(Boolean).join(' @ ')], ['Layers', form.spec.layers]]
+        .map(([k, v]) => `<dt>${k}</dt><dd>${esc(v || 'Not on the spec')}</dd>`).join('') : '';
+    }
+
+    // ---------- Step 3: the bag ----------
+    function renderFormats() {
+      const formats = [...new Set([...FORMAT_ORDER.filter(f => STYLE_LIST.some(s => s.format === f)), ...STYLE_LIST.map(s => s.format)])];
+      $('#formats').innerHTML = formats.map(f => `<button type="button" class="chip" data-format="${esc(f)}" aria-pressed="${form.format === f}">${esc(f)}</button>`).join('');
+      document.querySelectorAll('[data-format]').forEach(button => button.addEventListener('click', () => setFormat(button.dataset.format)));
+    }
+    function setFormat(format) {
+      form.format = format; form.style = '';
+      document.querySelectorAll('[data-format]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.format === format)));
+      const styles = STYLE_LIST.filter(s => s.format === format).sort((a, b) => (a.style === 'None') - (b.style === 'None') || a.style.localeCompare(b.style));
+      const select = $('#style');
+      select.innerHTML = '<option value="">Select a style</option>' + styles.map(s => `<option value="${esc(s.rid)}">${esc(s.style)}</option>`).join('');
+      select.disabled = false;
+      if (styles.length === 1) { select.value = styles[0].rid; form.style = styles[0].rid; }
+      if (NO_GUSSET_FORMATS.includes(format)) { form.gusset = 0; $('#gusset').value = 0; }     // rule: 3-side seal has no gusset
+      applySizeRules(); update();
+    }
+    const styleName = () => STYLE_LIST.find(s => s.rid === form.style)?.style || '';
+    function applySizeRules() {
+      const web = WEB_FORMATS.includes(form.format), fog = styleName() === 'FOG Bottom', noGusset = NO_GUSSET_FORMATS.includes(form.format);
+      const show = {W: !web, H: !web, G: !web && !noGusset, WEB: web, REP: web, FO: fog};
+      document.querySelectorAll('[data-size]').forEach(el => { el.hidden = !show[el.dataset.size]; });
+      $('#gussetStyleField').hidden = !GUSSET_STYLE_FORMATS.includes(form.format);
+    }
+    $('#style').addEventListener('change', event => { form.style = event.target.value; applySizeRules(); update(); });
+    [['#width', 'width'], ['#height', 'height'], ['#gusset', 'gusset'], ['#webWidth', 'webWidth'], ['#repeat', 'repeat'], ['#fo', 'fo'], ['#fillWeight', 'fillWeight'], ['#closureHeight', 'closureHeight']]
+      .forEach(([selector, key]) => $(selector).addEventListener('input', event => { form[key] = num(event.target.value); update(); }));
+    [['#gussetStyle', 'gussetStyle'], ['#pkgUnits', 'pkgUnits'], ['#film', 'film'], ['#filmFamily', 'film'], ['#closure', 'closure']]
+      .forEach(([selector, key]) => $(selector).addEventListener('change', event => { form[key] = event.target.value; syncFilm(); update(); }));
+    function syncFilm() { $('#film').value = form.film; $('#filmFamily').value = form.film; $('#closureHeightField').hidden = !form.closure || form.closure === 'None'; }
+
+    // ---------- Step 4: due date, samples, comments ----------
+    // Earliest due date that isn't "Too Soon": 7 business days from today (Quickbase's WeekdayAdd).
+    function addWeekdays(date, days) { const d = new Date(date); while (days > 0) { d.setDate(d.getDate() + 1); if (d.getDay() % 6) days--; } return d; }
+    const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const earliest = () => isoDate(addWeekdays(new Date(new Date().toDateString()), LEAD_BUSINESS_DAYS));
+    $('#dateDue').addEventListener('input', event => { form.dateDue = event.target.value; update(); });
+    $('#samples').addEventListener('input', event => { form.samples = num(event.target.value); update(); });
+    $('#comments').addEventListener('input', event => { form.comments = event.target.value; update(); });
+    $('#tooSoon').addEventListener('click', event => { if (event.target.closest('button')) { form.dateDue = earliest(); $('#dateDue').value = form.dateDue; update(); } });
+
+    // ---------- Summary text (same wording as the Quickbase formulas used in the email) ----------
+    function summary() {
+      if (form.method === 'Family Specification') {
+        return {format: form.spec?.formatStyle || '', dims: form.spec?.dimensions || '', zipper: form.spec && form.spec.reclosable && form.spec.reclosable !== 'No Zipper' ? [form.spec.reclosable, form.spec.position].filter(Boolean).join(' @ ') : '', fill: 'From the family spec'};
+      }
+      const style = styleName(), web = WEB_FORMATS.includes(form.format);
+      const format = [FORMAT_SAVED_AS[form.format] || form.format, style && style !== 'None' ? style : '', GUSSET_STYLE_FORMATS.includes(form.format) ? form.gussetStyle : ''].filter(Boolean).join('/');
+      let dims = '';
+      if (web && form.webWidth && form.repeat) dims = `${inch(form.webWidth)} Web x ${inch(form.repeat)} Repeat`;
+      else if (!web && form.width && form.height) {
+        dims = `${inch(form.width)} W x ${inch(form.height)} H`;
+        if (!NO_GUSSET_FORMATS.includes(form.format) && form.gusset) dims += ` + ${inch(form.gusset)} G`;
+        if (style === 'FOG Bottom' && form.fo) dims += ` + ${inch(form.fo)} FO`;
+      }
+      const zipper = !form.closure || form.closure === 'None' ? (form.closure === 'None' ? 'None' : '') : `${form.closure}${form.closureHeight > 0 ? ` @ ${form.closureHeight}` : ''}`;
+      return {format, dims, zipper, fill: form.fillWeight ? `${form.fillWeight} ${form.pkgUnits}` : ''};
+    }
+    function missing() {
+      const list = [];
+      if (!form.method) return ['Choose how it’s specified'];
+      if (!form.customer) list.push('Customer');
+      if (isManual()) {
+        const sizing = form.sizing;
+        if (!form.productName.trim()) list.push('Product name');
+        if (!form.format) list.push('Format');
+        else {
+          if (!form.style) list.push('Style');
+          if (!sizing && GUSSET_STYLE_FORMATS.includes(form.format) && !form.gussetStyle) list.push('Gusset style');
+          if (sizing) { /* sizes are optional on a sizing project */ }
+          else if (WEB_FORMATS.includes(form.format)) { if (!(form.webWidth > 0)) list.push('Web width'); if (!(form.repeat > 0)) list.push('Repeat'); }
+          else {
+            if (!(form.width > 0)) list.push('Width'); if (!(form.height > 0)) list.push('Height');
+            if (!NO_GUSSET_FORMATS.includes(form.format) && !(form.gusset >= 0 && form.gusset !== null)) list.push('Gusset');
+            if (styleName() === 'FOG Bottom' && !(form.fo > 0)) list.push('Fold over (FO)');
+          }
+        }
+        if (!form.closure) list.push('Closure');
+      } else {
+        if (!form.family) list.push('Family');
+        if (!form.spec) list.push('Spec version');
+      }
+      if (!form.film) list.push('Film');
+      if (form.sizing && form.comments.trim().length < SIZING_MIN_NOTES) list.push(`Notes explaining the needs (${form.comments.trim().length}/${SIZING_MIN_NOTES} characters)`);
+      [['street1', 'Ship to: street'], ['city', 'Ship to: city'], ['state', 'Ship to: state'], ['postal', 'Ship to: postal code'], ['country', 'Ship to: country']].forEach(([key, label]) => { if (!String(form.ship[key] || '').trim()) list.push(label); });
+      if (!form.dateDue) list.push('Date due');
+      if (!(form.samples >= 1)) list.push('Samples');
+      return list;
+    }
+    function update() {
+      const step2Done = form.customer && (isManual() ? form.productName.trim() : form.spec);
+      $('#stepShip').hidden = !step2Done;
+      const sizing = form.sizing, notes = form.comments.trim().length;
+      $('#commentsLabel').innerHTML = sizing ? 'Notes for engineering <b>*</b>' : 'Comments';
+      $('#comments').placeholder = sizing ? 'What is the product, how much goes in, what sizes are being considered, what closure or features, any reference bags or deadlines...' : 'Anything engineering should know';
+      $('#commentsHint').textContent = sizing ? (notes >= SIZING_MIN_NOTES ? 'Thanks, that\u2019s enough detail.' : `At least ${SIZING_MIN_NOTES} characters so engineering can size it (${notes} so far).`) : '';
+      $('#step2').hidden = !form.method;
+      $('#step3').hidden = !step2Done;
+      $('#step4').hidden = !step2Done;
+      $('#familyBag').hidden = form.method !== 'Family Specification';
+      $('#manualBag').hidden = !isManual();
+      $('#step1').classList.toggle('done', !!form.method);
+      $('#step2').classList.toggle('done', !!step2Done);
+      // Too Soon (same test as the Quickbase formula) with a one-click fix.
+      const soon = form.dateDue && form.dateDue < earliest();
+      $('#tooSoon').hidden = !soon;
+      if (soon) $('#tooSoon').innerHTML = `The due date is too soon. Mock-ups need ${LEAD_BUSINESS_DAYS} business days; the earliest is ${new Date(earliest() + 'T12:00').toLocaleDateString()}.<button type="button">Use that date</button>`;
+      // Summary
+      const s = summary(), set = (id, value) => { const el = $(id); el.textContent = value || 'Not set'; el.classList.toggle('empty', !value); };
+      $('#sumTitle').textContent = (isManual() ? form.productName : familyRows.find(r => rid(r[3]) === form.family)?.[FAMILIES.name]) || 'New mock-up';
+      $('#sumCustomer').textContent = form.customer ? form.customer.name : 'No customer yet';
+      set('#sumShip', [form.ship.attention, form.ship.street1, form.ship.street2, [form.ship.city, form.ship.state].filter(Boolean).join(', '), form.ship.postal].filter(Boolean).join(', '));
+      set('#sumFormat', s.format); set('#sumDims', form.sizing ? (s.dims ? `${s.dims} (sizing project, not final)` : 'Sizing project (to be decided)') : s.dims); set('#sumZipper', s.zipper); set('#sumFill', s.fill); set('#sumFilm', form.film);
+      set('#sumDue', form.dateDue ? `${new Date(form.dateDue + 'T12:00').toLocaleDateString()}${soon ? ' (too soon)' : ''} · ${form.samples || 0} sample${form.samples === 1 ? '' : 's'}` : '');
+      const todo = missing();
+      $('#missing').innerHTML = todo.length ? todo.map(item => `<li>${esc(item)}</li>`).join('') : '';
+      $('#saveButton').disabled = todo.length > 0 || saving;
+      $('#saveButton').textContent = testMode ? 'Test: show what would be saved' : 'Create mock-up request';
+    }
+
+    // ---------- Save ----------
+    let saving = false;
+    $('#saveButton').addEventListener('click', async () => {
+      const status = $('#saveStatus');
+      if (!ON_QUICKBASE && !testMode) { status.className = 'status bad'; status.textContent = 'Open this page from Quickbase to save (or turn on Test mode).'; return; }
+      saving = true; update(); status.className = 'status'; status.textContent = 'Saving...';
+      const F = MOCKUPS, fields = {[F.entryMethod]: form.method, [F.customer]: form.customer.rid, [F.opportunity]: form.opportunity, [F.film]: form.film,
+        [F.dateDue]: form.dateDue ? (() => { const [y, m, d] = form.dateDue.split('-'); return `${m}-${d}-${y}`; })() : '', [F.samples]: form.samples,
+        [F.comments]: form.sizing ? `SIZING PROJECT (sizes to be decided)\n${form.comments.trim()}` : form.comments,
+        [F.street1]: form.ship.street1.trim(), [F.street2]: [form.ship.street2.trim(), form.ship.attention.trim()].filter(Boolean).join(', '), [F.city]: form.ship.city, [F.state]: form.ship.state, [F.postal]: form.ship.postal, [F.country]: form.ship.country};
+      if (isManual()) {
+        const web = WEB_FORMATS.includes(form.format);
+        Object.assign(fields, {[F.productName]: form.productName.trim(), [F.format]: FORMAT_SAVED_AS[form.format] || form.format, [F.style]: form.style,
+          [F.gussetStyle]: GUSSET_STYLE_FORMATS.includes(form.format) ? form.gussetStyle : '',
+          [F.width]: web ? '' : form.width, [F.height]: web ? '' : form.height, [F.gusset]: web ? '' : (NO_GUSSET_FORMATS.includes(form.format) ? 0 : form.gusset),
+          [F.webWidth]: web ? form.webWidth : '', [F.repeat]: web ? form.repeat : '', [F.fo]: styleName() === 'FOG Bottom' ? form.fo : '',
+          [F.fillWeight]: form.fillWeight ?? '', [F.pkgUnits]: form.fillWeight ? form.pkgUnits : '', [F.closure]: form.closure, [F.closureHeight]: form.closure && form.closure !== 'None' ? (form.closureHeight ?? '') : ''});
+      } else {
+        Object.assign(fields, {[F.family]: form.family, [F.spec]: form.spec.rid});
+      }
+      if (testMode) { saving = false; showTest(fields); return; }
+      const body = `<qdbapi>${Object.entries(fields).filter(([, v]) => v !== '' && v !== null && v !== undefined).map(([fid, v]) => `<field fid="${fid}">${esc(v)}</field>`).join('')}</qdbapi>`;
+      try {
+        const response = await fetch(`https://${REALM}/db/${MOCKUPS.table}?a=API_AddRecord`, {method: 'POST', credentials: 'include', headers: {'Content-Type': 'application/xml', 'QUICKBASE-ACTION': 'API_AddRecord'}, body});
+        const doc = xml(await response.text()), error = errorOf(doc); if (error) throw new Error(error);
+        const newRid = (doc.querySelector('rid')?.textContent || '').trim();
+        showDone(newRid);
+      } catch (error) { status.className = 'status bad'; status.textContent = `Not saved: ${error.message}`; }
+      finally { saving = false; update(); }
+    });
+    function showDone(newRid) {
+      $('#summaryView').hidden = true; $('#doneView').hidden = false;
+      $('#doneTitle').textContent = `Mock-up #${newRid} created`;
+      $('#doneNote').textContent = `${$('#sumTitle').textContent} for ${form.customer.name}.`;
+      $('#openRecord').href = `https://${REALM}/db/${MOCKUPS.table}?a=dr&rid=${newRid}`;
+      $('#openDieline').href = `https://${REALM}/db/${APP}?a=dbpage&pageID=1&rid=${newRid}`;
+      $('#openPhoto').href = `https://${REALM}/db/${APP}?a=dbpage&pageID=1&rid=${newRid}`;
+      $('#openShipment').href = `https://${REALM}/db/bdemoship?a=API_GenAddRecordForm&_fid_20=1&_fid_15=${newRid}`;
+      $('#openDieline').hidden = isManual() && !form.width;     // rule: Insta-Dieline needs a width
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+    $('#newRequest').addEventListener('click', () => location.reload());
+    // ---------- Test mode ----------
+    // Everything works (including live lookups) except the final save, which shows the fields that would be sent.
+    let testMode = /[?&]test=1\b/.test(location.search);
+    const FIELD_LABELS = {6: 'Related Opportunity', 9: 'Format', 10: 'Related Style', 12: 'Width (in)', 13: 'Height (in)', 14: 'Gusset (in)', 15: 'Fill Weight', 16: 'Pkg Units', 18: '# of Samples', 19: 'Comments',
+      22: 'Date Due', 26: 'Closure', 27: 'Film', 33: 'Gusset Style', 35: 'Related Customer', 39: 'Product Name', 40: 'Closure Height (in)', 41: 'Web Width (in)', 42: 'Repeat (in)', 43: 'FO (in)', 49: 'Entry Method',
+      50: 'Related Family', 52: 'Related Specification', 74: 'Street 1', 75: 'Street 2', 76: 'City', 77: 'State/Region', 78: 'Postal Code', 79: 'Country'};
+    function setTestMode(on) { testMode = on; $('#testMode').checked = on; $('#testBanner').hidden = !on; document.body.classList.toggle('testing', on); update(); }
+    $('#testMode').addEventListener('change', event => setTestMode(event.target.checked));
+    // Sizing project: an on/off switch that works with either entry method.
+    $('#sizingToggle').addEventListener('change', event => {
+      form.sizing = event.target.checked;
+      document.body.classList.toggle('sizing', form.sizing);
+      document.querySelectorAll('[data-sizing-note]').forEach(note => { note.hidden = !form.sizing; });
+      update();
+    });
+    function showTest(fields) {
+      showDone('TEST');
+      $('#doneEyebrow').textContent = 'Test mode: not saved';
+      $('#doneTitle').textContent = 'This is what would be saved';
+      $('#doneNote').textContent = 'Nothing was sent to Quickbase. The record links below are disabled in test mode.';
+      $('#testPayload').hidden = false;
+      $('#testPayload').textContent = Object.entries(fields).filter(([, v]) => v !== '' && v !== null && v !== undefined).map(([fid, v]) => `${FIELD_LABELS[fid] || 'Field ' + fid} (${fid}): ${v}`).join('\n');
+      document.querySelectorAll('.done-links a').forEach(a => { a.removeAttribute('href'); a.hidden = true; });
+    }
+
+    // ---------- Start ----------
+    // Preview data for opening the file outside Quickbase; never used on Quickbase.
+    const SAMPLE = {customers: [{rid: '1375', name: 'Wild Meadow'}, {rid: '2', name: 'Trailhead Pet Co'}, {rid: '3', name: 'Pet Mart Demo'}],
+      opportunities: [{3: '11', 8: 'Freeze-dried line refresh', 24: 'Open'}],
+      families: [{3: '1987', 6: 'VE FD 5lb', 31: '5055'}],
+      shipments: [],
+      pastShipTo: [],
+      addresses: [],
+      specs: [{3: '5055', 12: '3', 155: 'Quad Seal Bag/Flat Bottom/Terminated', 154: '12.5" W x 19" H + 3.5" G', 151: 'PET12/LLDPE100', 146: 'Small Zipper', 149: '1.5"', 1543: 'Approved'}]};
+    $('#film').innerHTML = $('#filmFamily').innerHTML = FILMS.map(f => `<option>${esc(f)}</option>`).join('');
+    $('#closure').innerHTML = '<option value="">Select one</option>' + CLOSURES.map(c => `<option>${esc(c)}</option>`).join('');
+    $('#dateDue').min = isoDate(new Date());
+    renderFormats(); syncFilm(); syncShip(); setTestMode(testMode);
+    if (ON_QUICKBASE) {
+      query(STYLES.table, '{3.GT.0}', [3, STYLES.format, STYLES.style], {options: 'num-500'})
+        .then(rows => { if (rows.length) { STYLE_LIST = rows.map(row => ({rid: rid(row[3]), format: row[STYLES.format], style: row[STYLES.style]})); renderFormats(); } })
+        .catch(error => console.warn('Styles table not loaded; using the saved list.', error));
+    }
+  </script>
+<!-- demo-launcher:start (managed by demo_launcher.py: edit demo_launcher_snippet.html, not this copy) -->
+
+
+
+</body>
+</html>

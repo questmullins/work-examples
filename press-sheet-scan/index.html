@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script id="demo-backend">
+/* Demo backend. Answers this page's Quickbase calls in the browser from made-up records, so the tool runs with no
+   server and no account. Every company, product, person and address here is fictional. Changes last until reload. */
+(function () {
+  var HOST = 'demo.quickbase.example';
+  window.__DEMO_HOST = HOST;
+
+  var BRANDS = [
+    {customer: 'Trailhead Pet Co', code: 'TH', prefix: '00011'},
+    {customer: 'Northfield Pet Foods', code: 'NF', prefix: '00012'},
+    {customer: 'Sunny Paws Kitchen', code: 'SP', prefix: '00013'},
+    {customer: 'Bramble & Bone', code: 'BB', prefix: '00014'},
+    {customer: 'Copper Creek Provisions', code: 'CC', prefix: '00015'},
+    {customer: 'Little Harbor Treats', code: 'LH', prefix: '00016'},
+    {customer: 'Meadowlark Mills', code: 'MM', prefix: '00017'},
+    {customer: 'Oak & Ember Foods', code: 'OE', prefix: '00018'},
+    {customer: 'Tidewater Snacks', code: 'TW', prefix: '00019'},
+    {customer: 'Pine Ridge Grains', code: 'PR', prefix: '00020'}
+  ];
+  // Every shape here has a template in the mockup tool.
+  var SHAPES = [
+    {format: 'Quad Seal Bag', style: 'Flat Bottom', gusset: 'Terminated Gusset', sizes: [[7, 11.5, 3.5, '12 oz'], [8.5, 14, 4, '2 lb'], [10, 16, 4.5, '4 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Non-Terminated Gusset', sizes: [[11.5, 18.25, 4.125, '10 lb'], [13, 22, 5, '15 lb'], [15.75, 26.5, 4.5, '25 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Terminated Gusset', sizes: [[8, 13, 4, '3.5 lb'], [9.5, 15, 4, '5 lb'], [12, 20, 4.5, '12 lb']]},
+    {format: 'Stand-Up Pouch', style: 'Angle Plow', gusset: '', sizes: [[5, 7.75, 2.5, '5 oz'], [6, 9, 3, '8 oz'], [7.25, 11, 3.5, '1 lb']]},
+    {format: 'Stand-Up Pouch', style: 'K-Seal', gusset: '', sizes: [[7, 10, 3.25, '10 oz'], [6, 8.5, 2.75, '6 oz'], [8, 12, 3.5, '1.5 lb']]}
+  ];
+  var RECIPES = ['Grain-Free Salmon Kibble', 'Turkey Training Bites', 'Pumpkin Berry Minis', 'Chicken Recipe Kibble', 'Freeze-Dried Beef Morsels', 'Duck & Sweet Potato Bites', 'Lamb & Rice Dinner', 'Peanut Butter Crunch', 'Ancient Grain Granola', 'Sea Salt Veggie Crisps', 'Dark Roast Coffee', 'Honey Oat Clusters'];
+  var LAYERS = ['MATTE / PET / FOIL / LLDPE', 'MATTE / PET / MET PET / LLDPE', 'GLOSS / PET / MET PET / LLDPE', 'SOFT TOUCH / PET / FOIL / LLDPE', 'SOFT TOUCH / PET / MET PET / LLDPE', 'MATTE / PET / PET / LLDPE', 'GLOSS / PET / EVOH / LLDPE', 'MATTE / PE / EVOH / PE', 'GLOSS / KRAFT / MET PET / LLDPE', 'SOFT TOUCH / PET / ALOX / LLDPE'];
+  var COLORS = ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'PMS 186 C', 'PMS 2728 C', 'PMS 349 C', 'PMS 7406 C', 'PMS 485 C', 'PMS 2607 C', 'PMS 7421 C'];
+  var PEOPLE = ['Demo Designer', 'Alex Morgan', 'Jordan Lee', 'Priya Nair', 'Casey Tran', 'Riley Brooks'];
+  var ZIPPERS = ['Small Zipper', 'No Zipper', 'Small Zipper', 'Pocket Zipper'];
+  var PRODUCTS = [];
+  BRANDS.forEach(function (brand, b) {
+    for (var i = 0; i < 6; i++) {
+      var shape = SHAPES[(b + i) % SHAPES.length], size = shape.sizes[(b + i * 2) % 3];
+      PRODUCTS.push({b: b, name: RECIPES[(b * 2 + i) % RECIPES.length], weight: size[3], format: shape.format, style: shape.style, gusset: shape.gusset, w: size[0], h: size[1], g: size[2], layers: LAYERS[(b + i * 3) % LAYERS.length]});
+    }
+  });
+  var ADDRESSES = [
+    ['100 Example Way', 'Dock 2', 'Springfield', 'IL', '62704'],
+    ['250 Sample Road', '', 'Riverton', 'WY', '82501'],
+    ['17 Placeholder Ave', 'Suite 300', 'Fairview', 'TN', '37062'],
+    ['900 Demo Parkway', '', 'Madison', 'WI', '53703'],
+    ['44 Mockup Lane', 'Building B', 'Georgetown', 'TX', '78626'],
+    ['312 Fictional Blvd', '', 'Salem', 'OR', '97301'],
+    ['8 Test Harbor Rd', 'Unit 12', 'Clinton', 'IA', '52732'],
+    ['1200 Sample Mill Dr', '', 'Franklin', 'KY', '42134'],
+    ['75 Placeholder Pier', 'Dock 9', 'Bristol', 'RI', '02809'],
+    ['560 Example Ridge', '', 'Greenville', 'SC', '29601']
+  ];
+  function day(offset) { var d = new Date(Date.UTC(2026, 8, 20) - offset * 864e5); return d.toISOString().slice(0, 10); }
+  function pick(list, i) { return list[i % list.length]; }
+  function colorBank(row, start, n) { for (var c = 0; c < 10; c++) row[start + c] = c < 4 ? COLORS[c] : c < 4 + (n % 4) ? COLORS[4 + (n + c) % 8] : ''; }
+  function ms(offset) { return String(Date.UTC(2026, 8, 20) - offset * 864e5); }
+
+  var tables = {
+    bdemocust: [], bdemoopps: [], bdemofami: [], bdemospec: [], bdemostyl: [], bdemoaddr: [], bdemoship: [],
+    bdemoprod: [], bdemoordr: [], bdemoitem: [], bdemoartv: [], bdemomock: [], bdemorevw: [], bdemodens: [],
+    bdemofont: [], bdemolayr: [], bdemofill: [], bdemolist: [], bdemotask: [], bdemotime: [], bdemosrvc: []
+  };
+  var labels = {
+    bdemoprod: {name: 'Products', 2209: 'Filing #', 3: 'Record ID#', 12: 'Item Name', 13: 'Legacy Item Name', 14: 'Legacy UPC', 128: 'Art Versions', 132: 'UPC', 136: 'Art Version Count', 141: 'Brand', 353: 'Current Vendor Proof', 604: 'Approved Color Standard', 662: 'Current Customer Proof'},
+    bdemoitem: {name: 'Order Items', 1: 'Date Created', 3: 'Record ID#', 7: 'Customer', 13: 'UPC', 14: 'Item', 161: 'Weight', 184: 'PO', 329: 'Artwork Link', 382: 'Brand', 506: 'Family', 710: 'Layers', 711: 'Dimensions', 2122: 'Format', 2243: 'Style'},
+    bdemoartv: {name: 'Art Versions', 3: 'Record ID#', 11: 'Version Date', 12: 'Art Type', 37: 'Related Item', 61: 'Art REV', 152: 'Version', 361: 'Vendor Proof', 583: 'Inactive Art', 588: 'Customer Proof'},
+    bdemocust: {name: 'Customers', 3: 'Record ID#', 6: 'Customer Name', 125: 'Inactive'},
+    bdemoordr: {name: 'Orders', 3: 'Record ID#', 18: 'Customer PO'},
+    bdemofami: {name: 'Families', 3: 'Record ID#', 6: 'Family', 31: 'Current Spec'},
+    bdemospec: {name: 'Family Specifications', 3: 'Record ID#', 15: 'Format', 14: 'Style', 151: 'Layers'},
+    bdemomock: {name: 'Mock-Ups', 3: 'Record ID#', 9: 'Format', 10: 'Style', 39: 'Product Name'},
+    bdemolist: {name: 'Art Checklists', 3: 'Record ID#', 13: 'Description', 18: 'Brand'},
+    bdemotask: {name: 'Checklist Tasks', 3: 'Record ID#', 27: 'Department', 28: 'Description'},
+    bdemofill: {name: 'Fill Recordings', 3: 'Record ID#', 12: 'Format', 13: 'Style'},
+    bdemodens: {name: 'Product Densities', 3: 'Record ID#', 6: 'Brand', 7: 'Product', 14: 'Average'},
+    bdemofont: {name: 'System Fonts', 3: 'Record ID#', 6: 'Font Name', 7: 'Font File'}
+  };
+
+  BRANDS.forEach(function (b, i) {
+    var rid = String(i + 1), a = ADDRESSES[i];
+    tables.bdemocust.push({3: rid, 6: b.customer, 125: '0'});
+    ['new pouch line', 'holiday pack', 'club size relaunch'].forEach(function (name, k) {
+      tables.bdemoopps.push({3: String(100 + i * 3 + k), 6: rid, 8: b.customer + ' ' + name, 23: k === 2 ? '1' : '0', 24: k === 2 ? 'Closed' : 'Open'});
+    });
+    tables.bdemoaddr.push({3: String(200 + i), 6: 'Main warehouse', 7: a[0], 8: a[1], 13: rid, 18: '1', 23: a[2], 24: a[3], 25: a[4]});
+    tables.bdemoaddr.push({3: String(250 + i), 6: 'Co-packer', 7: pick(ADDRESSES, i + 3)[0], 8: '', 13: rid, 18: '0', 23: pick(ADDRESSES, i + 3)[2], 24: pick(ADDRESSES, i + 3)[3], 25: pick(ADDRESSES, i + 3)[4]});
+    tables.bdemoship.push({3: String(300 + i), 8: a[0], 9: a[1], 10: a[2], 11: a[3], 12: a[4], 13: 'United States', 16: b.customer});
+  });
+  SHAPES.forEach(function (shape, s) {
+    shape.sizes.forEach(function (size, k) {
+      for (var r = 0; r < 4; r++) {
+        var area = size[0] * size[1], fill = 68 + (s * 3 + k * 5 + r * 4) % 24;
+        tables.bdemofill.push({3: String(400 + s * 12 + k * 4 + r), 1: ms(s * 30 + k * 11 + r * 17), 6: String(+(2 + r * 1.5 + k).toFixed(1)), 7: String(+(0.5 + k * 2 + r).toFixed(1)), 8: String(size[1]), 9: String(size[0]), 10: String(size[2]), 11: pick(BRANDS, s + r).prefix + '00' + (101 + s + r), 12: shape.format, 13: shape.style, 14: shape.gusset, 15: pick(ZIPPERS, k + r), 16: String(+area.toFixed(1)), 17: String(fill), 18: String(Math.round(area * size[2] * fill / 100))});
+      }
+    });
+  });
+  [['Quad Seal Bag', 'Flat Bottom'], ['Quad Seal Bag', 'Pinched Bottom'], ['Stand-Up Pouch', 'K-Seal'], ['Stand-Up Pouch', 'Doyen'], ['Three Side Seal', 'Flat Pouch']].forEach(function (s, i) {
+    tables.bdemostyl.push({3: String(i + 1), 6: s[1], 7: s[0]});
+  });
+
+  PRODUCTS.forEach(function (p, i) {
+    var b = BRANDS[p.b], n = i + 1, upc = b.prefix + '00' + (100 + n), rid = String(100 + n), title = b.customer + ' ' + p.name + ' ' + p.weight;
+    var dims = p.w + ' x ' + p.h + ' x ' + p.g, combo = [p.format, p.style, p.gusset].join(' / '), family = b.code + '-' + String(p.w * 100) + '-' + n;
+    var po = String(21000 + n), order = String(500 + n), art = 'https://files.demo-packaging.example/f/' + b.code + n;
+    var spec = String(300 + n), fam = String(200 + n);
+    tables.bdemospec.push({3: spec, 6: fam, 12: 'v1', 14: p.style, 15: p.format, 43: p.gusset, 53: String(p.w), 54: String(p.h), 55: String(p.g), 56: String(p.w * 25.4), 57: String(p.h * 25.4), 58: String(p.g * 25.4), 65: 'in', 146: 'Zipper', 149: '1.5', 151: p.layers, 154: dims, 155: p.format + ' / ' + p.style, 428: '1.5', 1543: 'Current'});
+    tables.bdemofami.push({3: fam, 6: family, 9: String(p.b + 1), 31: spec, 76: b.customer + ' ' + family, 144: '0'});
+    tables.bdemoprod.push({3: rid, 12: title, 13: title, 14: upc, 128: '2', 132: upc, 136: '2', 141: b.customer, 225: '', 2209: 'Shelf ' + n, 353: 'Rev ' + n, 539: 'Match the approved pantone swatch.', 604: 'On file', 662: 'Rev ' + n});
+    // The first order of each product keeps PO 21000 + n; some products reorder under later POs.
+    for (var o = 0; o < 1 + i % 3; o++) {
+      var line = String(1000 + n * 10 + o), orderId = String(+order + o * 100), thisPo = String(+po + o * 1000), age = i * 8 + o * 120, approved = (i + o) % 3 > 0;
+      tables.bdemoordr.push({3: orderId, 18: thisPo});
+      tables.bdemoitem.push({1: ms(age), 2: ms(age / 2), 3: line, 6: orderId, 7: b.customer, 8: orderId, 13: upc, 14: title, 151: rid, 161: p.weight, 162: title, 163: o ? 'Reorder' : 'New', 184: thisPo, 262: day(age), 265: '0' + (o + 1) + '.26', 329: art, 382: b.customer, 417: approved ? '1' : '0', 419: approved ? day(age / 2) : '', 420: 'Press sheet ' + thisPo, 506: family, 573: o ? 'Revised' : 'New', 710: p.layers, 711: dims, 712: combo, 794: 'Zipper at 1.5"', 2122: p.format, 2209: 'Shelf ' + n, 2243: p.style, 2331: String(p.w), 2332: String(p.h), 2333: String(p.g), 2412: '0', 2519: '0', 2693: '', 2694: '', 2695: '0', 2696: ''});
+      tables.bdemorevw.push({3: String(5000 + n * 10 + o), 7: '', 8: '', 10: '', 16: '', 17: '', 19: '', 31: '', 34: '', 35: line, 41: p.format, 42: p.style, 44: dims, 54: '0', 63: '0', 67: combo});
+    }
+    [0, 1, 2].slice(0, 2 + i % 2).forEach(function (v, index, all) {
+      var artRow = {3: String(2000 + n * 4 + v), 10: title, 11: day(i * 8 + v * 95), 12: v === all.length - 1 ? 'New' : 'Revised', 18: 'Art REV', 37: rid, 40: title, 58: upc, 59: title, 61: '0' + (all.length - v) + '.26', 84: b.customer, 127: fam, 152: String(all.length - v), 205: v ? '0' : '1', 330: b.customer, 361: art + '-vendor.pdf', 376: p.weight, 481: String(parseFloat(p.weight)), 522: dims, 523: combo, 524: 'Tear notch', 525: p.layers, 526: 'Zipper, tear notch', 583: v ? '1' : '0', 588: art + '-customer.pdf', 624: upc};
+      colorBank(artRow, 191, n); colorBank(artRow, 571, n + 1); colorBank(artRow, 589, n + 2);
+      tables.bdemoartv.push(artRow);
+    });
+    tables.bdemomock.push({1: ms(i * 7), 3: String(1500 + n), 6: 'Opportunity ' + n, 7: p.format, 9: p.format, 10: p.style, 11: p.style, 12: String(p.w), 13: String(p.h), 14: String(p.g), 15: p.weight, 16: '1', 18: '3', 19: 'Demo mockup request.', 22: day(-7), 26: pick(ZIPPERS, i), 27: 'PET12/LLDPE100', 33: p.gusset, 35: String(p.b + 1), 36: b.customer, 39: p.name, 40: '1.5', 49: 'Mockup', 51: 'Opportunity ' + n, 53: p.format, 54: p.style, 56: p.gusset, 57: String(p.w), 58: String(p.h), 59: String(p.g), 62: pick(ZIPPERS, i), 63: '1.5', 74: ADDRESSES[p.b][0], 75: ADDRESSES[p.b][1], 76: ADDRESSES[p.b][2], 77: ADDRESSES[p.b][3], 78: ADDRESSES[p.b][4], 79: 'United States'});
+    var cups = [0, 1, 2, 3, 4].map(function (c) { return (2.1 + (n % 7) * 0.12 + ((n + c * 3) % 5) * 0.02).toFixed(2); });
+    tables.bdemodens.push({3: String(i + 1), 1: ms(i * 5), 6: b.customer, 7: p.name, 8: '', 9: cups[0], 10: cups[1], 11: cups[2], 12: cups[3], 13: cups[4], 14: (cups.reduce(function (s, v) { return s + +v; }, 0) / 5).toFixed(2)});
+  });
+
+  ['Demo Sans Regular', 'Demo Sans Medium', 'Demo Sans Bold', 'Demo Serif Regular', 'Demo Serif Italic', 'Demo Mono', 'Demo Condensed'].forEach(function (name, i) { tables.bdemofont.push({3: String(i + 1), 6: name, 7: ''}); });
+  LAYERS.forEach(function (name, i) { tables.bdemolayr.push({3: String(i + 1), 6: name, 7: String(40 - i * 3)}); });
+  PRODUCTS.slice(0, 12).forEach(function (p, i) {
+    var lid = String(3000 + i), b = BRANDS[p.b], done = i % 5;
+    tables.bdemolist.push({3: lid, 10: String(501 + i), 13: 'Art checklist: ' + p.name, 14: '0', 16: '0', 17: String(p.b + 1), 18: b.customer, 19: String(21001 + i), 21: '4', 25: pick(PEOPLE, i), 29: String(1 + i % 4 * 0.5), 30: String(4 - Math.min(done, 4))});
+    ['Prepress', 'Proofreading', 'PC', 'Engineering'].forEach(function (dept, t) {
+      tables.bdemotask.push({3: String(3100 + i * 10 + t), 12: lid, 14: '0', 15: '', 16: t < done ? '1' : '0', 18: String(t + 1), 26: 'General', 27: dept, 28: dept + ' review of ' + p.name, 29: '', 32: String(t + 1), 34: '0'});
+    });
+  });
+  [['Prepress', 'Production Art'], ['Prepress', 'Proof Review'], ['Project Coordination', 'Scheduling'], ['Engineering', 'Dieline Review']].forEach(function (s, i) { tables.bdemosrvc.push({3: String(i + 1), 6: s[0], 7: s[1]}); });
+
+  var ids = {};
+  function nextRid(table) { ids[table] = ids[table] || Object.keys(tables[table] || {}).length + 90000; return String(++ids[table]); }
+  function rows(table) { return tables[table] || (tables[table] = []); }
+  function xmlEsc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+
+  // Quickbase query language: {fid.OP.'value'} joined by AND / OR, with parentheses.
+  function when(value) { return /^\d{10,}$/.test(value) ? +value : Date.parse(value) || 0; }
+  function test(row, fid, op, want) {
+    var have = String(row[fid] == null ? '' : row[fid]), h = have.toLowerCase(), w = String(want).toLowerCase(), n = parseFloat(have), m = parseFloat(want);
+    switch (op) {
+      case 'EX': case 'TV': return h === w;
+      case 'XEX': case 'XTV': return h !== w;
+      case 'CT': case 'HAS': return h.indexOf(w) >= 0;
+      case 'XCT': return h.indexOf(w) < 0;
+      case 'SW': return h.indexOf(w) === 0;
+      case 'XSW': return h.indexOf(w) !== 0;
+      case 'OAF': case 'AF': return when(have) >= when(want);
+      case 'OBF': case 'BF': return when(have) <= when(want);
+      case 'GT': return isNaN(n) ? have > want : n > m;
+      case 'GTE': return n >= m;
+      case 'LT': return isNaN(n) ? have < want : n < m;
+      case 'LTE': return n <= m;
+      default: return true;
+    }
+  }
+  function tokenize(q) {
+    var out = [], re = /\{\s*'?(\d+)'?\s*\.\s*([A-Z]+)\s*\.\s*'((?:\\.|[^'])*)'\s*\}|\(|\)|AND|OR/gi, m;
+    while ((m = re.exec(q))) out.push(m[1] ? {fid: m[1], op: m[2].toUpperCase(), value: m[3].replace(/\\(.)/g, '$1')} : m[0].toUpperCase());
+    return out;
+  }
+  function matcher(q) {
+    var t = tokenize(q || ''), i = 0;
+    if (!t.length) return function () { return true; };
+    function atom(row) {
+      var k = t[i++];
+      if (k === '(') { var v = or(row); i++; return v; }
+      return !k || !k.fid || test(row, k.fid, k.op, k.value);
+    }
+    function and(row) { var v = atom(row); while (t[i] === 'AND') { i++; var r = atom(row); v = v && r; } return v; }
+    function or(row) { var v = and(row); while (t[i] === 'OR') { i++; var r = and(row); v = v || r; } return v; }
+    return function (row) { i = 0; return or(row); };
+  }
+  function select(table, q, slist, options) {
+    var list = rows(table).filter(matcher(q)), opt = String(options || ''), sort = String(slist || '').split('.').filter(Boolean)[0];
+    if (sort) {
+      var desc = /sortorder-D/.test(opt);
+      list = list.slice().sort(function (a, b) { var x = a[sort], y = b[sort], nx = parseFloat(x), ny = parseFloat(y), c = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x || '').localeCompare(String(y || '')); return desc ? -c : c; });
+    }
+    var skip = /skp-(\d+)/.exec(opt), num = /num-(\d+)/.exec(opt);
+    if (skip) list = list.slice(+skip[1]);
+    if (num) list = list.slice(0, +num[1]);
+    return list;
+  }
+  function ok(body) { return '<?xml version="1.0"?><qdbapi><action>demo</action><errcode>0</errcode><errtext>No error</errtext>' + (body || '') + '</qdbapi>'; }
+  function labelOf(table, fid) { return (labels[table] && labels[table][fid]) || 'Field ' + fid; }
+  function fidsOf(table) { var seen = {}; rows(table).forEach(function (r) { Object.keys(r).forEach(function (k) { seen[k] = 1; }); }); Object.keys(labels[table] || {}).forEach(function (k) { if (k !== 'name') seen[k] = 1; }); return Object.keys(seen).sort(function (a, b) { return a - b; }); }
+  function doQuery(table, p) {
+    var list = select(table, p.query, p.slist, p.options), clist = String(p.clist || '').split('.').filter(function (x) { return /^\d+$/.test(x); });
+    if (!clist.length) clist = fidsOf(table);
+    var fields = clist.map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    var body = list.map(function (r) {
+      return '<record rid="' + xmlEsc(r[3]) + '">' + clist.map(function (f) { return '<f id="' + f + '">' + xmlEsc(r[f]) + '</f>'; }).join('') + '<update_id>1</update_id></record>';
+    }).join('');
+    return ok('<table><fields>' + fields + '</fields><records>' + body + '</records></table>');
+  }
+  function schema(table) {
+    if (!tables[table]) {
+      var kids = Object.keys(labels).map(function (t) { return '<chdbid name="_dbid_' + xmlEsc(labels[t].name.toLowerCase().replace(/\W+/g, '_')) + '">' + t + '</chdbid>'; }).join('');
+      return ok('<table><name>Demo Packaging</name><original><app_id>' + table + '</app_id></original><chdbids>' + kids + '</chdbids><fields></fields></table>');
+    }
+    var fields = fidsOf(table).map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    return ok('<table><name>' + xmlEsc((labels[table] || {}).name || table) + '</name><original><table_id>' + table + '</table_id></original><fields>' + fields + '</fields></table>');
+  }
+  function writeFields(p, body) {
+    var out = {}, k;
+    for (k in p) { var m = /^_fid_(\d+)$/.exec(k); if (m) out[m[1]] = p[k]; }
+    if (body && /<field/.test(body)) {
+      var doc = new DOMParser().parseFromString(body, 'text/xml');
+      [].forEach.call(doc.querySelectorAll('field'), function (n) { if (n.getAttribute('fid')) out[n.getAttribute('fid')] = n.textContent; });
+      var rid = doc.querySelector('rid'); if (rid) p.rid = rid.textContent;
+      ['query', 'clist', 'slist', 'options', 'varname'].forEach(function (name) { var e = doc.querySelector(name); if (e && !p[name]) p[name] = e.textContent; });
+    }
+    return out;
+  }
+  // The real page stores a generated script on the record. There is no record to open here, so hand it over as a download.
+  function saveUpload(body) {
+    var file = new DOMParser().parseFromString(body, 'text/xml').querySelector('field[filename]');
+    if (file) {
+      var bytes = Uint8Array.from(atob(file.textContent), function (c) { return c.charCodeAt(0); });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([bytes], {type: 'application/javascript'}));
+      link.download = file.getAttribute('filename');
+      window.__demoLastFile = {name: link.download, text: new TextDecoder().decode(bytes)};
+      link.click();
+    }
+    return ok('<rid>1</rid>');
+  }
+  function xmlApi(table, p, body) {
+    var fields = writeFields(p, body), row;
+    switch (p.a) {
+      case 'API_DoQuery': return doQuery(table, p);
+      case 'API_DoQueryCount': return ok('<numMatches>' + select(table, p.query).length + '</numMatches>');
+      case 'API_GetDBVar': return ok('<value>demo-value</value>');
+      case 'API_SetDBVar': return ok();
+      case 'API_GetUserInfo': return ok('<user id="1.demo"><firstName>Demo</firstName><lastName>User</lastName><login>demo.user</login><email>demo.user@demo-packaging.example</email><screenName>Demo User</screenName></user>');
+      case 'API_GetSchema': return schema(table);
+      case 'API_GetDBPage': return '';
+      case 'dbpage': return (window.__DEMO_PAGES || {})[p.pageID || p.pageid] || '';
+      case 'API_UploadFile': return saveUpload(body);
+      case 'API_AddRecord':
+        row = fields; row[3] = nextRid(table); row[1] = String(Date.now()); row[2] = row[1]; rows(table).unshift(row);
+        return ok('<rid>' + row[3] + '</rid><update_id>1</update_id>');
+      case 'API_EditRecord':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid || p.key); })[0];
+        if (row) Object.keys(fields).forEach(function (f) { row[f] = fields[f]; });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid><num_fields_changed>1</num_fields_changed><update_id>2</update_id>');
+      case 'API_DeleteRecord':
+        tables[table] = rows(table).filter(function (r) { return String(r[3]) !== String(p.rid); });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>');
+      case 'API_GetRecordInfo':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid); })[0] || {};
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>' + Object.keys(row).map(function (f) { return '<field><fid>' + f + '</fid><name>' + xmlEsc(labelOf(table, f)) + '</name><type>Text</type><value>' + xmlEsc(row[f]) + '</value></field>'; }).join(''));
+      default: return ok();
+    }
+  }
+  function restWhere(where) { return where || ''; }
+  function restApi(url, init) {
+    var path = url.pathname, body = {};
+    try { body = JSON.parse(init.body || '{}'); } catch (e) {}
+    if (/\/v1\/auth\/temporary\//.test(path)) return {temporaryAuthorization: 'demo-token'};
+    if (/\/v1\/records\/query/.test(path)) {
+      var select_ = body.select || [], sort = (body.sortBy || [])[0], list = select(body.from, restWhere(body.where), sort && sort.fieldId, sort && sort.order === 'DESC' ? 'sortorder-D' : '');
+      return {data: list.map(function (r) { var o = {}; select_.forEach(function (f) { o[f] = {value: r[f] == null ? '' : r[f]}; }); return o; }),
+        fields: select_.map(function (f) { return {id: f, label: labelOf(body.from, f), type: 'text'}; }),
+        metadata: {numRecords: list.length, numFields: select_.length, totalRecords: list.length, skip: 0}};
+    }
+    if (/\/v1\/records/.test(path)) {
+      var created = (body.data || []).map(function (src) { var row = {}; Object.keys(src).forEach(function (f) { row[f] = src[f] && src[f].value; }); row[3] = row[3] || nextRid(body.to); rows(body.to).unshift(row); return +row[3]; });
+      return {data: [], metadata: {createdRecordIds: created, updatedRecordIds: [], unchangedRecordIds: [], totalNumberOfRecordsProcessed: created.length}};
+    }
+    if (/\/v1\/fields/.test(path)) { var t = url.searchParams.get('tableId'); return fidsOf(t).map(function (f) { return {id: +f, label: labelOf(t, f), fieldType: 'text'}; }); }
+    if (/\/v1\/tables/.test(path)) return Object.keys(labels).map(function (t) { return {id: t, name: labels[t].name}; });
+    return {};
+  }
+  function params(url, init) {
+    var p = {};
+    url.searchParams.forEach(function (v, k) { p[k] = v; });
+    var b = init && init.body;
+    if (b && typeof b === 'string' && !/^\s*</.test(b)) new URLSearchParams(b).forEach(function (v, k) { p[k] = v; });
+    else if (b && b.forEach && !(b instanceof Blob)) b.forEach(function (v, k) { if (typeof v === 'string') p[k] = v; });
+    var h = init && init.headers, action = h && (h['QUICKBASE-ACTION'] || (h.get && h.get('QUICKBASE-ACTION')));
+    if (action) p.a = action;
+    return p;
+  }
+  function respond(url, init) {
+    var host = url.hostname;
+    if (host === 'api.quickbase.com') return new Response(JSON.stringify(restApi(url, init || {})), {status: 200, headers: {'Content-Type': 'application/json'}});
+    var m = /^\/db\/([^/?#]+)/.exec(url.pathname), p = params(url, init), text = m ? xmlApi(m[1], p, typeof (init || {}).body === 'string' ? init.body : '') : '';
+    return new Response(text, {status: 200, headers: {'Content-Type': 'text/xml'}});
+  }
+  var realFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var raw = input && input.url ? input.url : String(input), url = new URL(raw, location.href);
+    if (url.hostname === HOST || url.hostname === 'api.quickbase.com' || (url.origin === location.origin && /^\/db\//.test(url.pathname))) return Promise.resolve(respond(url, init || {}));
+    if (url.hostname.indexOf('.example') > 0) return Promise.resolve(new Response('', {status: 404}));
+    return realFetch.apply(this, arguments);
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var tag = document.createElement('div');
+    tag.textContent = 'Demo: fictional company and data';
+    tag.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 10px;border-radius:999px;background:#1f2937;color:#fff;font:600 12px/1 system-ui,sans-serif;opacity:.85;pointer-events:none';
+    document.body.appendChild(tag);
+  });
+})();
+
+</script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Scan a press sheet barcode, pick the PO, and update its color standard and notes, and check it in.">
+  <title>Press Sheet Scan | Demo Packaging</title>
+  <style>
+    *{box-sizing:border-box}[hidden]{display:none!important}
+    body{margin:0;min-width:320px;background:var(--x-canvas);color:var(--x-ink);font:16px/1.45 var(--x-font)}
+    button,input,textarea,select{font:inherit;color:inherit}button{touch-action:manipulation}
+    .shell{width:min(1120px,calc(100% - 32px));margin:24px auto 60px}
+    .page-head{margin-bottom:18px}.eyebrow{margin:0 0 4px;color:var(--x-accent);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    .page-head h1{margin:0;font-size:clamp(26px,3.4vw,36px);font-weight:750;line-height:1.08;letter-spacing:-.035em}.page-head p{max-width:640px;margin:6px 0 0;color:var(--x-muted)}
+    .workspace{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:20px;align-items:start}
+    .card{overflow:hidden;border:1px solid var(--x-line);border-radius:var(--x-radius-card);background:var(--x-paper);box-shadow:var(--x-shadow-card)}
+    .panel-head{padding:16px 20px 12px;border-bottom:1px solid var(--x-line)}.panel-head h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.015em}.panel-head p{margin:3px 0 0;color:var(--x-muted);font-size:14px}
+    .pad{padding:16px 20px}
+    .viewport{position:relative;aspect-ratio:4/3;overflow:hidden;border-radius:var(--x-radius-inner);background:#0b1f26;display:grid;place-items:center}
+    .viewport video{width:100%;height:100%;object-fit:cover}
+    .viewport .aim{position:absolute;left:10%;right:10%;top:34%;bottom:34%;border:2px solid rgba(255,255,255,.85);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.28);pointer-events:none}
+    .viewport .aim::after{content:"";position:absolute;left:6%;right:6%;top:50%;height:2px;background:#ff5a5a;animation:sweep 1.6s ease-in-out infinite alternate}
+    @keyframes sweep{from{transform:translateY(-22px)}to{transform:translateY(22px)}}
+    .viewport .idle{color:#cfe3e8;text-align:center;padding:20px;font-size:14px}
+    .viewart{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;background:#fff;color:var(--x-muted);text-align:center;font-size:14px}.viewart .placeholder{padding:16px}
+    .viewart-label{position:absolute;left:10px;top:10px;z-index:5;padding:4px 9px;border-radius:99px;background:rgba(3,61,75,.88);color:#fff;font-size:11px;font-weight:800;letter-spacing:.04em;pointer-events:none}
+    .viewport.hit{outline:4px solid #2fbf8f;outline-offset:-4px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.row>*{flex:1 1 auto}
+    .button{min-height:44px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--x-brand);border-radius:var(--x-radius-control);background:var(--x-brand);color:#fff;cursor:pointer;font-weight:700;text-decoration:none;white-space:nowrap}
+    .button:hover:not(:disabled){background:var(--x-brand-hover)}.button:disabled{opacity:.5;cursor:not-allowed}
+    .button.secondary{border-color:var(--x-line-strong);background:#fff;color:var(--x-ink)}.button.secondary:hover:not(:disabled){background:var(--x-soft)}
+    .button.small{min-height:36px;padding:0 12px;font-size:14px;flex:0 0 auto}
+    .field{display:grid;gap:5px;min-width:0}.field label,.field .lbl{color:#3e5960;font-size:13px;font-weight:750}
+    .field input,.field textarea{width:100%;border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:#fff;outline:none}
+    .field input{height:44px;padding:0 12px}.field textarea{min-height:92px;padding:10px 12px;resize:vertical}
+    .field input:focus,.field textarea:focus{border-color:var(--x-accent);box-shadow:var(--x-focus)}
+    .or{margin:14px 0 10px;display:flex;align-items:center;gap:10px;color:var(--x-muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.or::before,.or::after{content:"";flex:1;height:1px;background:var(--x-line)}
+    .status{min-height:22px;margin-top:10px;color:var(--x-muted);font-size:14px}.status.error{color:var(--x-danger);font-weight:650}.status.ok{color:var(--x-success);font-weight:650}
+    .recent{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chip{padding:5px 10px;border:1px solid var(--x-line-strong);border-radius:999px;background:#fff;cursor:pointer;font:600 13px/1.2 ui-monospace,Consolas,monospace}.chip:hover{background:var(--x-soft)}
+    .empty{padding:40px 20px;text-align:center;color:var(--x-muted)}
+    .item-head{display:flex;gap:14px;align-items:flex-start;padding:16px 20px;border-bottom:1px solid var(--x-line)}
+    .item-head .art{flex:0 0 92px;height:92px;border:1px solid var(--x-line);border-radius:var(--x-radius-small);background:var(--x-soft) center/contain no-repeat;overflow:hidden}
+    .item-head h3{margin:0;font-size:18px;line-height:1.2;word-break:break-word}.item-head .meta{margin-top:4px;color:var(--x-muted);font-size:14px}
+    .item-head code{font:600 13px ui-monospace,Consolas,monospace;color:var(--x-ink)}
+    .lines{max-height:260px;overflow:auto;border-bottom:1px solid var(--x-line)}
+    .line{width:100%;padding:10px 20px;display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;border:0;border-bottom:1px solid var(--x-line);background:#fff;text-align:left;cursor:pointer}
+    .line:last-child{border-bottom:0}.line:hover{background:#f7fafb}.line[aria-selected="true"]{background:var(--x-accent-soft);box-shadow:inset 4px 0 0 var(--x-accent)}
+    .line .po{font-weight:800;font-size:16px}.line .sub{color:var(--x-muted);font-size:13px}.line .tag{font-size:12px;font-weight:750;padding:3px 8px;border-radius:999px;background:var(--x-soft);color:#3e5960;white-space:nowrap}
+    .line .tag.set{background:#e3f3ee;color:var(--x-success)}
+    .editor{padding:16px 20px;display:grid;gap:14px}
+    .seg{display:flex;flex-wrap:wrap;gap:6px}.seg button{min-height:40px;padding:0 13px;border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:#fff;cursor:pointer;font-weight:700;font-size:14px}
+    .seg button[aria-pressed="true"]{border-color:var(--x-brand);background:var(--x-brand);color:#fff}
+    .check{display:flex;align-items:center;gap:10px;font-weight:700}.check input{width:22px;height:22px;accent-color:var(--x-brand)}
+    .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 16px;padding:12px 20px;border-bottom:1px solid var(--x-line);background:#fbfcfc;font-size:14px}.facts b{display:block;color:var(--x-muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+    .save-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.save-row .button:first-child{flex:1}
+    .button.good{min-height:54px;border-color:var(--x-success);background:var(--x-success);font-size:17px;flex-direction:column;gap:0;line-height:1.15}.button.good:hover:not(:disabled){background:#0f5a4b}.button.good small{font-size:12px;font-weight:600;opacity:.85}
+    .readonly{min-height:44px;padding:10px 12px;border:1px solid var(--x-line);border-radius:var(--x-radius-control);background:var(--x-soft);white-space:pre-wrap;word-break:break-word}.readonly.none{color:var(--x-muted);font-style:italic}
+    .hint{color:var(--x-muted);font-size:12px}.minor{margin-left:6px;font-size:12px;font-weight:600;color:var(--x-accent)}
+    .received-strip{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--x-line);border-radius:var(--x-radius-control);background:#fff}.received-strip img{flex:none}
+    .rs-text{flex:1;min-width:0;display:grid;gap:1px}.rs-label{color:var(--x-muted);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}.rs-text strong{font-size:14px;font-weight:650}
+    .received-strip .button.small{flex:none;min-height:34px}
+    .line .tag{display:inline-flex;align-items:center;gap:5px}
+    #poWrap{border-bottom:1px solid var(--x-line)}#poWrap:empty{display:none}
+    .po-bar{display:flex;align-items:center;gap:12px;padding:12px 20px 0}.po-bar>div{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px;font-size:14px;color:var(--x-muted)}.po-bar strong{font-size:17px;color:var(--x-ink)}.po-bar em{font-style:normal;font-size:12px}
+    .received-strip{margin:10px 20px 14px}.rs-text a{font-size:13px;font-weight:650;color:var(--x-accent)}
+    .lbl-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+    .none-line{font-size:14px;color:var(--x-muted)}.none-line b{margin-right:6px;color:#3e5960;font-size:13px}
+    @media(max-width:520px){.po-bar{padding:12px 14px 0}.received-strip{margin:10px 14px 14px}}
+    .panel-head{display:flex;align-items:flex-start;gap:10px}.panel-head>div{flex:1;min-width:0}
+    .collapse-btn{flex:none;width:34px;height:34px;margin:-4px -8px 0 0;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:var(--x-muted);cursor:pointer}.collapse-btn:hover{background:var(--x-soft);color:var(--x-ink)}
+    .collapse-btn svg{transition:transform .2s}.card.collapsed .collapse-btn svg{transform:rotate(-90deg)}
+    .card.collapsed>:not(.panel-head){display:none!important}.card.collapsed .panel-head{border-bottom:0;cursor:pointer;padding-bottom:14px}.card.collapsed .panel-head p{display:none}
+    .workspace.one-open{grid-template-columns:1fr}.workspace.one-open .card.collapsed{order:-2}
+    @media(min-width:861px){
+      .workspace.one-open .result-card:not(.collapsed) #result{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+      .workspace.one-open .result-card:not(.collapsed) #result>.item-head{grid-column:1;grid-row:1}
+      .workspace.one-open .result-card:not(.collapsed) #result>#poWrap{grid-column:1;grid-row:2;border-bottom:0}
+      .workspace.one-open .result-card:not(.collapsed) #result>#editorWrap{grid-column:2;grid-row:1/span 3;border-left:1px solid var(--x-line)}
+      .workspace.one-open .result-card:not(.collapsed) #result>.empty{grid-column:1/-1}
+      /* scanner on its own: picture across the full width, entry fields underneath */
+      .workspace.one-open .scan-card:not(.collapsed) .entry-block{order:1;margin:0}
+      .workspace.one-open .scan-card:not(.collapsed) .viewport{aspect-ratio:16/9;max-height:72vh;width:100%}
+    }
+    .pz-stage{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}.pz-frame{display:block;border:0;background:#fff;pointer-events:none}
+    .pz-catch{position:absolute;inset:0;z-index:3;cursor:grab;touch-action:none}.pz-catch:active{cursor:grabbing}
+    .pz-loading{position:absolute;inset:0;display:grid;place-items:center;z-index:1}
+    .pz-tools{position:absolute;right:10px;bottom:10px;z-index:5;display:flex;gap:4px;padding:4px;border-radius:10px;background:rgba(3,61,75,.88);box-shadow:0 4px 14px rgba(0,0,0,.2)}
+    .pz-tools button,.pz-tools a{min-width:32px;height:32px;padding:0 8px;display:grid;place-items:center;border:0;border-radius:7px;background:transparent;color:#fff;font:700 15px/1 var(--x-font);text-decoration:none;cursor:pointer}.pz-tools button:hover,.pz-tools a:hover{background:rgba(255,255,255,.18)}
+    .dirty{color:var(--x-warning);font-size:13px;font-weight:700}
+    @media(max-width:860px){.workspace{grid-template-columns:1fr}.workspace.review .result-card{order:-1}.workspace.review .entry-block{order:-1;margin-bottom:14px}.workspace.review .or{display:none}}
+    .scan-pad{display:flex;flex-direction:column}.btns{flex:0 0 auto;display:flex;gap:8px}
+    .save-row .button{flex:1}
+    @media(max-width:520px){.shell{width:calc(100% - 24px);margin-top:14px}.pad,.editor,.item-head,.facts{padding-left:14px;padding-right:14px}.line{padding-left:14px;padding-right:14px}}
+  </style>
+  <style id="xh-style">
+    /* Demo Packaging app header - shared standard (see App Development/HEADER-STANDARD.md) */
+    :root{--xh-height:60px}
+    .xh{position:relative;z-index:20;background:#3b3f8f;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.18);font-family:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.2}
+    .xh-inner{height:var(--xh-height);padding:0 24px;display:flex;align-items:center;gap:16px}
+    .xh-logo{flex:none;display:block;width:auto;height:26px}
+    .xh-home{flex:none;display:flex;align-items:center;border-radius:6px;text-decoration:none;transition:opacity .15s}.xh-home:hover{opacity:.82}.xh-home:focus-visible{outline:2px solid #8fd6e1;outline-offset:5px}
+    .xh-symbol{flex:none;display:none;width:22px;height:22px}
+    .xh-divider{flex:none;width:1px;height:28px;background:rgba(255,255,255,.28)}
+    .xh-title{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .xh-title strong{overflow:hidden;color:#fff;font-size:16px;font-weight:700;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+    .xh-title span{overflow:hidden;color:#a3c9d1;font-size:11px;font-weight:700;letter-spacing:.1em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    .xh-badge{flex:none;padding:4px 7px;border:1px solid rgba(255,255,255,.3);border-radius:6px;color:#d9eef2;font:700 11px/1 ui-monospace,Consolas,monospace}
+    .xh-actions{flex:none;margin-left:auto;display:flex;align-items:center;gap:8px}
+    .xh-button{height:36px;min-height:0;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(255,255,255,.26);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;box-shadow:none;transform:none;cursor:pointer;font:inherit;font-size:13px;font-weight:700;line-height:1;list-style:none;text-decoration:none;white-space:nowrap}
+    .xh-button:hover{background:rgba(255,255,255,.16);box-shadow:none;transform:none}
+    .xh-button:focus-visible{outline:2px solid #8fd6e1;outline-offset:2px}
+    .xh-button:disabled{cursor:not-allowed;opacity:.45}
+    .xh-button[aria-pressed="true"],details[open]>summary.xh-button{border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.2)}
+    .xh-button.primary{border-color:#fff;background:#fff;color:#3b3f8f}.xh-button.primary:hover:not(:disabled){background:#dff0f3}
+    .xh-button::-webkit-details-marker{display:none}
+    .xh-button svg{flex:none;width:16px;height:16px}
+    @media(max-width:640px){:root{--xh-height:52px}.xh-inner{padding:0 14px;gap:11px}.xh-logo{height:21px}.xh-inner:has(.xh-actions) .xh-logo{display:none}.xh-inner:has(.xh-actions) .xh-symbol{display:block}.xh-divider{height:24px}.xh-title strong{font-size:15px}.xh-title span{display:none}.xh-button{height:34px;padding:0 10px;font-size:12px}}
+    @media print{.xh{display:none!important}}
+  .xh-version{flex:none;padding:4px 7px;border:1px solid rgba(255,255,255,.3);border-radius:6px;color:#d9eef2;font:700 11px/1 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap}
+  .xh-version.stale{border-color:#ffd166;background:#ffd166;color:#132a35;cursor:pointer}
+  @media(max-width:640px){.xh-version:not(.stale){display:none}}
+  </style>
+  <style id="demo-theme">
+    /* Demo Packaging app theme - shared tokens (see tools/README.md) */
+    :root{--x-brand:#3b3f8f;--x-brand-hover:#2d3070;--x-accent:#5257b8;--x-accent-soft:#e4f0f2;--x-ink:#132a35;--x-muted:#62757c;--x-line:#d6e0e3;--x-line-strong:#c3d2d6;--x-soft:#eef4f5;--x-paper:#fff;--x-canvas:#f3f6f7;--x-danger:#a73543;--x-success:#18705f;--x-warning:#8a5a00;--x-radius-card:14px;--x-radius-inner:11px;--x-radius-control:9px;--x-radius-small:7px;--x-shadow-card:0 1px 2px rgba(3,61,75,.05),0 6px 18px rgba(3,61,75,.06);--x-shadow-pop:0 14px 32px rgba(3,61,75,.16);--x-shadow-modal:0 24px 70px rgba(2,32,40,.3);--x-focus:0 0 0 3px rgba(13,99,114,.18);--x-font:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    body{font-family:var(--x-font)}
+  </style>
+<!-- app-version:start (managed by demo_versions.py: change versions.json, not this copy) -->
+
+
+
+
+</head>
+<body>
+  <header class="xh">
+    <div class="xh-inner">
+      <a class="xh-home" href="#" title="All demo apps" aria-label="Demo Apps: all our tools"><img class="xh-logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27white%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging" width="89" height="26">
+      <img class="xh-symbol" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27white%27/%3E%3C/svg%3E" alt="Demo Packaging" width="22" height="22"></a>
+      <span class="xh-divider" aria-hidden="true"></span>
+      <div class="xh-title"><strong>Press Sheet Scan</strong><span>Color review</span></div>
+    </div>
+  </header>
+  <main class="shell">
+    <header class="page-head"><p class="eyebrow">Production tools</p><h1>Press sheet scan</h1><p>Scan the barcode on a press sheet, pick its PO, update its color standard and notes, and check it in.</p></header>
+    <div class="workspace" id="workspace">
+      <section class="card scan-card" id="scanCard" data-panel="scan" aria-labelledby="scanTitle">
+        <header class="panel-head"><div><h2 id="scanTitle">Scan a barcode</h2><p>Hold the barcode inside the box. It reads on its own.</p></div><button type="button" class="collapse-btn" aria-expanded="true" title="Collapse"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button></header>
+        <div class="pad scan-pad">
+          <div class="cam-block">
+          <div class="viewport" id="viewport">
+            <video id="video" playsinline muted hidden></video>
+            <div class="aim" id="aim" hidden></div>
+            <div class="art viewart" id="viewArt" hidden></div>
+            <div class="idle" id="idle">Camera is off.<br>Press <b>Start camera</b> to scan.</div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button class="button" id="camBtn" type="button">Start camera</button>
+            <button class="button secondary small" id="torchBtn" type="button" hidden aria-pressed="false">Light</button>
+            <label class="button secondary small" for="photoInput">Take a photo</label>
+            <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
+          </div>
+          <div class="or">or type it</div>
+          </div>
+          <div class="entry-block">
+          <form class="row" id="manualForm">
+            <div class="field" style="flex:2 1 180px"><label for="codeInput">Barcode</label><input id="codeInput" inputmode="numeric" autocomplete="off" placeholder="Full UPC or last 5 digits"></div>
+            <div class="field" style="flex:1 1 110px"><label for="poInput">PO (optional)</label><input id="poInput" autocomplete="off" placeholder="e.g. 5916"></div>
+            <div class="btns"><button class="button" type="submit">Find</button><button class="button secondary" type="button" id="newScanBtn" hidden>New scan</button></div>
+          </form>
+          <div class="status" id="status" role="status" aria-live="polite"></div>
+          <div id="recentWrap" hidden><div class="field"><span class="lbl">Recent scans</span></div><div class="recent" id="recent"></div></div>
+          </div>
+        </div>
+      </section>
+      <section class="card result-card" id="resultCard" data-panel="result" aria-labelledby="resultTitle">
+        <header class="panel-head"><div><h2 id="resultTitle">Press sheet</h2><p id="resultHint">Scan a barcode to bring up its order lines.</p></div><button type="button" class="collapse-btn" aria-expanded="true" title="Collapse"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button></header>
+        <div id="result"><div class="empty">Nothing scanned yet.</div></div>
+      </section>
+    </div>
+  </main>
+<script>
+const CONFIG={realm:'demo.quickbase.example',appId:'bdemoapp0',userTokenVariable:'usertoken',appTokenVariable:'q_apptoken',itemsTable:'bdemoitem',
+  item:{rid:3,po:184,orderNo:8,upc:13,name:14,brand:382,filing:2209,orderDate:262,relatedOrder:6,artLink:329,deleted:2519,
+    psApproved:417,psApprovedOn:419,psNotHere:2412,vendorNotes:2693,internalNotes:2694,reviewed:2695,checkedInOn:2696,relatedItem:151,received:420,modified:2},
+  productionTable:'bdemoprod',checkInPage:'https://demo.quickbase.example/db/bdemoapp0?a=dbpage&pageID=1',production:{standard:604,colorNotes:539,oldColorNotes:225},
+  statuses:['To be sent','In transit','Missing','Duplicate'],
+  zxing:'https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.4/dist/iife/reader/index.js'};
+const F=CONFIG.item,$=id=>document.getElementById(id);
+const state={lines:[],selected:null,artUrl:'',stream:null,track:null,scanning:false,detector:null,busy:false,draft:null};
+
+/* ---------- Quickbase ---------- */
+const credentials={};
+const clean=v=>String(v??'').replace(/\s+/g,' ').trim();
+const digits=v=>String(v??'').replace(/\D/g,'');
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function xml(text){return new DOMParser().parseFromString(text,'text/xml')}
+function xmlError(doc){if(doc.querySelector('parsererror'))return'Quickbase returned malformed XML.';const code=clean(doc.querySelector('errcode')?.textContent),text=clean(doc.querySelector('errtext')?.textContent),detail=clean(doc.querySelector('errdetail')?.textContent);return code&&code!=='0'?`Quickbase error ${code}: ${detail||text}`:''}
+function variableApp(){const m=location.pathname.match(/^\/(?:db|up)\/([^/?#]+)/i);return m?m[1]:CONFIG.appId}
+async function dbVariable(name){const q=new URLSearchParams({a:'API_GetDBVar',varname:name}),r=await fetch(`https://${CONFIG.realm}/db/${encodeURIComponent(variableApp())}?${q}`,{credentials:'include'});if(!r.ok)throw new Error(`Credential request failed (${r.status}).`);const doc=xml(await r.text()),e=xmlError(doc);if(e)throw new Error(e);const v=clean(doc.querySelector('value')?.textContent);if(!v)throw new Error(`${name} is empty.`);return v}
+async function loadCredentials(){if(credentials.user&&credentials.app)return credentials;if(!credentials.loading)credentials.loading=Promise.all([dbVariable(CONFIG.userTokenVariable),dbVariable(CONFIG.appTokenVariable)]).then(([user,app])=>Object.assign(credentials,{user,app})).catch(e=>{credentials.loading=null;throw e});return credentials.loading}
+function xmlRecord(rec){const out={};rec.querySelectorAll(':scope > f').forEach(f=>{out[f.getAttribute('id')]=f.textContent});return out}
+async function queryItems(where){const auth=await loadCredentials(),clist=[F.rid,F.po,F.orderNo,F.upc,F.name,F.brand,F.filing,F.orderDate,F.relatedOrder,F.artLink,F.psApproved,F.psApprovedOn,F.psNotHere,F.vendorNotes,F.internalNotes,F.reviewed,F.relatedItem,F.received,F.modified];
+  const q=new URLSearchParams({a:'API_DoQuery',query:`${where}AND{${F.deleted}.EX.0}`,clist:clist.join('.'),slist:`${F.orderDate}.${F.rid}`,options:'sortorder-DD.num-200',fmt:'structured',usertoken:auth.user,apptoken:auth.app});
+  const r=await fetch(`https://${CONFIG.realm}/db/${CONFIG.itemsTable}?${q}`,{credentials:'include'});if(!r.ok)throw new Error(`Quickbase search failed (${r.status}).`);
+  const doc=xml(await r.text()),e=xmlError(doc);if(e)throw new Error(e);return[...doc.querySelectorAll('record')].map(xmlRecord)}
+async function editItem(rid,fields,table=CONFIG.itemsTable){const auth=await loadCredentials();
+  const body=`<qdbapi><usertoken>${esc(auth.user)}</usertoken><apptoken>${esc(auth.app)}</apptoken><rid>${esc(rid)}</rid>${Object.entries(fields).map(([fid,v])=>`<field fid="${fid}">${esc(v)}</field>`).join('')}</qdbapi>`;
+  const r=await fetch(`https://${CONFIG.realm}/db/${table}`,{method:'POST',credentials:'include',headers:{'QUICKBASE-ACTION':'API_EditRecord','Content-Type':'application/xml'},body});
+  if(!r.ok)throw new Error(`Save failed (${r.status}).`);const doc=xml(await r.text()),e=xmlError(doc);if(e)throw new Error(e)}
+const recordUrl=(rid,table=CONFIG.itemsTable)=>`https://${CONFIG.realm}/db/${table}?a=dr&rid=${encodeURIComponent(rid)}`;
+// Approved Color Standard lives on the Production item (Order Products' Related Item), so it is shared by every PO of that item
+async function loadStandard(itemRid){return(await loadProduction(itemRid,[CONFIG.production.standard]))[CONFIG.production.standard]||''}
+async function loadProduction(itemRid,fids){const auth=await loadCredentials(),q=new URLSearchParams({a:'API_DoQuery',query:`{3.EX.'${itemRid}'}`,clist:[3,...fids].join('.'),fmt:'structured',usertoken:auth.user,apptoken:auth.app});
+  const r=await fetch(`https://${CONFIG.realm}/db/${CONFIG.productionTable}?${q}`,{credentials:'include'});if(!r.ok)throw new Error(`Color standard lookup failed (${r.status}).`);
+  const doc=xml(await r.text()),e=xmlError(doc);if(e)throw new Error(e);const rec=doc.querySelector('record');if(!rec)throw new Error('The Production item for this line was not found.');return xmlRecord(rec)}
+
+/* ---------- Lookup ---------- */
+function parseScan(raw){const text=clean(raw);let po='',code=text;const m=text.match(/^\s*([A-Za-z0-9-]+)\s*:\s*([\d\s-]*)$/);if(m){po=m[1];code=m[2]}
+  // Quickbase keeps the middle 10 digits of a UPC: drop the number-system digit and the check digit
+  let d=digits(code);if(d.length===13&&d.startsWith('0'))d=d.slice(1);if(d.length===12)d=d.slice(1,11);return{po,code:d}}
+async function lookup(raw,poHint){const{po,code}=parseScan(raw),wantPo=clean(poHint||po);
+  if(code.length<5){setStatus('Enter at least the last five barcode digits.','error');return}
+  if(state.busy)return;state.busy=true;setStatus('Searching Quickbase…');
+  try{const last5=code.slice(-5);let rows=await queryItems(`{${F.upc}.CT.'${last5}'}`);
+    rows=rows.filter(r=>digits(r[F.upc]).endsWith(last5));
+    if(code.length>5){const exact=rows.filter(r=>digits(r[F.upc])===code||digits(r[F.upc]).endsWith(code)||code.endsWith(digits(r[F.upc])));if(exact.length)rows=exact}
+    if(!rows.length){showEmpty(`No order lines found for barcode ${code}.`);setStatus(`Nothing in Order Products ends in ${last5}.`,'error');return}
+    const pick=await DemoChoice.resolve({code:last5,rows,upc:r=>r[F.upc],brand:r=>r[F.brand],detail:r=>r[F.name],link:r=>recordUrl(r[F.rid])});
+    if(!pick||!pick.length){setStatus('No barcode was chosen.');return}rows=pick;
+    state.lines=rows;remember(clean(rows[0][F.upc]));
+    let chosen=null;if(wantPo){const p=wantPo.toLowerCase();chosen=rows.find(r=>clean(r[F.po]).toLowerCase()===p)||rows.find(r=>clean(r[F.orderNo]).toLowerCase()===p)}
+    if(!chosen&&new Set(rows.map(poKey)).size===1)chosen=rows[0];
+    render(chosen?chosen[F.rid]:null);
+    setStatus(wantPo&&!chosen?`PO ${wantPo} is not on this barcode. Pick one of its POs.`:(new Set(rows.map(poKey)).size===1?'Found it.':`Found ${new Set(rows.map(poKey)).size} POs. Pick one.`),wantPo&&!chosen?'error':'ok');
+  }catch(e){setStatus(e.message||String(e),'error')}finally{state.busy=false}}
+
+/* ---------- Rendering ---------- */
+function fmtDate(ms){const n=Number(ms);if(!n)return'';const d=new Date(n);return d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric',timeZone:'UTC'})}
+function showEmpty(msg){state.lines=[];state.selected=null;showArt();$('result').innerHTML=`<div class="empty">${esc(msg)}</div>`;$('resultHint').textContent='Scan a barcode to bring up its order lines.';$('resultHint').hidden=false;setPhase(false)}
+// Lines with the same PO on this barcode (split lines) are one press sheet: show them once, save to every one
+const poKey=r=>clean(r[F.po]).toLowerCase()||'rid:'+r[F.rid];
+const twins=rid=>{const r=state.lines.find(x=>x[F.rid]===String(rid));return r?state.lines.filter(x=>poKey(x)===poKey(r)):[]};
+function setPhase(review){$('workspace').classList.toggle('review',review);$('newScanBtn').hidden=!review;
+  if(review&&matchMedia('(max-width:860px)').matches)$('resultCard').scrollIntoView({behavior:'smooth',block:'start'})}
+function newScan(){if(isDirty()&&!confirm('Discard unsaved changes?'))return;state.draft=null;showEmpty('Ready for the next press sheet.');$('codeInput').value='';$('poInput').value='';startCamera()}
+function render(selectRid){const first=state.lines[0];setCollapsed($('resultCard'),false);setPhase(true);
+  $('result').innerHTML=`<div class="item-head"><div><h3>${esc(first[F.name])}</h3><div class="meta">${esc([first[F.brand],first[F.filing]&&`Filing ${first[F.filing]}`].filter(Boolean).join(' · '))}</div><div class="meta"><code>${esc(first[F.upc])}</code></div></div></div><div id="poWrap"></div><div id="editorWrap"></div>`;
+  showArt();
+  if(selectRid)select(twins(selectRid)[0][F.rid]);else showPoList()}
+const poRows=()=>{const seen=new Set();return state.lines.filter(r=>!seen.has(poKey(r))&&seen.add(poKey(r)))};
+function showPoList(){if(isDirty()&&!confirm('Discard unsaved changes on this PO?'))return;state.selected=null;state.draft=null;
+  $('resultHint').textContent='Pick the PO this press sheet belongs to.';$('resultHint').hidden=false;
+  $('poWrap').innerHTML=`<div class="lines" role="listbox" aria-label="POs">${poRows().map(r=>`<button type="button" class="line" role="option" data-rid="${esc(r[F.rid])}"><span class="po">PO ${esc(r[F.po]||'—')}</span><span class="sub">${esc(fmtDate(r[F.orderDate]))}${twins(r[F.rid]).length>1?` · ${twins(r[F.rid]).length} lines`:''}</span><span class="tag${/approved|checked/i.test(receivedShort(r))?' set':''}">${receivedIcon(r)}${esc(receivedShort(r))}</span></button>`).join('')}</div>`;
+  $('poWrap').querySelectorAll('.line').forEach(b=>b.addEventListener('click',()=>select(b.dataset.rid)));
+  $('editorWrap').innerHTML='';showArt()}
+function select(rid){if(state.draft&&state.selected&&state.selected!==rid&&isDirty()&&!confirm('Discard unsaved changes on this PO?'))return;
+  const r=state.lines.find(x=>x[F.rid]===String(rid));if(!r)return;state.selected=r[F.rid];showArt();
+  const tw=twins(r[F.rid]),pick=fid=>(tw.find(x=>clean(x[fid]))||r)[fid]||'',many=poRows().length>1;
+  const item=clean(r[F.relatedItem]).replace(/\.0+$/,'');
+  state.draft={mj:pick(F.vendorNotes),demo:pick(F.internalNotes),reviewed:tw.some(x=>x[F.reviewed]==='1'),item,std:null};state.checkInNow=false;
+  $('resultHint').hidden=true;
+  const order=clean(r[F.orderNo]),po=clean(r[F.po]);
+  $('poWrap').innerHTML=`<div class="po-bar"><div><strong>PO ${esc(po||'—')}</strong><span>${esc([fmtDate(r[F.orderDate])&&`Ordered ${fmtDate(r[F.orderDate])}`,order&&order!==po&&`Order ${order}`].filter(Boolean).join(' · '))}</span><span>${tw.map(x=>`<a href="${recordUrl(x[F.rid])}" target="_blank" rel="noopener">#${esc(x[F.rid])} ↗</a>`).join(' ')}${tw.length>1?' <em>saved together</em>':''}</span></div>${many?'<button type="button" class="button secondary small" id="changePo">Change PO</button>':''}</div>
+    <div class="received-strip" id="received">${receivedHtml(r)}</div>`;
+  $('changePo')?.addEventListener('click',showPoList);
+  $('editorWrap').innerHTML=`<form class="editor" id="editor">
+      <div class="field"><div class="lbl-row"><label for="standard">Approved color standard</label>${item?`<a class="minor" href="${recordUrl(item,CONFIG.productionTable)}" target="_blank" rel="noopener" title="Shared by every PO of this item">item #${esc(item)} ↗</a>`:''}</div><input id="standard" autocomplete="off" disabled placeholder="${item?'Loading…':'No Production item on this line'}"></div>
+      ${state.draft.vendor?`<div class="field"><span class="lbl">Vendor color notes</span><div class="readonly">${esc(state.draft.vendor)}</div></div>`:'<div class="none-line"><b>Vendor color notes</b> None yet</div>'}
+      <div class="field"><label for="internalNotes">Demo color notes</label><textarea id="internalNotes" placeholder="Also saved to the item's Color Management Notes">${esc(state.draft.demo)}</textarea></div>
+      <button class="button good" type="button" id="goodBtn">All Good <small>${needsCheckIn(r)?'check in, save &amp; scan next':'save &amp; scan next'}</small></button>
+      <div class="save-row"><button class="button" type="submit" id="saveBtn">Save</button><span class="dirty" id="dirty" hidden>Unsaved changes</span></div>
+    </form>`;
+  const ed=$('editor');
+  if(item)loadStandard(item).then(v=>{if(state.selected!==r[F.rid]||!state.draft)return;state.draft.std=v;const s=$('standard');s.value=v;s.disabled=false;s.placeholder='e.g. Match to 59617';markDirty()}).catch(e=>{if(state.selected===r[F.rid])$('standard').placeholder=e.message||'Could not load'});
+  $('receivedBtn')?.addEventListener('click',()=>runReceived(r[F.rid]));
+  ed.addEventListener('input',markDirty);ed.addEventListener('submit',e=>{e.preventDefault();save()});
+  $('goodBtn').addEventListener('click',async()=>{state.checkInNow=needsCheckIn(r);const b=$('goodBtn');b.disabled=true;const ok=await save();b.disabled=false;state.checkInNow=false;if(!ok)return;state.draft=null;const msg=$('status').textContent;showEmpty('Ready for the next press sheet.');$('codeInput').value='';$('poInput').value='';await startCamera();setStatus(msg+' Scan the next sheet.','ok')});
+}
+// Press Sheet Received (fid 420) is a formula: an icon, and usually a link that moves the press sheet to its next step
+function receivedParts(row){const doc=new DOMParser().parseFromString(String(row[F.received]||''),'text/html'),img=doc.querySelector('img'),a=doc.querySelector('a');
+  return{src:img?.getAttribute('src')||'',text:img?.getAttribute('title')||'',href:a?.getAttribute('href')||'',action:(a?.getAttribute('title')||'').replace(/^Click (here )?to /i,'')}}
+function receivedHtml(row){const p=receivedParts(row);if(!p.src&&!p.text)return'<div class="rs-text"><span class="rs-label">Press sheet received</span><strong>No status</strong></div>';
+  return`${p.src?`<img src="${esc(p.src)}" alt="" width="20" height="20">`:''}<div class="rs-text"><span class="rs-label">Press sheet received</span><strong>${esc(p.text||'—')}</strong>${needsCheckIn(row)?`<a href="${esc(checkInUrl(row))}" target="_blank" rel="noopener">Check in on Press Sheet Labels ↗</a>`:''}</div>${p.href?`<button type="button" class="button secondary small" id="receivedBtn">${esc(p.action?p.action[0].toUpperCase()+p.action.slice(1):'Update')}</button>`:''}`}
+const needsCheckIn=row=>twins(row[F.rid]).every(x=>x[F.reviewed]!=='1'&&x[F.psApproved]!=='1'&&x[F.psNotHere]!=='1');
+const checkInUrl=row=>`${CONFIG.checkInPage}&po=${encodeURIComponent(clean(row[F.po]))}&upc=${encodeURIComponent(digits(row[F.upc]).slice(-5))}`;
+function receivedIcon(row){const s=receivedParts(row).src;return s?`<img src="${esc(s)}" alt="" width="14" height="14">`:''}
+function receivedShort(row){const x=receivedParts(row).text;if(!x)return'No status';if(/not pulled/i.test(x))return'Missing';if(/not arrived/i.test(x))return'Not arrived';if(/comments/i.test(x))return'Approved with comments';return x.split(/ on /)[0]}
+async function runReceived(rid){const r=state.lines.find(x=>x[F.rid]===rid),p=receivedParts(r);if(!p.href)return;
+  if(isDirty()&&!confirm('Save or discard your edits first? OK discards them.'))return;
+  const btn=$('receivedBtn');btn.disabled=true;
+  try{// run the same link on every line of this PO that offers the same step
+    const lines=twins(rid).filter(x=>{const q=receivedParts(x);return q.href&&q.action===p.action});
+    for(const x of lines){const res=await fetch(receivedParts(x).href,{credentials:'include'});if(!res.ok)throw new Error(`Quickbase refused the update (${res.status}).`)}
+    const fresh=await queryItems(lines.map(x=>`{3.EX.'${x[F.rid]}'}`).join('OR').replace(/^(.*)$/,'($1)'));fresh.forEach(f=>{const x=state.lines.find(y=>y[F.rid]===f[F.rid]);if(x)Object.assign(x,f)});
+    state.draft=null;select(rid);setStatus(`Done${p.action?` (${p.action})`:''} for PO ${r[F.po]||''}${lines.length>1?` on all ${lines.length} lines`:''}.`,'ok')}
+  catch(e){setStatus(e.message||String(e),'error');btn.disabled=false}}
+function current(){const ed=$('editor');return{demo:$('internalNotes').value,reviewed:state.draft.reviewed||!!state.checkInNow,std:$('standard').disabled?null:$('standard').value}}
+function isDirty(){if(!state.draft||!$('editor'))return false;const c=current(),d=state.draft;return c.demo!==d.demo||c.reviewed!==d.reviewed||(c.std!==null&&c.std!==d.std)}
+function markDirty(){$('dirty').hidden=!isDirty()}
+async function save(){const c=current(),rid=state.selected,btn=$('saveBtn');btn.disabled=true;btn.textContent='Saving…';
+  try{const d=state.draft,changes={};if(c.demo!==d.demo)changes[F.internalNotes]=c.demo;if(c.reviewed!==d.reviewed)changes[F.reviewed]=c.reviewed?'1':'0';
+    const r=state.lines.find(x=>x[F.rid]===rid),want={[F.internalNotes]:c.demo,[F.reviewed]:c.reviewed?'1':'0'};
+    // every line gets what is on screen where it differs, except blanks the person did not make themselves
+    const jobs=twins(rid).map(x=>[x,Object.fromEntries(Object.entries(want).filter(([fid,v])=>String(x[fid]??'')!==v&&(fid in changes||(v!==''&&v!=='0'))))]).filter(([,f])=>Object.keys(f).length);
+    const P=CONFIG.production,stdChanged=c.std!==null&&c.std!==d.std&&d.item,prod={};if(stdChanged)prod[P.standard]=c.std;
+    // new Demo color notes also go to the item's Color Management Notes; what was there moves to Old Color Management Notes
+    let notesMoved=false;
+    if(d.item&&c.demo!==d.demo&&c.demo.trim()){const cur=await loadProduction(d.item,[P.colorNotes,P.oldColorNotes]),was=cur[P.colorNotes]||'';
+      if(was.trim()!==c.demo.trim()){prod[P.colorNotes]=c.demo;if(was.trim()){const old=cur[P.oldColorNotes]||'';prod[P.oldColorNotes]=old.trim()?`${was}
+${old}`:was;notesMoved=true}}}
+    if(!jobs.length&&!Object.keys(prod).length){setStatus(`PO ${r[F.po]||''} already up to date.`,'ok');return true}
+    if(Object.keys(prod).length)await editItem(d.item,prod,CONFIG.productionTable);
+    for(const[x,f]of jobs){const send=f[F.reviewed]==='1'?{...f,[F.checkedInOn]:Date.now()}:f;await editItem(x[F.rid],send);Object.assign(x,f)}
+    const n=twins(rid).length;
+    state.draft={...d,...c,std:c.std===null?d.std:c.std};markDirty();
+    setStatus((jobs.length?(n>1?`Saved PO ${r[F.po]||''} to all ${n} of its lines.`:`Saved PO ${r[F.po]||''} (record #${rid}).`):`Saved PO ${r[F.po]||''}.`)+(stdChanged?' Color standard updated.':'')+(P.colorNotes in prod?(notesMoved?' Notes copied to the item; its previous notes moved to Old Color Management Notes.':' Notes copied to the item.'):''),'ok');return true}
+  catch(e){setStatus(e.message||String(e),'error');return false}finally{btn.disabled=false;btn.textContent='Save'}}
+function setStatus(msg,kind){const s=$('status');s.textContent=msg;s.className='status'+(kind?' '+kind:'')}
+window.addEventListener('beforeunload',e=>{if(isDirty()){e.preventDefault();e.returnValue=''}});
+
+/* ---------- Scanner box: bag artwork when the camera is off ---------- */
+function artFor(){const sel=state.lines.find(x=>x[F.rid]===state.selected);return clean(sel?.[F.artLink])||clean(state.lines.find(x=>clean(x[F.artLink]))?.[F.artLink])}
+function showArt(){const url=state.lines.length?artFor():'',el=$('viewArt');
+  if(url!==state.artUrl){state.artUrl=url;el.removeAttribute('data-artwork-url');el.className='art viewart';
+    if(!state.lines.length)el.innerHTML='';
+    else if(!url)el.innerHTML='<div class="placeholder"><span>No bag artwork on file for this item.<br><small>Add an Vendor Artwork Link in Quickbase to see it here.</small></span></div>';
+    else if(!/share\.demopackaging\.com/i.test(url))el.innerHTML=`<div class="placeholder"><span>No preview for this artwork link.<br><a href="${esc(url)}" target="_blank" rel="noopener">Open artwork ↗</a></span></div>`;
+    else{const embed=window.ArtworkPreviews?.shareEmbedUrl?.(url)||'';
+      if(!embed)el.innerHTML=`<div class="placeholder"><span>${window.ArtworkPreviews?'No preview for this artwork link.':'Bag artwork shows inside Quickbase.'}<br><a href="${esc(url)}" target="_blank" rel="noopener">Open artwork ↗</a></span></div>`;
+      else{el.innerHTML=`<span class="viewart-label">Bag sample</span><div class="placeholder pz-loading"><span>Loading artwork…</span></div><div class="pz-stage"><iframe class="pz-frame" title="Bag sample" src="${esc(embed)}" referrerpolicy="strict-origin-when-cross-origin"></iframe></div><div class="pz-catch" title="Drag to pan · scroll or pinch to zoom · double-click to zoom"></div><div class="pz-tools"><button type="button" data-pz="in" title="Zoom in">+</button><button type="button" data-pz="out" title="Zoom out">−</button><button type="button" data-pz="fit" title="Fit">Fit</button><a href="${esc(url)}" target="_blank" rel="noopener" title="Open full artwork">↗</a></div>`;
+        panZoom(el)}}}
+  updateViewport()}
+// Bag sample viewer: the Files.com page is drawn at 2x the box and scaled down, so zooming stays sharp; the page itself
+// cannot be scripted (other site), so pan and zoom move the whole frame
+const PZ_RENDER=2,PZ_MAX=8,PZ_HOME={z:1.95,cx:.263,cy:.485};
+function panZoom(el){const stage=el.querySelector('.pz-stage'),frame=el.querySelector('.pz-frame'),catcher=el.querySelector('.pz-catch'),v={z:1,x:0,y:0};
+  const box=()=>({w:el.clientWidth,h:el.clientHeight});let seen={w:0,h:0},center=null;
+  function home(){const{w,h}=box();v.z=PZ_HOME.z;v.x=w/2-PZ_HOME.cx*w*v.z;v.y=h/2-PZ_HOME.cy*h*v.z;apply()}
+  function apply(){const{w,h}=box();if(center&&w&&h){v.x=w/2-center[0]*w*v.z;v.y=h/2-center[1]*h*v.z;center=null}v.z=Math.min(PZ_MAX,Math.max(1,v.z));v.x=Math.min(0,Math.max(w-w*v.z,v.x));v.y=Math.min(0,Math.max(h-h*v.z,v.y));
+    frame.style.width=w*PZ_RENDER+'px';frame.style.height=h*PZ_RENDER+'px';stage.style.transform=`translate(${v.x}px,${v.y}px) scale(${v.z/PZ_RENDER})`;el.classList.toggle('pz-zoomed',v.z>1.01)}
+  function zoomAt(f,px,py){const nz=Math.min(PZ_MAX,Math.max(1,v.z*f));v.x=px-(px-v.x)*(nz/v.z);v.y=py-(py-v.y)*(nz/v.z);v.z=nz;apply()}
+  const at=e=>{const r=el.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
+  frame.addEventListener('load',()=>el.querySelector('.pz-loading')?.remove());
+  catcher.addEventListener('wheel',e=>{e.preventDefault();zoomAt(Math.exp(-e.deltaY*(e.ctrlKey?.01:.0015)),...at(e))},{passive:false});
+  const pts=new Map();let last=null;
+  catcher.addEventListener('pointerdown',e=>{catcher.setPointerCapture(e.pointerId);pts.set(e.pointerId,at(e));last=null});
+  catcher.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;const prev=pts.get(e.pointerId),now=at(e);pts.set(e.pointerId,now);
+    if(pts.size===1){v.x+=now[0]-prev[0];v.y+=now[1]-prev[1];apply()}
+    else if(pts.size===2){const[a,b]=[...pts.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]),mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];if(last){v.x+=mid[0]-last.mid[0];v.y+=mid[1]-last.mid[1];zoomAt(d/last.d,...mid)}last={d,mid}}});
+  const up=e=>{pts.delete(e.pointerId);last=null};catcher.addEventListener('pointerup',up);catcher.addEventListener('pointercancel',up);
+  catcher.addEventListener('dblclick',e=>{const{w,h}=box(),atHome=Math.abs(v.z-PZ_HOME.z)<.01&&Math.abs(v.x-(w/2-PZ_HOME.cx*w*v.z))<1&&Math.abs(v.y-(h/2-PZ_HOME.cy*h*v.z))<1;if(atHome)zoomAt(2,...at(e));else home()});
+  el.querySelector('.pz-tools').addEventListener('click',e=>{const b=e.target.closest('[data-pz]');if(!b)return;const{w,h}=box();
+    if(b.dataset.pz==='fit')home();else zoomAt(b.dataset.pz==='in'?1.5:1/1.5,w/2,h/2)});
+  // first real size: go to the framed view; later resizes keep the same point in the middle
+  new ResizeObserver(()=>{const{w,h}=box();if(!w||!h)return;if(!seen.w)home();else if(w!==seen.w||h!==seen.h){center=[(seen.w/2-v.x)/(seen.w*v.z),(seen.h/2-v.y)/(seen.h*v.z)];apply()}seen={w,h}}).observe(el);apply()}
+function updateViewport(){const live=!!state.stream,art=!live&&state.lines.length>0;$('video').hidden=!live;$('aim').hidden=!live;$('viewArt').hidden=!art;$('idle').hidden=live||art}
+
+/* ---------- Collapsible panels ---------- */
+const COLLAPSE_KEY='pressSheetScan.collapsed';
+function setCollapsed(card,on){if(!card||card.classList.contains('collapsed')===on)return;card.classList.toggle('collapsed',on);const b=card.querySelector('.collapse-btn');b.setAttribute('aria-expanded',String(!on));b.title=on?'Expand':'Collapse';
+  if(on&&card.id==='scanCard'&&state.stream)stopCamera();
+  // on wide screens the open panel takes the whole width while the other is a bar across the top
+  const ws=$('workspace');ws.classList.toggle('one-open',[...ws.querySelectorAll('.card')].some(c=>c.classList.contains('collapsed')));
+  try{localStorage.setItem(COLLAPSE_KEY,JSON.stringify([...ws.querySelectorAll('.card.collapsed')].map(c=>c.dataset.panel)))}catch{}}
+document.querySelectorAll('.collapse-btn').forEach(b=>b.addEventListener('click',()=>{const card=b.closest('.card'),on=!card.classList.contains('collapsed');
+  if(on){const other=[...document.querySelectorAll('#workspace .card')].find(c=>c!==card);setCollapsed(other,false)}setCollapsed(card,on)}));
+document.querySelectorAll('.panel-head').forEach(h=>h.addEventListener('click',e=>{if(e.target.closest('a,button'))return;if(h.closest('.card').classList.contains('collapsed'))h.querySelector('.collapse-btn').click()}));
+try{(JSON.parse(localStorage.getItem(COLLAPSE_KEY)||'[]')).slice(0,1).forEach(n=>setCollapsed(document.querySelector(`[data-panel="${n}"]`),true))}catch{}
+
+/* ---------- Recent scans ---------- */
+const RECENT_KEY='pressSheetScan.recent';
+function recentList(){try{return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]')}catch{return[]}}
+function remember(upc){try{localStorage.setItem(RECENT_KEY,JSON.stringify([upc,...recentList().filter(u=>u!==upc)].slice(0,8)))}catch{}drawRecent()}
+function drawRecent(){const list=recentList();$('recentWrap').hidden=!list.length;$('recent').innerHTML=list.map(u=>`<button type="button" class="chip">${esc(u)}</button>`).join('');$('recent').querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{$('codeInput').value=b.textContent;lookup(b.textContent,$('poInput').value)}))}
+
+/* ---------- Camera scanning ---------- */
+const FORMATS_NATIVE=['ean_13','upc_a','upc_e','ean_8','code_128'],FORMATS_ZX=['EAN13','UPCA','UPCE','EAN8','Code128'];
+let zxingLoading=null;
+function loadZxing(){if(window.ZXingWASM)return Promise.resolve();if(!zxingLoading)zxingLoading=new Promise((ok,fail)=>{const s=document.createElement('script');s.src=CONFIG.zxing;s.onload=ok;s.onerror=()=>{zxingLoading=null;fail(new Error('Could not load the barcode reader.'))};document.head.appendChild(s)});return zxingLoading}
+async function makeDetector(){if('BarcodeDetector'in window){try{const have=await BarcodeDetector.getSupportedFormats(),use=FORMATS_NATIVE.filter(f=>have.includes(f));if(use.length){const d=new BarcodeDetector({formats:use});return async src=>{const r=await d.detect(src);return r[0]?.rawValue||''}}}catch{}}
+  await loadZxing();const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
+  return async src=>{const w=src.videoWidth||src.naturalWidth||src.width,h=src.videoHeight||src.naturalHeight||src.height;if(!w||!h)return'';canvas.width=w;canvas.height=h;ctx.drawImage(src,0,0,w,h);
+    const r=await ZXingWASM.readBarcodes(ctx.getImageData(0,0,w,h),{formats:FORMATS_ZX,tryHarder:true,maxNumberOfSymbols:1});return r.find(x=>x.isValid&&x.text)?.text||''}}
+async function startCamera(){setCollapsed($('scanCard'),false);if(state.stream)return;if(!navigator.mediaDevices?.getUserMedia){setStatus('This browser cannot open the camera. Use Take a photo or type the barcode.','error');return}
+  try{setStatus('Opening camera…');state.detector=state.detector||await makeDetector();
+    state.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+    const v=$('video');v.srcObject=state.stream;await v.play();updateViewport();$('camBtn').textContent='Stop camera';
+    state.track=state.stream.getVideoTracks()[0];const caps=state.track.getCapabilities?.()||{};$('torchBtn').hidden=!caps.torch;
+    try{if(caps.focusMode?.includes('continuous'))await state.track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch{}
+    setStatus('Point the camera at the barcode.');state.scanning=true;scanLoop()}
+  catch(e){stopCamera();setStatus(e.name==='NotAllowedError'?'Camera access was blocked. Allow the camera for this site, or use Take a photo.':(e.message||String(e)),'error')}}
+function stopCamera(){state.scanning=false;state.stream?.getTracks().forEach(t=>t.stop());state.stream=null;state.track=null;$('video').srcObject=null;updateViewport();$('torchBtn').hidden=true;$('torchBtn').setAttribute('aria-pressed','false');$('camBtn').textContent='Start camera'}
+async function scanLoop(){const v=$('video');while(state.scanning){try{if(v.readyState>=2){const text=await state.detector(v);if(text&&state.scanning){hit(text);return}}}catch{}await new Promise(r=>setTimeout(r,140))}}
+function hit(text){stopCamera();const vp=$('viewport');vp.classList.add('hit');setTimeout(()=>vp.classList.remove('hit'),700);
+  try{navigator.vibrate?.(80)}catch{}try{const a=new(window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.frequency.value=1250;g.gain.value=.08;o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.12)}catch{}
+  const{po,code}=parseScan(text);$('codeInput').value=code;if(po)$('poInput').value=po;lookup(text,$('poInput').value)}
+$('camBtn').addEventListener('click',()=>state.stream?stopCamera():startCamera());
+$('torchBtn').addEventListener('click',async()=>{const on=$('torchBtn').getAttribute('aria-pressed')!=='true';try{await state.track.applyConstraints({advanced:[{torch:on}]});$('torchBtn').setAttribute('aria-pressed',String(on))}catch{}});
+$('photoInput').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;setStatus('Reading the photo…');
+  try{state.detector=state.detector||await makeDetector();const img=new Image();img.src=URL.createObjectURL(file);await img.decode();const text=await state.detector(img);URL.revokeObjectURL(img.src);
+    if(text)hit(text);else setStatus('No barcode found in that photo. Try closer, flatter and in good light.','error')}catch(err){setStatus(err.message||String(err),'error')}});
+$('newScanBtn').addEventListener('click',newScan);
+$('manualForm').addEventListener('submit',e=>{e.preventDefault();lookup($('codeInput').value,$('poInput').value)});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.stream)stopCamera()});
+drawRecent();
+const qs=new URLSearchParams(location.search);if(qs.get('upc'))lookup(qs.get('upc'),qs.get('po')||'');
+</script>
+<script src="https://demo.quickbase.example/db/bdemoapp0?a=dbpage&amp;pageID=1&amp;v=20260825-9" defer></script>
+<!-- demo-choice:start (managed by demo_choice.py: edit demo_choice_snippet.html, not this copy) -->
+<style id="demo-choice-style">
+  /* "Which barcode did you mean?" When several different UPCs end in the same five digits, the person picks one. */
+  dialog.exc{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 32px);margin:auto;padding:0;border:1px solid #d6e0e3;border-radius:14px;background:#fff;color:#132a35;box-shadow:0 24px 70px rgba(2,32,40,.3);font:14px/1.45 "Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;text-align:left;overflow:hidden}
+  dialog.exc::backdrop{background:rgba(2,32,40,.45)}
+  dialog.exc[open]{display:flex;flex-direction:column}
+  dialog.exc *{box-sizing:border-box}
+  /* Reset whatever the page does to these tags; :where() keeps the reset weaker than the rules below. */
+  :where(dialog.exc) :where(button,a,h2,p,ul,li,div,span,b,code){all:unset;box-sizing:border-box}
+  :where(dialog.exc) :where(div,p,h2,ul,li){display:block}
+  .exc-head{padding:18px 20px 12px;border-bottom:1px solid #e3eaec}
+  .exc-head h2{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .exc-head p{margin-top:5px;color:#62757c}
+  .exc-list{flex:1 1 auto;min-height:0;overflow:auto;padding:6px 12px}
+  .exc-item{display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid #eef2f3}
+  .exc-item:last-child{border-bottom:0}
+  .exc-text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .exc-text b{font-size:15px;font-weight:700;overflow-wrap:anywhere}
+  .exc-text code{font:600 14px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.03em}
+  .exc-text code mark{all:unset;border-radius:3px;background:#ffe9a8;color:#132a35}
+  .exc-text span{color:#62757c;font-size:13px;overflow-wrap:anywhere}
+  .exc-text a{width:max-content;max-width:100%;margin-top:2px;color:#5257b8;font-size:13px;font-weight:700;text-decoration:underline;cursor:pointer}
+  .exc-text a:focus-visible,.exc-use:focus-visible,.exc-cancel:focus-visible{outline:2px solid #5257b8;outline-offset:2px}
+  .exc-use{flex:none;height:38px;padding:0 14px;display:inline-flex;align-items:center;border-radius:9px;background:#3b3f8f;color:#fff;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer}
+  .exc-use:hover{background:#2d3070}
+  .exc-foot{display:flex;justify-content:flex-end;padding:12px 20px;border-top:1px solid #e3eaec}
+  .exc-cancel{height:36px;padding:0 14px;display:inline-flex;align-items:center;border:1px solid #c3d2d6;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer}
+  .exc-cancel:hover{background:#eef4f5}
+  @media(max-width:480px){.exc-item{flex-wrap:wrap}.exc-use{width:100%;justify-content:center}}
+  /* Inside the Illustrator panel the dialog takes the panel's dark greys. */
+  html.panel-mode dialog.exc{border-color:#2f2f2f;border-radius:4px;background:#535353;color:#dedede;font:12px/1.4 "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif}
+  html.panel-mode .exc-head,html.panel-mode .exc-foot,html.panel-mode .exc-item{border-color:#434343}
+  html.panel-mode .exc-head{padding:12px 12px 9px}html.panel-mode .exc-head h2{font-size:13px;color:#f2f2f2}
+  html.panel-mode .exc-head p,html.panel-mode .exc-text span{color:#b9b9b9;font-size:11.5px}
+  html.panel-mode .exc-list{padding:2px 8px}html.panel-mode .exc-item{gap:10px;padding:9px 4px}
+  html.panel-mode .exc-text b{font-size:12.5px;color:#f2f2f2}html.panel-mode .exc-text code{font-size:12px}
+  html.panel-mode .exc-text a{color:#8ab4f8;font-size:11.5px}
+  /* Buttons look the same in every panel, whatever the panel's own button styles are: grey, compact, on the right. */
+  html.panel-mode dialog.exc .exc-use,html.panel-mode dialog.exc .exc-cancel{flex:none;width:auto!important;height:24px!important;padding:0 10px!important;display:inline-flex;align-items:center;justify-content:center;border:1px solid #8c8c8c!important;border-radius:3px!important;background:#4a4a4a!important;color:#f0f0f0!important;font:600 11.5px "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif!important;white-space:nowrap;box-shadow:none!important;cursor:pointer}
+  html.panel-mode dialog.exc .exc-use:hover,html.panel-mode dialog.exc .exc-cancel:hover{background:#5e5e5e!important}
+  html.panel-mode .exc-foot{padding:8px 12px}
+  @media(max-width:330px){html.panel-mode .exc-item{flex-wrap:wrap}}
+</style>
+<script id="demo-choice-script">
+/*
+  DemoChoice: one shared answer to "several barcodes end in these five digits".
+
+    const rows = await DemoChoice.resolve({
+      code,                         // the digits that were typed
+      rows,                         // every record that matched
+      upc:    row => '...',         // full barcode of a record
+      brand:  row => '...',         // brand (or item name) shown in bold
+      detail: row => '...',         // optional second line
+      link:   row => 'https://...', // the record in Quickbase, so the person can check it
+      remember: false,              // true = ask once per code until the page reloads or DemoChoice.forget()
+      memo: ''                      // optional name for that memory (default: the code), e.g. one per slot
+    });
+
+  One distinct barcode among the rows: they come straight back, nothing is shown. Several: a dialog lists each
+  barcode once and resolves to that barcode's rows, or to null when the person cancels.
+*/
+(function () {
+  'use strict';
+  const digits = value => String(value == null ? '' : value).replace(/\D/g, '');
+  const esc = text => String(text == null ? '' : text).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const remembered = new Map();
+  let queue = Promise.resolve();
+
+  function ask(code, groups) {
+    return new Promise(resolve => {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'exc';
+      const tail = digits(code).slice(-5);
+      const shown = upc => { const text = esc(upc), at = tail ? text.lastIndexOf(tail) : -1; return at < 0 ? text : `${text.slice(0, at)}<mark>${tail}</mark>${text.slice(at + tail.length)}`; };
+      dialog.innerHTML = `<div class="exc-head"><h2>${groups.length} barcodes end in ${esc(tail || code)}</h2><p>Choose the one you mean. Open it in Quickbase first if you want to check.</p></div>` +
+        `<ul class="exc-list">${groups.map((group, index) => `<li class="exc-item"><div class="exc-text"><b>${esc(group.brand || 'No brand on record')}</b><code>${shown(group.upc)}</code>` +
+          `${group.detail ? `<span>${esc(group.detail)}</span>` : ''}${group.link ? `<a href="${esc(group.link)}" target="_blank" rel="noopener">Open in Quickbase</a>` : ''}</div>` +
+          `<button type="button" class="exc-use" data-index="${index}">Use this one</button></li>`).join('')}</ul>` +
+        '<div class="exc-foot"><button type="button" class="exc-cancel">Cancel</button></div>';
+      let answer = null, done = false;
+      // Finishes straight away on a click; the close event alone can arrive late (or not at all in a hidden tab).
+      const finish = () => { if (done) return; done = true; if (dialog.open) dialog.close(); dialog.remove(); resolve(answer); };
+      dialog.addEventListener('click', event => {
+        const use = event.target.closest('.exc-use');
+        if (use) { answer = groups[Number(use.dataset.index)]; finish(); }
+        else if (event.target.closest('.exc-cancel')) finish();
+      });
+      dialog.addEventListener('close', finish);     // Esc
+      document.body.append(dialog);
+      dialog.showModal();
+    });
+  }
+
+  function resolve(options) {
+    const rows = options.rows || [], groups = [], byKey = new Map();
+    for (const row of rows) {
+      // The same barcode written with or without its leading zeros is still one barcode.
+      const upc = String(options.upc(row) || '').trim(), key = digits(upc).replace(/^0+/, '') || upc.toLowerCase();
+      if (!byKey.has(key)) {
+        const group = { key, upc, rows: [], brand: options.brand ? String(options.brand(row) || '').trim() : '',
+                        detail: options.detail ? String(options.detail(row) || '').trim() : '', link: options.link ? String(options.link(row) || '') : '' };
+        byKey.set(key, group);
+        groups.push(group);
+      }
+      byKey.get(key).rows.push(row);
+    }
+    if (groups.length <= 1) return Promise.resolve(rows);
+    groups.sort((a, b) => a.brand.localeCompare(b.brand, undefined, { sensitivity: 'base' }) || a.key.localeCompare(b.key));
+    const memo = options.memo || digits(options.code) || String(options.code);
+    if (options.remember && byKey.has(remembered.get(memo))) return Promise.resolve(byKey.get(remembered.get(memo)).rows);
+    // One dialog at a time, even when several lookups run together.
+    const turn = queue.then(async () => {
+      if (options.remember && byKey.has(remembered.get(memo))) return byKey.get(remembered.get(memo)).rows;
+      const picked = await ask(options.code, groups);
+      if (picked && options.remember) remembered.set(memo, picked.key);
+      return picked ? picked.rows : null;
+    });
+    queue = turn.catch(() => {});
+    return turn;
+  }
+
+  window.DemoChoice = { resolve, forget(code) { if (code === undefined) remembered.clear(); else remembered.delete(digits(code) || String(code)); },
+                         record: (table, rid) => `https://demo.quickbase.example/db/${encodeURIComponent(table)}?a=dr&rid=${encodeURIComponent(String(rid).replace(/\.0+$/, ''))}` };
+})();
+</script>
+<!-- demo-choice:end -->
+<!-- demo-launcher:start (managed by demo_launcher.py: edit demo_launcher_snippet.html, not this copy) -->
+
+
+
+</body>
+</html>

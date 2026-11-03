@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script id="demo-backend">
+/* Demo backend. Answers this page's Quickbase calls in the browser from made-up records, so the tool runs with no
+   server and no account. Every company, product, person and address here is fictional. Changes last until reload. */
+(function () {
+  var HOST = 'demo.quickbase.example';
+  window.__DEMO_HOST = HOST;
+
+  var BRANDS = [
+    {customer: 'Trailhead Pet Co', code: 'TH', prefix: '00011'},
+    {customer: 'Northfield Pet Foods', code: 'NF', prefix: '00012'},
+    {customer: 'Sunny Paws Kitchen', code: 'SP', prefix: '00013'},
+    {customer: 'Bramble & Bone', code: 'BB', prefix: '00014'},
+    {customer: 'Copper Creek Provisions', code: 'CC', prefix: '00015'},
+    {customer: 'Little Harbor Treats', code: 'LH', prefix: '00016'},
+    {customer: 'Meadowlark Mills', code: 'MM', prefix: '00017'},
+    {customer: 'Oak & Ember Foods', code: 'OE', prefix: '00018'},
+    {customer: 'Tidewater Snacks', code: 'TW', prefix: '00019'},
+    {customer: 'Pine Ridge Grains', code: 'PR', prefix: '00020'}
+  ];
+  // Every shape here has a template in the mockup tool.
+  var SHAPES = [
+    {format: 'Quad Seal Bag', style: 'Flat Bottom', gusset: 'Terminated Gusset', sizes: [[7, 11.5, 3.5, '12 oz'], [8.5, 14, 4, '2 lb'], [10, 16, 4.5, '4 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Non-Terminated Gusset', sizes: [[11.5, 18.25, 4.125, '10 lb'], [13, 22, 5, '15 lb'], [15.75, 26.5, 4.5, '25 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Terminated Gusset', sizes: [[8, 13, 4, '3.5 lb'], [9.5, 15, 4, '5 lb'], [12, 20, 4.5, '12 lb']]},
+    {format: 'Stand-Up Pouch', style: 'Angle Plow', gusset: '', sizes: [[5, 7.75, 2.5, '5 oz'], [6, 9, 3, '8 oz'], [7.25, 11, 3.5, '1 lb']]},
+    {format: 'Stand-Up Pouch', style: 'K-Seal', gusset: '', sizes: [[7, 10, 3.25, '10 oz'], [6, 8.5, 2.75, '6 oz'], [8, 12, 3.5, '1.5 lb']]}
+  ];
+  var RECIPES = ['Grain-Free Salmon Kibble', 'Turkey Training Bites', 'Pumpkin Berry Minis', 'Chicken Recipe Kibble', 'Freeze-Dried Beef Morsels', 'Duck & Sweet Potato Bites', 'Lamb & Rice Dinner', 'Peanut Butter Crunch', 'Ancient Grain Granola', 'Sea Salt Veggie Crisps', 'Dark Roast Coffee', 'Honey Oat Clusters'];
+  var LAYERS = ['MATTE / PET / FOIL / LLDPE', 'MATTE / PET / MET PET / LLDPE', 'GLOSS / PET / MET PET / LLDPE', 'SOFT TOUCH / PET / FOIL / LLDPE', 'SOFT TOUCH / PET / MET PET / LLDPE', 'MATTE / PET / PET / LLDPE', 'GLOSS / PET / EVOH / LLDPE', 'MATTE / PE / EVOH / PE', 'GLOSS / KRAFT / MET PET / LLDPE', 'SOFT TOUCH / PET / ALOX / LLDPE'];
+  var COLORS = ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'PMS 186 C', 'PMS 2728 C', 'PMS 349 C', 'PMS 7406 C', 'PMS 485 C', 'PMS 2607 C', 'PMS 7421 C'];
+  var PEOPLE = ['Demo Designer', 'Alex Morgan', 'Jordan Lee', 'Priya Nair', 'Casey Tran', 'Riley Brooks'];
+  var ZIPPERS = ['Small Zipper', 'No Zipper', 'Small Zipper', 'Pocket Zipper'];
+  var PRODUCTS = [];
+  BRANDS.forEach(function (brand, b) {
+    for (var i = 0; i < 6; i++) {
+      var shape = SHAPES[(b + i) % SHAPES.length], size = shape.sizes[(b + i * 2) % 3];
+      PRODUCTS.push({b: b, name: RECIPES[(b * 2 + i) % RECIPES.length], weight: size[3], format: shape.format, style: shape.style, gusset: shape.gusset, w: size[0], h: size[1], g: size[2], layers: LAYERS[(b + i * 3) % LAYERS.length]});
+    }
+  });
+  var ADDRESSES = [
+    ['100 Example Way', 'Dock 2', 'Springfield', 'IL', '62704'],
+    ['250 Sample Road', '', 'Riverton', 'WY', '82501'],
+    ['17 Placeholder Ave', 'Suite 300', 'Fairview', 'TN', '37062'],
+    ['900 Demo Parkway', '', 'Madison', 'WI', '53703'],
+    ['44 Mockup Lane', 'Building B', 'Georgetown', 'TX', '78626'],
+    ['312 Fictional Blvd', '', 'Salem', 'OR', '97301'],
+    ['8 Test Harbor Rd', 'Unit 12', 'Clinton', 'IA', '52732'],
+    ['1200 Sample Mill Dr', '', 'Franklin', 'KY', '42134'],
+    ['75 Placeholder Pier', 'Dock 9', 'Bristol', 'RI', '02809'],
+    ['560 Example Ridge', '', 'Greenville', 'SC', '29601']
+  ];
+  function day(offset) { var d = new Date(Date.UTC(2026, 8, 20) - offset * 864e5); return d.toISOString().slice(0, 10); }
+  function pick(list, i) { return list[i % list.length]; }
+  function colorBank(row, start, n) { for (var c = 0; c < 10; c++) row[start + c] = c < 4 ? COLORS[c] : c < 4 + (n % 4) ? COLORS[4 + (n + c) % 8] : ''; }
+  function ms(offset) { return String(Date.UTC(2026, 8, 20) - offset * 864e5); }
+
+  var tables = {
+    bdemocust: [], bdemoopps: [], bdemofami: [], bdemospec: [], bdemostyl: [], bdemoaddr: [], bdemoship: [],
+    bdemoprod: [], bdemoordr: [], bdemoitem: [], bdemoartv: [], bdemomock: [], bdemorevw: [], bdemodens: [],
+    bdemofont: [], bdemolayr: [], bdemofill: [], bdemolist: [], bdemotask: [], bdemotime: [], bdemosrvc: []
+  };
+  var labels = {
+    bdemoprod: {name: 'Products', 2209: 'Filing #', 3: 'Record ID#', 12: 'Item Name', 13: 'Legacy Item Name', 14: 'Legacy UPC', 128: 'Art Versions', 132: 'UPC', 136: 'Art Version Count', 141: 'Brand', 353: 'Current Vendor Proof', 604: 'Approved Color Standard', 662: 'Current Customer Proof'},
+    bdemoitem: {name: 'Order Items', 1: 'Date Created', 3: 'Record ID#', 7: 'Customer', 13: 'UPC', 14: 'Item', 161: 'Weight', 184: 'PO', 329: 'Artwork Link', 382: 'Brand', 506: 'Family', 710: 'Layers', 711: 'Dimensions', 2122: 'Format', 2243: 'Style'},
+    bdemoartv: {name: 'Art Versions', 3: 'Record ID#', 11: 'Version Date', 12: 'Art Type', 37: 'Related Item', 61: 'Art REV', 152: 'Version', 361: 'Vendor Proof', 583: 'Inactive Art', 588: 'Customer Proof'},
+    bdemocust: {name: 'Customers', 3: 'Record ID#', 6: 'Customer Name', 125: 'Inactive'},
+    bdemoordr: {name: 'Orders', 3: 'Record ID#', 18: 'Customer PO'},
+    bdemofami: {name: 'Families', 3: 'Record ID#', 6: 'Family', 31: 'Current Spec'},
+    bdemospec: {name: 'Family Specifications', 3: 'Record ID#', 15: 'Format', 14: 'Style', 151: 'Layers'},
+    bdemomock: {name: 'Mock-Ups', 3: 'Record ID#', 9: 'Format', 10: 'Style', 39: 'Product Name'},
+    bdemolist: {name: 'Art Checklists', 3: 'Record ID#', 13: 'Description', 18: 'Brand'},
+    bdemotask: {name: 'Checklist Tasks', 3: 'Record ID#', 27: 'Department', 28: 'Description'},
+    bdemofill: {name: 'Fill Recordings', 3: 'Record ID#', 12: 'Format', 13: 'Style'},
+    bdemodens: {name: 'Product Densities', 3: 'Record ID#', 6: 'Brand', 7: 'Product', 14: 'Average'},
+    bdemofont: {name: 'System Fonts', 3: 'Record ID#', 6: 'Font Name', 7: 'Font File'}
+  };
+
+  BRANDS.forEach(function (b, i) {
+    var rid = String(i + 1), a = ADDRESSES[i];
+    tables.bdemocust.push({3: rid, 6: b.customer, 125: '0'});
+    ['new pouch line', 'holiday pack', 'club size relaunch'].forEach(function (name, k) {
+      tables.bdemoopps.push({3: String(100 + i * 3 + k), 6: rid, 8: b.customer + ' ' + name, 23: k === 2 ? '1' : '0', 24: k === 2 ? 'Closed' : 'Open'});
+    });
+    tables.bdemoaddr.push({3: String(200 + i), 6: 'Main warehouse', 7: a[0], 8: a[1], 13: rid, 18: '1', 23: a[2], 24: a[3], 25: a[4]});
+    tables.bdemoaddr.push({3: String(250 + i), 6: 'Co-packer', 7: pick(ADDRESSES, i + 3)[0], 8: '', 13: rid, 18: '0', 23: pick(ADDRESSES, i + 3)[2], 24: pick(ADDRESSES, i + 3)[3], 25: pick(ADDRESSES, i + 3)[4]});
+    tables.bdemoship.push({3: String(300 + i), 8: a[0], 9: a[1], 10: a[2], 11: a[3], 12: a[4], 13: 'United States', 16: b.customer});
+  });
+  SHAPES.forEach(function (shape, s) {
+    shape.sizes.forEach(function (size, k) {
+      for (var r = 0; r < 4; r++) {
+        var area = size[0] * size[1], fill = 68 + (s * 3 + k * 5 + r * 4) % 24;
+        tables.bdemofill.push({3: String(400 + s * 12 + k * 4 + r), 1: ms(s * 30 + k * 11 + r * 17), 6: String(+(2 + r * 1.5 + k).toFixed(1)), 7: String(+(0.5 + k * 2 + r).toFixed(1)), 8: String(size[1]), 9: String(size[0]), 10: String(size[2]), 11: pick(BRANDS, s + r).prefix + '00' + (101 + s + r), 12: shape.format, 13: shape.style, 14: shape.gusset, 15: pick(ZIPPERS, k + r), 16: String(+area.toFixed(1)), 17: String(fill), 18: String(Math.round(area * size[2] * fill / 100))});
+      }
+    });
+  });
+  [['Quad Seal Bag', 'Flat Bottom'], ['Quad Seal Bag', 'Pinched Bottom'], ['Stand-Up Pouch', 'K-Seal'], ['Stand-Up Pouch', 'Doyen'], ['Three Side Seal', 'Flat Pouch']].forEach(function (s, i) {
+    tables.bdemostyl.push({3: String(i + 1), 6: s[1], 7: s[0]});
+  });
+
+  PRODUCTS.forEach(function (p, i) {
+    var b = BRANDS[p.b], n = i + 1, upc = b.prefix + '00' + (100 + n), rid = String(100 + n), title = b.customer + ' ' + p.name + ' ' + p.weight;
+    var dims = p.w + ' x ' + p.h + ' x ' + p.g, combo = [p.format, p.style, p.gusset].join(' / '), family = b.code + '-' + String(p.w * 100) + '-' + n;
+    var po = String(21000 + n), order = String(500 + n), art = 'https://files.demo-packaging.example/f/' + b.code + n;
+    var spec = String(300 + n), fam = String(200 + n);
+    tables.bdemospec.push({3: spec, 6: fam, 12: 'v1', 14: p.style, 15: p.format, 43: p.gusset, 53: String(p.w), 54: String(p.h), 55: String(p.g), 56: String(p.w * 25.4), 57: String(p.h * 25.4), 58: String(p.g * 25.4), 65: 'in', 146: 'Zipper', 149: '1.5', 151: p.layers, 154: dims, 155: p.format + ' / ' + p.style, 428: '1.5', 1543: 'Current'});
+    tables.bdemofami.push({3: fam, 6: family, 9: String(p.b + 1), 31: spec, 76: b.customer + ' ' + family, 144: '0'});
+    tables.bdemoprod.push({3: rid, 12: title, 13: title, 14: upc, 128: '2', 132: upc, 136: '2', 141: b.customer, 225: '', 2209: 'Shelf ' + n, 353: 'Rev ' + n, 539: 'Match the approved pantone swatch.', 604: 'On file', 662: 'Rev ' + n});
+    // The first order of each product keeps PO 21000 + n; some products reorder under later POs.
+    for (var o = 0; o < 1 + i % 3; o++) {
+      var line = String(1000 + n * 10 + o), orderId = String(+order + o * 100), thisPo = String(+po + o * 1000), age = i * 8 + o * 120, approved = (i + o) % 3 > 0;
+      tables.bdemoordr.push({3: orderId, 18: thisPo});
+      tables.bdemoitem.push({1: ms(age), 2: ms(age / 2), 3: line, 6: orderId, 7: b.customer, 8: orderId, 13: upc, 14: title, 151: rid, 161: p.weight, 162: title, 163: o ? 'Reorder' : 'New', 184: thisPo, 262: day(age), 265: '0' + (o + 1) + '.26', 329: art, 382: b.customer, 417: approved ? '1' : '0', 419: approved ? day(age / 2) : '', 420: 'Press sheet ' + thisPo, 506: family, 573: o ? 'Revised' : 'New', 710: p.layers, 711: dims, 712: combo, 794: 'Zipper at 1.5"', 2122: p.format, 2209: 'Shelf ' + n, 2243: p.style, 2331: String(p.w), 2332: String(p.h), 2333: String(p.g), 2412: '0', 2519: '0', 2693: '', 2694: '', 2695: '0', 2696: ''});
+      tables.bdemorevw.push({3: String(5000 + n * 10 + o), 7: '', 8: '', 10: '', 16: '', 17: '', 19: '', 31: '', 34: '', 35: line, 41: p.format, 42: p.style, 44: dims, 54: '0', 63: '0', 67: combo});
+    }
+    [0, 1, 2].slice(0, 2 + i % 2).forEach(function (v, index, all) {
+      var artRow = {3: String(2000 + n * 4 + v), 10: title, 11: day(i * 8 + v * 95), 12: v === all.length - 1 ? 'New' : 'Revised', 18: 'Art REV', 37: rid, 40: title, 58: upc, 59: title, 61: '0' + (all.length - v) + '.26', 84: b.customer, 127: fam, 152: String(all.length - v), 205: v ? '0' : '1', 330: b.customer, 361: art + '-vendor.pdf', 376: p.weight, 481: String(parseFloat(p.weight)), 522: dims, 523: combo, 524: 'Tear notch', 525: p.layers, 526: 'Zipper, tear notch', 583: v ? '1' : '0', 588: art + '-customer.pdf', 624: upc};
+      colorBank(artRow, 191, n); colorBank(artRow, 571, n + 1); colorBank(artRow, 589, n + 2);
+      tables.bdemoartv.push(artRow);
+    });
+    tables.bdemomock.push({1: ms(i * 7), 3: String(1500 + n), 6: 'Opportunity ' + n, 7: p.format, 9: p.format, 10: p.style, 11: p.style, 12: String(p.w), 13: String(p.h), 14: String(p.g), 15: p.weight, 16: '1', 18: '3', 19: 'Demo mockup request.', 22: day(-7), 26: pick(ZIPPERS, i), 27: 'PET12/LLDPE100', 33: p.gusset, 35: String(p.b + 1), 36: b.customer, 39: p.name, 40: '1.5', 49: 'Mockup', 51: 'Opportunity ' + n, 53: p.format, 54: p.style, 56: p.gusset, 57: String(p.w), 58: String(p.h), 59: String(p.g), 62: pick(ZIPPERS, i), 63: '1.5', 74: ADDRESSES[p.b][0], 75: ADDRESSES[p.b][1], 76: ADDRESSES[p.b][2], 77: ADDRESSES[p.b][3], 78: ADDRESSES[p.b][4], 79: 'United States'});
+    var cups = [0, 1, 2, 3, 4].map(function (c) { return (2.1 + (n % 7) * 0.12 + ((n + c * 3) % 5) * 0.02).toFixed(2); });
+    tables.bdemodens.push({3: String(i + 1), 1: ms(i * 5), 6: b.customer, 7: p.name, 8: '', 9: cups[0], 10: cups[1], 11: cups[2], 12: cups[3], 13: cups[4], 14: (cups.reduce(function (s, v) { return s + +v; }, 0) / 5).toFixed(2)});
+  });
+
+  ['Demo Sans Regular', 'Demo Sans Medium', 'Demo Sans Bold', 'Demo Serif Regular', 'Demo Serif Italic', 'Demo Mono', 'Demo Condensed'].forEach(function (name, i) { tables.bdemofont.push({3: String(i + 1), 6: name, 7: ''}); });
+  LAYERS.forEach(function (name, i) { tables.bdemolayr.push({3: String(i + 1), 6: name, 7: String(40 - i * 3)}); });
+  PRODUCTS.slice(0, 12).forEach(function (p, i) {
+    var lid = String(3000 + i), b = BRANDS[p.b], done = i % 5;
+    tables.bdemolist.push({3: lid, 10: String(501 + i), 13: 'Art checklist: ' + p.name, 14: '0', 16: '0', 17: String(p.b + 1), 18: b.customer, 19: String(21001 + i), 21: '4', 25: pick(PEOPLE, i), 29: String(1 + i % 4 * 0.5), 30: String(4 - Math.min(done, 4))});
+    ['Prepress', 'Proofreading', 'PC', 'Engineering'].forEach(function (dept, t) {
+      tables.bdemotask.push({3: String(3100 + i * 10 + t), 12: lid, 14: '0', 15: '', 16: t < done ? '1' : '0', 18: String(t + 1), 26: 'General', 27: dept, 28: dept + ' review of ' + p.name, 29: '', 32: String(t + 1), 34: '0'});
+    });
+  });
+  [['Prepress', 'Production Art'], ['Prepress', 'Proof Review'], ['Project Coordination', 'Scheduling'], ['Engineering', 'Dieline Review']].forEach(function (s, i) { tables.bdemosrvc.push({3: String(i + 1), 6: s[0], 7: s[1]}); });
+
+  var ids = {};
+  function nextRid(table) { ids[table] = ids[table] || Object.keys(tables[table] || {}).length + 90000; return String(++ids[table]); }
+  function rows(table) { return tables[table] || (tables[table] = []); }
+  function xmlEsc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+
+  // Quickbase query language: {fid.OP.'value'} joined by AND / OR, with parentheses.
+  function when(value) { return /^\d{10,}$/.test(value) ? +value : Date.parse(value) || 0; }
+  function test(row, fid, op, want) {
+    var have = String(row[fid] == null ? '' : row[fid]), h = have.toLowerCase(), w = String(want).toLowerCase(), n = parseFloat(have), m = parseFloat(want);
+    switch (op) {
+      case 'EX': case 'TV': return h === w;
+      case 'XEX': case 'XTV': return h !== w;
+      case 'CT': case 'HAS': return h.indexOf(w) >= 0;
+      case 'XCT': return h.indexOf(w) < 0;
+      case 'SW': return h.indexOf(w) === 0;
+      case 'XSW': return h.indexOf(w) !== 0;
+      case 'OAF': case 'AF': return when(have) >= when(want);
+      case 'OBF': case 'BF': return when(have) <= when(want);
+      case 'GT': return isNaN(n) ? have > want : n > m;
+      case 'GTE': return n >= m;
+      case 'LT': return isNaN(n) ? have < want : n < m;
+      case 'LTE': return n <= m;
+      default: return true;
+    }
+  }
+  function tokenize(q) {
+    var out = [], re = /\{\s*'?(\d+)'?\s*\.\s*([A-Z]+)\s*\.\s*'((?:\\.|[^'])*)'\s*\}|\(|\)|AND|OR/gi, m;
+    while ((m = re.exec(q))) out.push(m[1] ? {fid: m[1], op: m[2].toUpperCase(), value: m[3].replace(/\\(.)/g, '$1')} : m[0].toUpperCase());
+    return out;
+  }
+  function matcher(q) {
+    var t = tokenize(q || ''), i = 0;
+    if (!t.length) return function () { return true; };
+    function atom(row) {
+      var k = t[i++];
+      if (k === '(') { var v = or(row); i++; return v; }
+      return !k || !k.fid || test(row, k.fid, k.op, k.value);
+    }
+    function and(row) { var v = atom(row); while (t[i] === 'AND') { i++; var r = atom(row); v = v && r; } return v; }
+    function or(row) { var v = and(row); while (t[i] === 'OR') { i++; var r = and(row); v = v || r; } return v; }
+    return function (row) { i = 0; return or(row); };
+  }
+  function select(table, q, slist, options) {
+    var list = rows(table).filter(matcher(q)), opt = String(options || ''), sort = String(slist || '').split('.').filter(Boolean)[0];
+    if (sort) {
+      var desc = /sortorder-D/.test(opt);
+      list = list.slice().sort(function (a, b) { var x = a[sort], y = b[sort], nx = parseFloat(x), ny = parseFloat(y), c = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x || '').localeCompare(String(y || '')); return desc ? -c : c; });
+    }
+    var skip = /skp-(\d+)/.exec(opt), num = /num-(\d+)/.exec(opt);
+    if (skip) list = list.slice(+skip[1]);
+    if (num) list = list.slice(0, +num[1]);
+    return list;
+  }
+  function ok(body) { return '<?xml version="1.0"?><qdbapi><action>demo</action><errcode>0</errcode><errtext>No error</errtext>' + (body || '') + '</qdbapi>'; }
+  function labelOf(table, fid) { return (labels[table] && labels[table][fid]) || 'Field ' + fid; }
+  function fidsOf(table) { var seen = {}; rows(table).forEach(function (r) { Object.keys(r).forEach(function (k) { seen[k] = 1; }); }); Object.keys(labels[table] || {}).forEach(function (k) { if (k !== 'name') seen[k] = 1; }); return Object.keys(seen).sort(function (a, b) { return a - b; }); }
+  function doQuery(table, p) {
+    var list = select(table, p.query, p.slist, p.options), clist = String(p.clist || '').split('.').filter(function (x) { return /^\d+$/.test(x); });
+    if (!clist.length) clist = fidsOf(table);
+    var fields = clist.map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    var body = list.map(function (r) {
+      return '<record rid="' + xmlEsc(r[3]) + '">' + clist.map(function (f) { return '<f id="' + f + '">' + xmlEsc(r[f]) + '</f>'; }).join('') + '<update_id>1</update_id></record>';
+    }).join('');
+    return ok('<table><fields>' + fields + '</fields><records>' + body + '</records></table>');
+  }
+  function schema(table) {
+    if (!tables[table]) {
+      var kids = Object.keys(labels).map(function (t) { return '<chdbid name="_dbid_' + xmlEsc(labels[t].name.toLowerCase().replace(/\W+/g, '_')) + '">' + t + '</chdbid>'; }).join('');
+      return ok('<table><name>Demo Packaging</name><original><app_id>' + table + '</app_id></original><chdbids>' + kids + '</chdbids><fields></fields></table>');
+    }
+    var fields = fidsOf(table).map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    return ok('<table><name>' + xmlEsc((labels[table] || {}).name || table) + '</name><original><table_id>' + table + '</table_id></original><fields>' + fields + '</fields></table>');
+  }
+  function writeFields(p, body) {
+    var out = {}, k;
+    for (k in p) { var m = /^_fid_(\d+)$/.exec(k); if (m) out[m[1]] = p[k]; }
+    if (body && /<field/.test(body)) {
+      var doc = new DOMParser().parseFromString(body, 'text/xml');
+      [].forEach.call(doc.querySelectorAll('field'), function (n) { if (n.getAttribute('fid')) out[n.getAttribute('fid')] = n.textContent; });
+      var rid = doc.querySelector('rid'); if (rid) p.rid = rid.textContent;
+      ['query', 'clist', 'slist', 'options', 'varname'].forEach(function (name) { var e = doc.querySelector(name); if (e && !p[name]) p[name] = e.textContent; });
+    }
+    return out;
+  }
+  // The real page stores a generated script on the record. There is no record to open here, so hand it over as a download.
+  function saveUpload(body) {
+    var file = new DOMParser().parseFromString(body, 'text/xml').querySelector('field[filename]');
+    if (file) {
+      var bytes = Uint8Array.from(atob(file.textContent), function (c) { return c.charCodeAt(0); });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([bytes], {type: 'application/javascript'}));
+      link.download = file.getAttribute('filename');
+      window.__demoLastFile = {name: link.download, text: new TextDecoder().decode(bytes)};
+      link.click();
+    }
+    return ok('<rid>1</rid>');
+  }
+  function xmlApi(table, p, body) {
+    var fields = writeFields(p, body), row;
+    switch (p.a) {
+      case 'API_DoQuery': return doQuery(table, p);
+      case 'API_DoQueryCount': return ok('<numMatches>' + select(table, p.query).length + '</numMatches>');
+      case 'API_GetDBVar': return ok('<value>demo-value</value>');
+      case 'API_SetDBVar': return ok();
+      case 'API_GetUserInfo': return ok('<user id="1.demo"><firstName>Demo</firstName><lastName>User</lastName><login>demo.user</login><email>demo.user@demo-packaging.example</email><screenName>Demo User</screenName></user>');
+      case 'API_GetSchema': return schema(table);
+      case 'API_GetDBPage': return '';
+      case 'dbpage': return (window.__DEMO_PAGES || {})[p.pageID || p.pageid] || '';
+      case 'API_UploadFile': return saveUpload(body);
+      case 'API_AddRecord':
+        row = fields; row[3] = nextRid(table); row[1] = String(Date.now()); row[2] = row[1]; rows(table).unshift(row);
+        return ok('<rid>' + row[3] + '</rid><update_id>1</update_id>');
+      case 'API_EditRecord':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid || p.key); })[0];
+        if (row) Object.keys(fields).forEach(function (f) { row[f] = fields[f]; });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid><num_fields_changed>1</num_fields_changed><update_id>2</update_id>');
+      case 'API_DeleteRecord':
+        tables[table] = rows(table).filter(function (r) { return String(r[3]) !== String(p.rid); });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>');
+      case 'API_GetRecordInfo':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid); })[0] || {};
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>' + Object.keys(row).map(function (f) { return '<field><fid>' + f + '</fid><name>' + xmlEsc(labelOf(table, f)) + '</name><type>Text</type><value>' + xmlEsc(row[f]) + '</value></field>'; }).join(''));
+      default: return ok();
+    }
+  }
+  function restWhere(where) { return where || ''; }
+  function restApi(url, init) {
+    var path = url.pathname, body = {};
+    try { body = JSON.parse(init.body || '{}'); } catch (e) {}
+    if (/\/v1\/auth\/temporary\//.test(path)) return {temporaryAuthorization: 'demo-token'};
+    if (/\/v1\/records\/query/.test(path)) {
+      var select_ = body.select || [], sort = (body.sortBy || [])[0], list = select(body.from, restWhere(body.where), sort && sort.fieldId, sort && sort.order === 'DESC' ? 'sortorder-D' : '');
+      return {data: list.map(function (r) { var o = {}; select_.forEach(function (f) { o[f] = {value: r[f] == null ? '' : r[f]}; }); return o; }),
+        fields: select_.map(function (f) { return {id: f, label: labelOf(body.from, f), type: 'text'}; }),
+        metadata: {numRecords: list.length, numFields: select_.length, totalRecords: list.length, skip: 0}};
+    }
+    if (/\/v1\/records/.test(path)) {
+      var created = (body.data || []).map(function (src) { var row = {}; Object.keys(src).forEach(function (f) { row[f] = src[f] && src[f].value; }); row[3] = row[3] || nextRid(body.to); rows(body.to).unshift(row); return +row[3]; });
+      return {data: [], metadata: {createdRecordIds: created, updatedRecordIds: [], unchangedRecordIds: [], totalNumberOfRecordsProcessed: created.length}};
+    }
+    if (/\/v1\/fields/.test(path)) { var t = url.searchParams.get('tableId'); return fidsOf(t).map(function (f) { return {id: +f, label: labelOf(t, f), fieldType: 'text'}; }); }
+    if (/\/v1\/tables/.test(path)) return Object.keys(labels).map(function (t) { return {id: t, name: labels[t].name}; });
+    return {};
+  }
+  function params(url, init) {
+    var p = {};
+    url.searchParams.forEach(function (v, k) { p[k] = v; });
+    var b = init && init.body;
+    if (b && typeof b === 'string' && !/^\s*</.test(b)) new URLSearchParams(b).forEach(function (v, k) { p[k] = v; });
+    else if (b && b.forEach && !(b instanceof Blob)) b.forEach(function (v, k) { if (typeof v === 'string') p[k] = v; });
+    var h = init && init.headers, action = h && (h['QUICKBASE-ACTION'] || (h.get && h.get('QUICKBASE-ACTION')));
+    if (action) p.a = action;
+    return p;
+  }
+  function respond(url, init) {
+    var host = url.hostname;
+    if (host === 'api.quickbase.com') return new Response(JSON.stringify(restApi(url, init || {})), {status: 200, headers: {'Content-Type': 'application/json'}});
+    var m = /^\/db\/([^/?#]+)/.exec(url.pathname), p = params(url, init), text = m ? xmlApi(m[1], p, typeof (init || {}).body === 'string' ? init.body : '') : '';
+    return new Response(text, {status: 200, headers: {'Content-Type': 'text/xml'}});
+  }
+  var realFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var raw = input && input.url ? input.url : String(input), url = new URL(raw, location.href);
+    if (url.hostname === HOST || url.hostname === 'api.quickbase.com' || (url.origin === location.origin && /^\/db\//.test(url.pathname))) return Promise.resolve(respond(url, init || {}));
+    if (url.hostname.indexOf('.example') > 0) return Promise.resolve(new Response('', {status: 404}));
+    return realFetch.apply(this, arguments);
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var tag = document.createElement('div');
+    tag.textContent = 'Demo: fictional company and data';
+    tag.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 10px;border-radius:999px;background:#1f2937;color:#fff;font:600 12px/1 system-ui,sans-serif;opacity:.85;pointer-events:none';
+    document.body.appendChild(tag);
+  });
+})();
+
+</script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Create and print Dymo-ready mockup labels from Quickbase records.">
+  <title>Mockup Label Builder | Demo Packaging</title>
+  <link rel="icon" id="app-favicon" type="image/webp" href="">
+  <style id="pageSizeStyle">@page{size:3.5in 1.125in;margin:0}</style>
+  <style>
+    :root{--teal:#064c5b;--teal-2:#5257b8;--ink:#132a35;--muted:#65747c;--line:#d7e0e3;--soft:#eef4f5;--paper:#fff;--bg:#f3f6f7;--danger:#a73543;--success:#18705f;--shadow:0 18px 55px rgba(9,52,62,.12);--label-w:3.5in;--label-h:1.125in}
+    *{box-sizing:border-box}
+    body{margin:0;min-width:320px;background:var(--bg);color:var(--ink);font:16px/1.45 "Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    button,input,select{font:inherit}
+    button{touch-action:manipulation}
+    .shell{width:min(1280px,calc(100% - 40px));margin:28px auto 60px}
+    .page-head{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:22px}.eyebrow{margin:0 0 5px;color:var(--teal-2);font-size:12px;font-weight:850;letter-spacing:.13em;text-transform:uppercase}.page-head h1{margin:0;font-size:clamp(28px,4vw,42px);line-height:1.05;letter-spacing:-.045em}.page-head p{max-width:600px;margin:8px 0 0;color:var(--muted)}
+    .workspace{display:grid;grid-template-columns:minmax(0,1.04fr) minmax(370px,.96fr);gap:22px;align-items:start}
+    .card{border:1px solid var(--line);border-radius:17px;background:var(--paper);box-shadow:0 3px 14px rgba(9,52,62,.05)}
+    .panel-head{padding:20px 22px 16px;border-bottom:1px solid var(--line)}.panel-head h2{margin:0;font-size:19px;letter-spacing:-.02em}.panel-head p{margin:4px 0 0;color:var(--muted);font-size:14px}
+    .lookup{padding:18px 22px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;border-bottom:1px solid var(--line);background:#fbfcfc}.field{min-width:0;display:grid;gap:6px}.field label{color:#3e5960;font-size:13px;font-weight:780}.field input,.field select{width:100%;height:44px;padding:0 12px;border:1px solid #c8d5d8;border-radius:9px;outline:none;background:#fff;color:var(--ink)}.field input:focus,.field select:focus{border-color:var(--teal-2);box-shadow:0 0 0 3px rgba(13,99,114,.12)}.lookup .field{gap:5px}.lookup button{align-self:end}
+    .button{min-height:44px;padding:0 17px;border:1px solid var(--teal);border-radius:9px;background:var(--teal);color:#fff;cursor:pointer;font-weight:820}.button:hover{background:#033e4a}.button:disabled{cursor:not-allowed;opacity:.52}.button.secondary{border-color:#c5d3d6;background:#fff;color:var(--ink)}.button.secondary:hover{border-color:#91aeb4;background:#f7fafb}.button.ghost{border-color:transparent;background:transparent;color:var(--teal)}.button.ghost:hover{background:var(--soft)}
+    .status{grid-column:1/-1;min-height:21px;margin:0;color:var(--muted);font-size:13px}
+.mode-switch{display:flex;gap:4px;margin:14px 22px 0;padding:4px;border:1px solid var(--line);border-radius:11px;background:#f3f6f7;width:max-content}
+.mode-switch button{min-height:34px;padding:0 16px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.mode-switch button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(3,61,75,.16)}
+.lookup{display:flex!important;flex-wrap:wrap;align-items:flex-end}.lookup .field{flex:1 1 170px;min-width:0}.lookup .status{flex-basis:100%}
+.qb-link{display:inline-flex;align-items:center;text-decoration:none;white-space:nowrap}.status.good{color:var(--success)}.status.bad{color:var(--danger)}
+    .form-grid{padding:20px 22px 22px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.field.wide{grid-column:1/-1}.field-note{color:var(--muted);font-size:12px}
+    .dimension-row{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .preview-wrap{grid-column:1/-1;margin-top:4px;padding:16px;border:1px solid #d9e3e5;border-radius:13px;background:var(--soft)}.preview-top{margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px}.preview-top strong{font-size:13px;text-transform:uppercase;letter-spacing:.08em}.preview-actions{display:flex;align-items:center;gap:9px}.preview-actions>span{color:var(--muted);font-size:12px}.preview-edit-button{min-height:34px;padding:0 10px;font-size:12px}
+    .label-preview-stage{min-height:190px;display:grid;place-items:center;overflow:auto;padding:18px;border-radius:10px;background:linear-gradient(135deg,#dce5e7,#f5f8f8)}
+    .label{position:relative;width:350px;height:112.5px;overflow:hidden;border:1px solid #bbc4c7;border-radius:7px;background:#fff;color:#050708;box-shadow:0 7px 22px rgba(22,43,49,.14);font-family:Arial,Helvetica,sans-serif;container-type:inline-size}
+    .label-inner{position:relative;width:100%;height:100%}.label-element{position:absolute;min-width:0;overflow:hidden}.label-logo{object-fit:contain;object-position:center}.label-title,.label-revision,.label-dimensions{display:flex;align-items:center;overflow:hidden;line-height:1.08;text-overflow:clip;white-space:nowrap}.label-dimensions{line-height:1.15}.preview-wrap.layout-editing .label-preview-stage .label-element{cursor:pointer}.preview-wrap.layout-editing .label-preview-stage .label-element:hover{outline:1px dashed rgba(6,76,91,.5);outline-offset:1px}.preview-wrap.layout-editing .label-preview-stage .label-element.selected{outline:2px solid #df7956;outline-offset:1px;background-color:rgba(223,121,86,.06)}.preview-wrap.layout-editing .label-preview-stage .label-element.cutoff-risk:not(.selected){outline:2px solid #bb3e4b;outline-offset:-2px}.print-safe-area{position:absolute;z-index:10;border:1px dashed #16705f;box-shadow:0 0 0 100vmax rgba(167,53,67,.1);pointer-events:none}.print-area-info{margin-top:10px;display:flex;align-items:flex-start;gap:8px;color:#3e5960;font-size:12px;line-height:1.4}.print-area-key{width:15px;height:15px;flex:0 0 auto;margin-top:1px;border:1px dashed #16705f;background:rgba(24,112,95,.05)}.print-area-info.warning{color:var(--danger)}.print-area-info.warning .print-area-key{border-color:var(--danger);background:rgba(167,53,67,.1)}[hidden]{display:none!important}
+    .layout-tuner{grid-column:1/-1;padding:15px;border:1px solid #d6e2e4;border-radius:13px;background:#fbfcfc}.tuner-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.tuner-head h3{margin:0;font-size:15px}.tuner-head p{margin:2px 0 0;color:var(--muted);font-size:12px}.tuner-actions{display:flex;align-items:center;gap:7px}.tuner-actions .button{min-height:34px;padding:0 10px;font-size:12px}.tuner-grid{display:grid;grid-template-columns:1.1fr repeat(4,minmax(72px,.7fr)) 1fr;gap:9px;align-items:end}.tuner-field{min-width:0;display:grid;gap:5px}.tuner-field label{color:#3e5960;font-size:12px;font-weight:780}.tuner-field input,.tuner-field select{width:100%;height:39px;padding:0 9px;border:1px solid #c8d5d8;border-radius:8px;background:#fff;color:var(--ink)}.tuner-field input:focus,.tuner-field select:focus{outline:none;border-color:var(--teal-2);box-shadow:0 0 0 3px rgba(13,99,114,.1)}.tuner-field input:disabled,.tuner-field select:disabled{cursor:not-allowed;background:#edf1f2;color:#879399}.tuner-unit{position:relative}.tuner-unit input{padding-right:27px}.tuner-unit span{position:absolute;right:9px;top:50%;color:var(--muted);font-size:11px;transform:translateY(-50%);pointer-events:none}.tuner-check-control{height:39px;padding:0 10px;display:flex;align-items:center;gap:8px;border:1px solid #c8d5d8;border-radius:8px;background:#fff;color:var(--ink)!important;font-size:14px!important;font-weight:500!important}.tuner-check-control input{width:17px;height:17px;padding:0;accent-color:var(--teal)}.tuner-tip{margin:10px 0 0;color:var(--muted);font-size:12px}
+    .actions{grid-column:1/-1;display:flex;align-items:end;gap:9px}.quantity{width:100px}.actions .button:first-of-type{flex:1}
+    .queue-card{position:sticky;top:18px;overflow:hidden}.queue-head{padding:20px 22px 15px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line)}.queue-head h2{margin:0;font-size:19px}.count-badge{min-width:30px;height:28px;padding:0 9px;display:grid;place-items:center;border-radius:999px;background:#dcefeb;color:var(--teal);font-size:13px;font-weight:900}
+    .queue-list{max-height:470px;overflow:auto;padding:12px;display:grid;gap:9px}.empty{min-height:260px;padding:30px;display:grid;place-items:center;color:var(--muted);text-align:center}.empty-icon{width:52px;height:52px;margin:0 auto 13px;display:grid;place-items:center;border-radius:14px;background:var(--soft);color:var(--teal);font-size:25px}.empty strong{display:block;margin-bottom:4px;color:var(--ink);font-size:17px}
+    .queue-item{padding:11px;display:grid;grid-template-columns:68px minmax(0,1fr) auto;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;background:#fff}.queue-thumb{height:42px;display:grid;place-items:center;border:1px solid #dfe5e7;border-radius:5px;background:#fff}.queue-thumb img{width:55px;max-height:25px;object-fit:contain}.queue-copy{min-width:0}.queue-copy strong,.queue-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.queue-copy strong{font-size:14px}.queue-copy span{margin-top:2px;color:var(--muted);font-size:12px}.remove{width:36px;height:36px;padding:0;border:0;border-radius:8px;background:transparent;color:#77868c;cursor:pointer;font-size:20px}.remove:hover{background:#f8e9eb;color:var(--danger)}
+    .queue-footer{padding:14px 16px 17px;display:grid;grid-template-columns:1fr 1fr;gap:9px;border-top:1px solid var(--line);background:#fbfcfc}.queue-footer .button.primary{grid-column:1/-1}.print-note{grid-column:1/-1;margin:3px 0 0;color:var(--muted);font-size:12px;text-align:center}
+    .label-sheet{display:none}
+    .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+    @media(max-width:900px){.workspace{grid-template-columns:minmax(0,1fr)}.queue-card{position:static}.queue-list{max-height:none}}
+    @media(max-width:760px){.tuner-head{align-items:flex-start}.tuner-actions{flex-wrap:wrap;justify-content:flex-end}.tuner-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tuner-field:first-child,.tuner-field:last-child{grid-column:1/-1}}
+    @media(max-width:600px){.shell{width:calc(100% - 24px)}.shell{margin-top:20px}.page-head{margin-bottom:16px}.page-head p{font-size:14px}.panel-head,.lookup,.form-grid{padding-left:14px;padding-right:14px}.lookup{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.field.wide,.dimension-row,.preview-wrap,.layout-tuner,.actions{grid-column:1}.dimension-row{grid-template-columns:1fr 1fr}.dimension-row .field:last-child{grid-column:1/-1}.actions{flex-wrap:wrap}.quantity{width:88px}.actions .button:first-of-type{min-width:calc(100% - 97px)}.label-preview-stage{min-height:160px;padding:10px}}
+    @media print{
+      html,body{width:var(--label-w);height:auto;margin:0!important;padding:0!important;background:#fff!important}
+      body>*:not(.label-sheet){display:none!important}.label-sheet{display:block!important}
+      .print-label{width:var(--label-w);height:var(--label-h);margin:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;container-type:inline-size}
+      .print-label:last-child{break-after:auto;page-break-after:auto}.print-label .label-element{outline:0!important;background:transparent!important}
+    }
+  
+    /* Demo Packaging app header - shared standard (see App Development/HEADER-STANDARD.md) */
+    :root{--xh-height:60px}
+    .xh{position:relative;z-index:20;background:#3b3f8f;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.18);font-family:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.2}
+    .xh-inner{height:var(--xh-height);padding:0 24px;display:flex;align-items:center;gap:16px}
+    .xh-logo{flex:none;display:block;width:auto;height:26px}
+    .xh-home{flex:none;display:flex;align-items:center;border-radius:6px;text-decoration:none;transition:opacity .15s}.xh-home:hover{opacity:.82}.xh-home:focus-visible{outline:2px solid #8fd6e1;outline-offset:5px}
+    .xh-symbol{flex:none;display:none;width:22px;height:22px}
+    .xh-divider{flex:none;width:1px;height:28px;background:rgba(255,255,255,.28)}
+    .xh-title{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .xh-title strong{overflow:hidden;color:#fff;font-size:16px;font-weight:700;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+    .xh-title span{overflow:hidden;color:#a3c9d1;font-size:11px;font-weight:700;letter-spacing:.1em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    .xh-badge{flex:none;padding:4px 7px;border:1px solid rgba(255,255,255,.3);border-radius:6px;color:#d9eef2;font:700 11px/1 ui-monospace,Consolas,monospace}
+    .xh-actions{flex:none;margin-left:auto;display:flex;align-items:center;gap:8px}
+    .xh-button{height:36px;min-height:0;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(255,255,255,.26);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;box-shadow:none;transform:none;cursor:pointer;font:inherit;font-size:13px;font-weight:700;line-height:1;list-style:none;text-decoration:none;white-space:nowrap}
+    .xh-button:hover{background:rgba(255,255,255,.16);box-shadow:none;transform:none}
+    .xh-button:focus-visible{outline:2px solid #8fd6e1;outline-offset:2px}
+    .xh-button:disabled{cursor:not-allowed;opacity:.45}
+    .xh-button[aria-pressed="true"],details[open]>summary.xh-button{border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.2)}
+    .xh-button.primary{border-color:#fff;background:#fff;color:#3b3f8f}.xh-button.primary:hover:not(:disabled){background:#dff0f3}
+    .xh-button::-webkit-details-marker{display:none}
+    .xh-button svg{flex:none;width:16px;height:16px}
+    @media(max-width:640px){:root{--xh-height:52px}.xh-inner{padding:0 14px;gap:11px}.xh-logo{height:21px}.xh-inner:has(.xh-actions) .xh-logo{display:none}.xh-inner:has(.xh-actions) .xh-symbol{display:block}.xh-divider{height:24px}.xh-title strong{font-size:15px}.xh-title span{display:none}.xh-button{height:34px;padding:0 10px;font-size:12px}}
+    @media print{.xh{display:none!important}}
+  </style>
+  <style id="demo-theme">
+    /* Demo Packaging app theme - shared tokens (see tools/README.md) */
+    :root{--x-brand:#3b3f8f;--x-brand-hover:#2d3070;--x-accent:#5257b8;--x-accent-soft:#e4f0f2;--x-ink:#132a35;--x-muted:#62757c;--x-line:#d6e0e3;--x-line-strong:#c3d2d6;--x-soft:#eef4f5;--x-paper:#fff;--x-canvas:#f3f6f7;--x-danger:#a73543;--x-success:#18705f;--x-warning:#8a5a00;--x-radius-card:14px;--x-radius-inner:11px;--x-radius-control:9px;--x-radius-small:7px;--x-shadow-card:0 1px 2px rgba(3,61,75,.05),0 6px 18px rgba(3,61,75,.06);--x-shadow-pop:0 14px 32px rgba(3,61,75,.16);--x-shadow-modal:0 24px 70px rgba(2,32,40,.3);--x-focus:0 0 0 3px rgba(13,99,114,.18);--x-font:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    body{font-family:var(--x-font)}
+    /* App mapping */
+    :root{--teal:var(--x-brand);--teal-2:var(--x-accent);--ink:var(--x-ink);--muted:var(--x-muted);--line:var(--x-line);--soft:var(--x-soft);--paper:var(--x-paper);--bg:var(--x-canvas);--danger:var(--x-danger);--success:var(--x-success);--shadow:var(--x-shadow-card)}
+    .card{border-radius:var(--x-radius-card);box-shadow:var(--x-shadow-card)}
+    .eyebrow{color:var(--x-accent);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    .page-head h1{color:var(--x-ink);font-size:clamp(28px,3.4vw,38px);font-weight:750;line-height:1.08;letter-spacing:-.035em}
+    .panel-head h2{font-size:18px;font-weight:700;letter-spacing:-.015em}
+    .button{border-color:var(--x-brand);border-radius:var(--x-radius-control);background:var(--x-brand);color:#fff;font-weight:700}.button:hover:not(:disabled){border-color:var(--x-brand-hover);background:var(--x-brand-hover)}
+    .button.secondary{border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:#fff;color:var(--x-ink);font-weight:700}.button.secondary:hover:not(:disabled){border-color:#9fb4ba;background:var(--x-soft)}
+    .button.ghost{border-color:transparent;background:transparent;color:var(--x-accent)}
+    .field input,.field select{border-color:var(--x-line-strong);border-radius:var(--x-radius-control)}.field input:focus,.field select:focus{border-color:var(--x-accent);box-shadow:var(--x-focus);outline:none}
+    .tuner-field input,.tuner-field select{border-color:var(--x-line-strong);border-radius:var(--x-radius-small)}
+    .preview-wrap,.layout-tuner,.queue-item{border-color:var(--x-line);border-radius:var(--x-radius-inner)}
+  </style>
+  <style id="phone-width-fix">
+    /* The label preview scales down to fit narrow screens (up to its usual 350px), so the page never scrolls sideways. */
+    .card{min-width:0}
+    .label-preview-stage .label{width:100%;max-width:350px;height:auto;aspect-ratio:350 / 112.5}
+  </style>
+  <style id="no-sideways-scroll">
+    /* Phones never scroll sideways. clip (unlike hidden) keeps sticky headers and inner scroll areas working. */
+    @media (max-width:760px){html,body{max-width:100%;overflow-x:clip}body{min-width:0!important}}
+  </style>
+  <style id="tool-layout">
+    /* Shared frame for the two-panel label tools (Press Sheet Labels 163, Label Builder 162), so they line up exactly. */
+    .shell{width:min(1180px,calc(100% - 40px));margin:28px auto 60px}
+    .page-head{display:block;margin-bottom:22px}
+    .page-head p:not(.eyebrow){max-width:640px}
+    .page-head .eyebrow{font-size:12px}
+    /* Room for two lines of intro text, so the cards start at the same height whatever the intro's length. */
+    @media(min-width:901px){.page-head p:not(.eyebrow){min-height:calc(2 * 1.45em)}}
+    .workspace{grid-template-columns:minmax(0,1.06fr) minmax(360px,.94fr);gap:22px}
+    .queue-list .empty{min-height:240px;padding:28px}
+    .label-stage,.label-preview-stage{min-height:190px;padding:18px}
+    @media(max-width:900px){.workspace{grid-template-columns:minmax(0,1fr)}.queue-card{position:static}.queue-list{max-height:none}}
+    @media(max-width:620px){.shell{width:calc(100% - 24px);margin-top:20px}.page-head{margin-bottom:16px}.page-head p:not(.eyebrow){font-size:14px}.label-stage,.label-preview-stage{min-height:160px;padding:10px}}
+  </style>
+  
+<!-- app-version:start (managed by demo_versions.py: change versions.json, not this copy) -->
+
+
+
+
+</head>
+<body>
+  <header class="xh">
+    <div class="xh-inner">
+      <a class="xh-home" href="#" title="All demo apps" aria-label="Demo Apps: all our tools"><img class="xh-logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27white%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging" width="89" height="26">
+      <img class="xh-symbol" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27white%27/%3E%3C/svg%3E" alt="Demo Packaging" width="22" height="22"></a>
+      <span class="xh-divider" aria-hidden="true"></span>
+      <div class="xh-title"><strong>Label Builder</strong><span>Dymo print preparation</span></div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <header class="page-head">
+      <div><p class="eyebrow">Production tools</p><h1>Mockup labels</h1><p>Find a mockup, check the label, and build a print batch for Dymo Connect.</p></div>
+    </header>
+
+    <div class="workspace">
+      <section class="card" aria-labelledby="builderTitle">
+        <header class="panel-head"><h2 id="builderTitle">Build a label</h2><p>Search a mockup number, or switch to Samples and search a barcode. Either fills the label from Quickbase.</p></header>
+        <div class="mode-switch" role="group" aria-label="What you are labelling"><button type="button" data-mode="mockup" aria-pressed="true">Mockups</button><button type="button" data-mode="samples" aria-pressed="false">Samples</button></div>
+        <form id="lookupForm" class="lookup">
+          <div class="field" id="barcodeField" hidden><label for="barcodeInput">Last 5 of barcode</label><input id="barcodeInput" inputmode="numeric" autocomplete="off" maxlength="20" placeholder="e.g. 00579"></div>
+          <div class="field" id="mockupField"><label for="mockupNumber" id="mockupLabel">Mockup number</label><input id="mockupNumber" inputmode="numeric" autocomplete="off" placeholder="e.g. 1547" required></div>
+          <button id="searchButton" class="button" type="submit">Find mockup</button>
+          <a id="qbLink" class="button secondary qb-link" href="#" target="_blank" rel="noopener" hidden>View in Quickbase ↗</a>
+          <p id="status" class="status" role="status" aria-live="polite">Enter a mockup number to begin.</p>
+        </form>
+
+        <form id="labelForm" class="form-grid">
+          <div class="field wide"><label for="labelTitle">Label title</label><input id="labelTitle" placeholder="35lb Dog Food" required></div>
+          <div class="field"><label for="revision">Revision</label><input id="revision" placeholder="Rev 1547"></div>
+          <input type="hidden" id="labelSize" value="3.5x1.125">
+          <div class="dimension-row">
+            <div class="field"><label for="width">Width</label><input id="width" inputmode="decimal" placeholder="14.57"></div>
+            <div class="field"><label for="height">Height</label><input id="height" inputmode="decimal" placeholder="30.71"></div>
+            <div class="field"><label for="gusset">Gusset</label><input id="gusset" inputmode="decimal" placeholder="7.09"></div>
+          </div>
+          <div class="field wide"><label for="dimensionText">Printed dimensions</label><input id="dimensionText" placeholder='14.57&quot; W x 30.71&quot; H + 7.09&quot; G'><span class="field-note">Generated from the three measurements above; you can edit the final line.</span></div>
+
+          <div class="preview-wrap">
+            <div class="preview-top"><strong>Label preview</strong><div class="preview-actions"><span id="previewSize">3.5 x 1.125 in</span><button id="toggleLayoutButton" class="button secondary preview-edit-button" type="button" aria-expanded="false" aria-controls="layoutTuner">Adjust layout</button></div></div>
+            <div class="label-preview-stage">
+              <article class="label" aria-label="Label preview">
+                <div class="label-inner">
+                  <img class="label-logo label-element" data-layout-key="logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27%233b3f8f%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging">
+                  <div id="previewTitle" class="label-title label-element" data-layout-key="title">35lb Dog Food</div>
+                  <div id="previewRevision" class="label-revision label-element" data-layout-key="revision">Rev 1547</div>
+                  <div id="previewDimensions" class="label-dimensions label-element" data-layout-key="dimensions">14.57&quot; W x 30.71&quot; H + 7.09&quot; G</div>
+                  <div id="printSafeArea" class="print-safe-area" aria-hidden="true" hidden></div>
+                </div>
+              </article>
+            </div>
+            <div id="printAreaInfo" class="print-area-info" role="status" aria-live="polite" hidden><span class="print-area-key" aria-hidden="true"></span><span id="printAreaStatus">The dashed box shows the simulated Dymo printable area.</span></div>
+          </div>
+
+          <section id="layoutTuner" class="layout-tuner" aria-labelledby="tunerTitle" hidden>
+            <div class="tuner-head"><div><h3 id="tunerTitle">Label layout</h3><p>Select an element, then adjust its bounding box.</p></div><div class="tuner-actions"><button id="copySettingsButton" class="button secondary" type="button">Copy settings</button><button id="resetLayoutButton" class="button secondary" type="button">Reset layout</button></div></div>
+            <div class="tuner-grid">
+              <div class="tuner-field"><label for="tunerElement">Element</label><select id="tunerElement"><option value="logo">Logo</option><option value="title">Title</option><option value="revision">Revision</option><option value="dimensions">Dimensions</option></select></div>
+              <div class="tuner-field"><label for="tunerX">Left</label><div class="tuner-unit"><input id="tunerX" type="number" min="0" max="100" step="0.5"><span>%</span></div></div>
+              <div class="tuner-field"><label for="tunerY">Top</label><div class="tuner-unit"><input id="tunerY" type="number" min="0" max="100" step="0.5"><span>%</span></div></div>
+              <div class="tuner-field"><label for="tunerWidth">Width</label><div class="tuner-unit"><input id="tunerWidth" type="number" min="2" max="100" step="0.5"><span>%</span></div></div>
+              <div class="tuner-field"><label for="tunerHeight">Height</label><div class="tuner-unit"><input id="tunerHeight" type="number" min="2" max="100" step="0.5"><span>%</span></div></div>
+              <div class="tuner-field"><label for="tunerAlign">Text alignment</label><select id="tunerAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
+              <div class="tuner-field"><label for="tunerFontSize">Maximum font size</label><div class="tuner-unit"><input id="tunerFontSize" type="number" min="3" max="30" step="0.5"><span>pt</span></div></div>
+              <div class="tuner-field"><label for="tunerWeight">Font weight</label><select id="tunerWeight"><option value="normal">Normal</option><option value="bold">Bold</option></select></div>
+              <div class="tuner-field"><span id="wrapLabel">Text wrapping</span><label class="tuner-check-control" for="tunerWrap"><input id="tunerWrap" type="checkbox" aria-labelledby="wrapLabel">Wrap text</label></div>
+            </div>
+            <p class="tuner-tip">Tip: click an element directly in the preview to tune it. The orange outline is only a guide and will not print.</p>
+          </section>
+
+          <div class="actions">
+            <button class="button" type="submit">Add to print batch</button>
+            <div class="field quantity"><label for="quantity">Quantity</label><input id="quantity" type="number" min="1" max="100" value="1"></div>
+            <button id="resetButton" class="button ghost" type="button">Reset</button>
+          </div>
+        </form>
+      </section>
+
+      <aside class="card queue-card" aria-labelledby="queueTitle">
+        <header class="queue-head"><h2 id="queueTitle">Print batch</h2><span id="queueCount" class="count-badge">0</span></header>
+        <div id="queueList" class="queue-list">
+          <div class="empty"><div><div class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></div><strong>No labels yet</strong>Find a mockup or enter the label details, then add it to the batch.</div></div>
+        </div>
+        <footer class="queue-footer">
+          <button id="clearButton" class="button secondary" type="button" disabled>Clear batch</button>
+          <button class="button secondary" type="button" disabled title="Direct Wi-Fi printing will be added in a future version">Wi-Fi printer</button>
+          <button id="printButton" class="button primary" type="button" disabled>Print labels</button>
+          <p class="print-note">The browser print dialog opens with one label per page.</p>
+        </footer>
+      </aside>
+    </div>
+  </main>
+
+  <section id="labelSheet" class="label-sheet" aria-hidden="true"></section>
+
+  <script src="https://demo.quickbase.example/db/bdemoapp0?a=dbpage&amp;pageID=1"></script>
+  <script>
+    const CONFIG={
+      realm:'demo.quickbase.example',appId:'bdemoapp0',userTokenVariable:'usertoken',appTokenVariable:'q_apptoken',logoUrl:'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27%233b3f8f%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E',
+      mockupsTableId:'bdemomock',
+      fields:{recordType:49,customer:36,opportunity:51,actual:{width:12,height:13,gusset:14},specification:{width:57,height:58,gusset:59}}
+    };
+    const SIZES={'3.5x1.25':[3.5,1.25],'3.5x1.125':[3.5,1.125],'3.125x1.4':[3.125,1.4],'2.25x1.25':[2.25,1.25]};
+    // DYMO Connect 30252 template DYMORect, in inches: X .23, Y .06, W 3.21, H .9966667.
+    const PRINT_AREAS={'3.5x1.125':{x:.23,y:.06,w:3.21,h:.9966667,name:'DYMO 30252'}};
+    const DEFAULT_LAYOUT={logo:{x:7,y:10,w:40,h:25,align:'center'},title:{x:10,y:39,w:80,h:36,align:'center',fontSize:11.5,weight:'normal',wrap:true},revision:{x:43,y:14,w:50,h:20,align:'center',fontSize:17.5,weight:'normal',wrap:false},dimensions:{x:4,y:75,w:92,h:18,align:'center',fontSize:10.5,weight:'bold',wrap:false}};
+    const TEXT_DEFAULTS={title:{fontSize:11.5,weight:'normal',wrap:true},revision:{fontSize:17.5,weight:'normal',wrap:false},dimensions:{fontSize:10.5,weight:'bold',wrap:false}};
+    const DEFAULT_SIZE='3.5x1.125',measureCanvas=document.createElement('canvas'),measureContext=measureCanvas.getContext('2d');
+    const $=selector=>document.querySelector(selector),esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const credentials={user:'',app:'',loading:null};
+    let queue=[],layout=cloneLayout(DEFAULT_LAYOUT),selectedLayoutElement='logo',layoutEditing=false;
+
+    function clean(value){return String(value??'').replace(/\s+/g,' ').trim()}
+    function xml(text){return new DOMParser().parseFromString(text,'text/xml')}
+    function xmlError(doc){if(doc.querySelector('parsererror'))return'Quickbase returned malformed XML.';const code=clean(doc.querySelector('errcode')?.textContent),message=clean(doc.querySelector('errtext')?.textContent),detail=clean(doc.querySelector('errdetail')?.textContent);return code&&code!=='0'?`Quickbase Error ${code}: ${message} ${detail}`.trim():''}
+    function variableApp(){const match=location.pathname.match(/^\/(?:db|up)\/([^/?#]+)/i);return match?match[1]:CONFIG.appId}
+    async function dbVariable(name){const params=new URLSearchParams({a:'API_GetDBVar',varname:name}),response=await fetch(`https://${CONFIG.realm}/db/${encodeURIComponent(variableApp())}?${params}`,{credentials:'include'});if(!response.ok)throw new Error(`Credential request failed (${response.status}).`);const doc=xml(await response.text()),error=xmlError(doc);if(error)throw new Error(error);const value=clean(doc.querySelector('value')?.textContent);if(!value)throw new Error(`${name} is empty.`);return value}
+    async function loadCredentials(){if(credentials.user&&credentials.app)return credentials;if(!credentials.loading)credentials.loading=Promise.all([dbVariable(CONFIG.userTokenVariable),dbVariable(CONFIG.appTokenVariable)]).then(([user,app])=>Object.assign(credentials,{user,app})).catch(error=>{credentials.loading=null;throw error});return credentials.loading}
+    async function qbCall(parameters,dbid=CONFIG.appId){const auth=await loadCredentials(),query=new URLSearchParams({...parameters,usertoken:auth.user,apptoken:auth.app}),response=await fetch(`https://${CONFIG.realm}/db/${encodeURIComponent(dbid)}?${query}`,{credentials:'include'});if(!response.ok)throw new Error(`Quickbase request failed (${response.status}).`);const doc=xml(await response.text()),error=xmlError(doc);if(error)throw new Error(error);return doc}
+    function recordFields(doc){const values=new Map();doc.querySelectorAll('field').forEach(field=>{const id=field.getAttribute('id')||field.querySelector('fid')?.textContent||'',value=field.querySelector('value')?.textContent??[...field.childNodes].filter(node=>node.nodeType===3).map(node=>node.textContent).join('');if(id)values.set(String(Number(id)||id),clean(value))});return values}
+    function recordValue(fields,fid){return clean(fields.get(String(fid))||'')}
+    async function findMockup(number){
+      const rid=clean(number);if(!/^\d+$/.test(rid))throw new Error('Enter a numeric Mockup ID.');
+      setConnection('Loading Mockups record...');
+      const doc=await qbCall({a:'API_GetRecordInfo',rid},CONFIG.mockupsTableId),fields=recordFields(doc),f=CONFIG.fields,isSpecification=/spec/i.test(recordValue(fields,f.recordType)),dimensionFields=isSpecification?f.specification:f.actual,width=recordValue(fields,dimensionFields.width),height=recordValue(fields,dimensionFields.height),gusset=recordValue(fields,dimensionFields.gusset),title=recordValue(fields,f.opportunity)||recordValue(fields,f.customer)||`Mockup ${rid}`;
+      setConnection('Connected to Mockups','ready');
+      showQbLink(recordUrl(CONFIG.mockupsTableId,rid));
+      return{title,revision:`Rev ${rid}`,dimensions:'',width,height,gusset,dimensionSource:isSpecification?'specification':'actual'}
+    }
+
+    // Samples: the barcode finds the artwork (the person picks the brand when several barcodes share the digits),
+    // its Family's current spec gives the format, style, gusset and size, and the item's latest order gives the PO.
+    const SAMPLES={art:{table:'bdemoartv',upc:58,upc2:624,current:205,item:10,brand:330,family:127},family:{table:'bdemofami',spec:31},
+      spec:{table:'bdemospec',format:15,style:14,gusset:43,units:65,inW:53,inH:54,inG:55,mmW:56,mmH:57,mmG:58},items:{table:'bdemoitem',upc:13,order:6},orders:{table:'bdemoordr',po:18}};
+    let mode='mockup';
+    const digitsOf=value=>String(value??'').replace(/\D/g,'');
+    const recordUrl=(table,rid)=>`https://${CONFIG.realm}/db/${table}?a=dr&rid=${encodeURIComponent(rid)}`;
+    async function queryRows(table,query,fids,options='num-50'){const doc=await qbCall({a:'API_DoQuery',query,clist:fids.join('.'),options,fmt:'structured'},table);return[...doc.querySelectorAll('record')].map(record=>{const row={};record.querySelectorAll('f').forEach(f=>{row[f.getAttribute('id')]=clean([...f.childNodes].filter(node=>node.nodeType===3).map(node=>node.textContent).join(''))});return row})}
+    // inches, rounded to two decimals; a metric spec's millimetres are converted
+    const inches=(value,metric)=>{const n=Number(String(value??'').replace(/,/g,''));if(!value||!Number.isFinite(n)||n<=0)return'';return String(Number((metric?n/25.4:n).toFixed(2)))};
+    async function findSample(input){
+      const A=SAMPLES.art,digits=digitsOf(input);if(digits.length<5)throw new Error('Enter at least the last 5 digits of the barcode.');
+      const tail=digits.slice(-5),fids=[3,A.upc,A.upc2,A.item,A.brand,A.family],where=current=>`({${A.upc}.CT.'${tail}'}OR{${A.upc2}.CT.'${tail}'})${current?`AND{${A.current}.EX.'1'}`:''}`;
+      setConnection('Looking up the artwork...');
+      let rows=await queryRows(A.table,where(true),fids,'num-25');if(!rows.length)rows=await queryRows(A.table,where(false),fids,'num-25');
+      rows=rows.filter(row=>digitsOf(row[A.upc]||row[A.upc2]).endsWith(digits)).sort((a,b)=>Number(b[3])-Number(a[3]));
+      if(!rows.length)throw new Error(`No artwork found for a barcode ending ${digits}.`);
+      // several barcodes end in these digits: the person picks the one (and so the brand) they mean
+      const chosen=await DemoChoice.resolve({code:digits,rows,upc:row=>row[A.upc]||row[A.upc2],brand:row=>row[A.brand],detail:row=>row[A.item],link:row=>DemoChoice.record(A.table,row[3])});
+      if(!chosen)throw new Error('No barcode was chosen.');
+      const art=chosen[0],upc=art[A.upc]||art[A.upc2],fullUpc=digitsOf(upc),sample={brand:art[A.brand],item:art[A.item],upc,title:'',revision:'',width:'',height:'',gusset:'',po:'',link:recordUrl(A.table,art[3]),dimensionSource:'sample'};
+      const familyId=String(art[A.family]||'').replace(/\.0+$/,'');
+      if(familyId){
+        const family=(await queryRows(SAMPLES.family.table,`{3.EX.'${familyId}'}`,[3,SAMPLES.family.spec]))[0],specId=String(family?.[SAMPLES.family.spec]||'').replace(/\.0+$/,'');
+        if(specId){
+          const S=SAMPLES.spec,spec=(await queryRows(S.table,`{3.EX.'${specId}'}`,[3,S.format,S.style,S.gusset,S.units,S.inW,S.inH,S.inG,S.mmW,S.mmH,S.mmG]))[0]||{};
+          sample.title=[spec[S.format],spec[S.style],spec[S.gusset]].map(clean).filter(Boolean).join(' / ');
+          const metric=/metric/i.test(spec[S.units]||''),pick=(i,m)=>metric?(inches(spec[m],true)||inches(spec[i],false)):(inches(spec[i],false)||inches(spec[m],true));
+          Object.assign(sample,{width:pick(S.inW,S.mmW),height:pick(S.inH,S.mmH),gusset:pick(S.inG,S.mmG),metric});
+        }
+      }
+      // the item's latest order: its PO number, and the order line to open in Quickbase
+      const I=SAMPLES.items,lines=(await queryRows(I.table,`{${I.upc}.CT.'${tail}'}`,[3,I.upc,I.order],'sortorder-D.num-60')).filter(row=>digitsOf(row[I.upc])===fullUpc).sort((a,b)=>Number(b[3])-Number(a[3]));
+      if(lines.length){sample.link=recordUrl(I.table,lines[0][3]);const orderId=String(lines[0][I.order]||'').replace(/\.0+$/,'');if(orderId){const order=(await queryRows(SAMPLES.orders.table,`{3.EX.'${orderId}'}`,[3,SAMPLES.orders.po]))[0];sample.po=clean(order?.[SAMPLES.orders.po]||'')}}
+      setConnection('Connected to Quickbase','ready');
+      return sample;
+    }
+    function showQbLink(url){const link=$('#qbLink');link.hidden=!url;if(url)link.href=url}
+    function setMode(next){
+      mode=next==='samples'?'samples':'mockup';const samples=mode==='samples';
+      document.querySelectorAll('.mode-switch button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===mode)));
+      $('#barcodeField').hidden=!samples;$('#mockupLabel').textContent=samples?'PO number':'Mockup number';$('#mockupNumber').required=!samples;
+      $('#mockupNumber').placeholder=samples?'Filled from the latest order':'e.g. 1547';$('#revision').placeholder=samples?'Left blank for samples':'Rev 1547';updatePreview();$('#searchButton').textContent=samples?'Find sample':'Find mockup';
+      showQbLink('');setStatus(samples?'Enter the last 5 digits of the barcode, then choose the brand if asked.':'Enter a mockup number to begin.');
+      (samples?$('#barcodeInput'):$('#mockupNumber')).focus();
+    }
+    async function lookupSample(){
+      const code=clean($('#barcodeInput').value);if(!code){$('#barcodeInput').focus();return}
+      const button=$('#searchButton');button.disabled=true;button.textContent='Searching...';setStatus(`Looking for a barcode ending ${digitsOf(code).slice(-5)}...`);
+      try{
+        const sample=await findSample(code);
+        populate({title:sample.title,revision:'',width:sample.width,height:sample.height,gusset:sample.gusset,dimensions:''});
+        $('#mockupNumber').value=sample.po||'';showQbLink(sample.link);
+        const missing=!sample.title?' The spec has no format or style, so type the label title.':(!sample.width&&!sample.height?' The spec has no dimensions, so type them.':'');
+        setStatus(`${sample.brand||'Sample'}${sample.item?` · ${sample.item}`:''}${sample.po?` · PO ${sample.po}`:' · no order found'}${sample.metric?' · converted from mm':''}.${missing}`,missing?'bad':'good');
+      }catch(error){setStatus(error.message||'That sample could not be found.','bad');showQbLink('')}
+      finally{button.disabled=false;button.textContent='Find sample'}
+    }
+    function setConnection(message,type=''){const element=$('#connection');if(!element)return;element.className=`connection ${type}`.trim();element.querySelector('span:last-child').textContent=message}
+    function setStatus(message,type=''){const element=$('#status');element.className=`status ${type}`.trim();element.textContent=message}
+    function sampleRecord(number){return{title:'35lb Dog Food',revision:`Rev ${number||1547}`,dimensions:'14.57" W x 30.71" H + 7.09" G',width:'14.57',height:'30.71',gusset:'7.09'}}
+    function populate(record){$('#labelTitle').value=record.title||'';$('#revision').value=record.revision||'';$('#width').value=record.width||'';$('#height').value=record.height||'';$('#gusset').value=record.gusset||'';$('#dimensionText').value=record.dimensions||buildDimensions();updatePreview()}
+    function buildDimensions(){const width=clean($('#width').value),height=clean($('#height').value),gusset=clean($('#gusset').value);if(!width&&!height&&!gusset)return'';const parts=[];if(width)parts.push(`${width}" W`);if(height)parts.push(`${height}" H`);let result=parts.join(' x ');if(gusset)result+=`${result?' + ':''}${gusset}" G`;return result}
+    function updatePreview(){const title=clean($('#labelTitle').value)||'Label title',revision=clean($('#revision').value)||(mode==='samples'?'':'Revision'),dimensions=clean($('#dimensionText').value)||buildDimensions()||'Dimensions';$('#previewTitle').textContent=title;$('#previewRevision').textContent=revision;$('#previewDimensions').textContent=dimensions;const size=SIZES[$('#labelSize').value]||SIZES[DEFAULT_SIZE],previewLabel=$('.label-preview-stage .label');$('#previewSize').textContent=`${size[0]} x ${size[1]} in`;previewLabel.style.height='';previewLabel.style.aspectRatio=`${size[0]} / ${size[1]}`;applyLayoutToPreview()}
+    function updateDimensionText(){const built=buildDimensions();if(built)$('#dimensionText').value=built;updatePreview()}
+    function cloneLayout(value){return JSON.parse(JSON.stringify(value))}
+    function clamp(value,min,max){return Math.min(max,Math.max(min,Number(value)||0))}
+    function wrappedLineCount(text,maxWidth,fontPx,weight){measureContext.font=`${weight} ${fontPx}px Arial, Helvetica, sans-serif`;const words=String(text||'').trim().split(/\s+/).filter(Boolean);if(!words.length)return 1;const space=measureContext.measureText(' ').width;let lines=1,lineWidth=0;words.forEach(word=>{const wordWidth=measureContext.measureText(word).width;if(wordWidth>maxWidth){if(lineWidth>0){lines++;lineWidth=0}const pieces=Math.ceil(wordWidth/maxWidth);lines+=pieces-1;lineWidth=wordWidth-(pieces-1)*maxWidth}else if(!lineWidth)lineWidth=wordWidth;else if(lineWidth+space+wordWidth<=maxWidth)lineWidth+=space+wordWidth;else{lines++;lineWidth=wordWidth}});return lines}
+    function fitFontCqw(text,key,box,sizeKey=DEFAULT_SIZE){const size=SIZES[sizeKey]||SIZES[DEFAULT_SIZE],defaults=TEXT_DEFAULTS[key]||TEXT_DEFAULTS.title,weight=box.weight==='bold'?'bold':'normal',maxPt=clamp(box.fontSize??defaults.fontSize,3,30),canvasWidth=1000,boxWidth=canvasWidth*box.w/100,boxHeight=canvasWidth*(size[1]/size[0])*box.h/100,maxPx=maxPt*canvasWidth/(size[0]*72);let low=0,high=maxPx;for(let index=0;index<18;index++){const fontPx=(low+high)/2;measureContext.font=`${weight} ${fontPx}px Arial, Helvetica, sans-serif`;const fits=box.wrap?wrappedLineCount(text,boxWidth,fontPx,weight)*fontPx*1.12<=boxHeight:measureContext.measureText(String(text||'')).width<=boxWidth&&fontPx*1.12<=boxHeight;if(fits)low=fontPx;else high=fontPx}return Math.max(.4,low/10).toFixed(3)}
+    function layoutStyle(box,isText=true,key='',text='',sizeKey=DEFAULT_SIZE){const horizontal=box.align==='right'?'flex-end':box.align==='center'?'center':'flex-start',font=isText?`font-size:${fitFontCqw(text,key,box,sizeKey)}cqw;font-weight:${box.weight==='bold'?'700':'400'};white-space:${box.wrap?'normal':'nowrap'};overflow-wrap:${box.wrap?'anywhere':'normal'};`:'';return`left:${box.x}%;top:${box.y}%;width:${box.w}%;height:${box.h}%;${isText?`text-align:${box.align};justify-content:${horizontal};${font}`:''}`}
+    function updatePrintAreaGuide(){const sizeKey=$('#labelSize').value||DEFAULT_SIZE,size=SIZES[sizeKey]||SIZES[DEFAULT_SIZE],area=PRINT_AREAS[sizeKey],guide=$('#printSafeArea'),info=$('#printAreaInfo'),status=$('#printAreaStatus');if(!layoutEditing){guide.hidden=true;info.hidden=true;document.querySelectorAll('.label-preview-stage [data-layout-key]').forEach(element=>element.classList.remove('cutoff-risk'));return}info.hidden=false;if(!area){guide.hidden=true;info.classList.add('warning');status.textContent='No verified Dymo template print area is available for this label size.';document.querySelectorAll('.label-preview-stage [data-layout-key]').forEach(element=>element.classList.remove('cutoff-risk'));return}guide.hidden=false;const safe={x:area.x/size[0]*100,y:area.y/size[1]*100,w:area.w/size[0]*100,h:area.h/size[1]*100};guide.style.cssText=`left:${safe.x}%;top:${safe.y}%;width:${safe.w}%;height:${safe.h}%`;const risks=[];document.querySelectorAll('.label-preview-stage [data-layout-key]').forEach(element=>{const key=element.dataset.layoutKey,box=layout[key],outside=box.x<safe.x||box.y<safe.y||box.x+box.w>safe.x+safe.w||box.y+box.h>safe.y+safe.h;element.classList.toggle('cutoff-risk',outside);if(outside)risks.push(key[0].toUpperCase()+key.slice(1))});info.classList.toggle('warning',Boolean(risks.length));status.textContent=risks.length?`Cutoff risk: ${risks.join(', ')} bounding boxes extend into the shaded margin. Keep important content inside the dashed ${area.name} print area.`:`All bounding boxes are inside the simulated ${area.name} print area.`}
+    function applyLayoutToPreview(){const sizeKey=$('#labelSize').value||DEFAULT_SIZE;document.querySelectorAll('.label-preview-stage [data-layout-key]').forEach(element=>{const key=element.dataset.layoutKey,box=layout[key];element.style.cssText=layoutStyle(box,key!=='logo',key,element.textContent,sizeKey);element.classList.toggle('selected',layoutEditing&&key===selectedLayoutElement)});updatePrintAreaGuide()}
+    function setLayoutEditing(enabled){layoutEditing=Boolean(enabled);$('#layoutTuner').hidden=!layoutEditing;$('.preview-wrap').classList.toggle('layout-editing',layoutEditing);const button=$('#toggleLayoutButton');button.setAttribute('aria-expanded',String(layoutEditing));button.textContent=layoutEditing?'Done adjusting':'Adjust layout';if(layoutEditing)loadTuner();else applyLayoutToPreview()}
+    function loadTuner(){const box=layout[selectedLayoutElement],isText=selectedLayoutElement!=='logo',defaults=TEXT_DEFAULTS[selectedLayoutElement]||TEXT_DEFAULTS.title;$('#tunerElement').value=selectedLayoutElement;$('#tunerX').value=box.x;$('#tunerY').value=box.y;$('#tunerWidth').value=box.w;$('#tunerHeight').value=box.h;$('#tunerAlign').value=box.align||'center';$('#tunerFontSize').value=box.fontSize??defaults.fontSize;$('#tunerWeight').value=box.weight||defaults.weight;$('#tunerWrap').checked=Boolean(box.wrap);['tunerAlign','tunerFontSize','tunerWeight','tunerWrap'].forEach(id=>$(`#${id}`).disabled=!isText);applyLayoutToPreview()}
+    function selectLayoutElement(key){if(!layout[key])return;selectedLayoutElement=key;loadTuner()}
+    function updateLayoutFromTuner(){const box=layout[selectedLayoutElement],x=clamp($('#tunerX').value,0,98),y=clamp($('#tunerY').value,0,98);box.x=x;box.y=y;box.w=clamp($('#tunerWidth').value,2,100-x);box.h=clamp($('#tunerHeight').value,2,100-y);if(selectedLayoutElement!=='logo'){box.align=$('#tunerAlign').value;box.fontSize=clamp($('#tunerFontSize').value,3,30);box.weight=$('#tunerWeight').value==='bold'?'bold':'normal';box.wrap=$('#tunerWrap').checked}loadTuner()}
+    function resetLayout(){layout=cloneLayout(DEFAULT_LAYOUT);selectLayoutElement('logo');setStatus('Label layout reset to the default positions.','good')}
+    function validSharedLayout(value){if(!value||typeof value!=='object')return false;return['logo','title','revision','dimensions'].every(key=>{const box=value[key];return box&&['x','y','w','h'].every(property=>Number.isFinite(Number(box[property])))&&['left','center','right'].includes(box.align)})}
+    function normalizeLayout(value){const result=cloneLayout(DEFAULT_LAYOUT);Object.keys(result).forEach(key=>{const source=value[key]||{},x=clamp(source.x,0,98),y=clamp(source.y,0,98);result[key].x=x;result[key].y=y;result[key].w=clamp(source.w,2,100-x);result[key].h=clamp(source.h,2,100-y);result[key].align=['left','center','right'].includes(source.align)?source.align:'center';if(key!=='logo'){const defaults=TEXT_DEFAULTS[key];result[key].fontSize=clamp(source.fontSize??defaults.fontSize,3,30);result[key].weight=source.weight==='bold'?'bold':'normal';result[key].wrap=source.wrap===true}});return result}
+    function encodeSettings(value){const bytes=new TextEncoder().encode(JSON.stringify(value));let binary='';bytes.forEach(byte=>binary+=String.fromCharCode(byte));return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+    function decodeSettings(value){const base64=String(value||'').replace(/-/g,'+').replace(/_/g,'/'),binary=atob(base64+'='.repeat((4-base64.length%4)%4)),bytes=Uint8Array.from(binary,char=>char.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes))}
+    function restoreSharedSettings(){const encoded=new URLSearchParams(location.search).get('labelSettings');if(!encoded)return false;try{const settings=decodeSettings(encoded);if(settings.v!==1||!SIZES[settings.size]||!validSharedLayout(settings.layout))throw new Error('Invalid settings');layout=normalizeLayout(settings.layout);$('#labelSize').value=settings.size;setStatus('Shared label settings loaded.','good');return true}catch(error){setStatus('The shared label settings link is invalid.','bad');return false}}
+    async function copySettings(){const url=new URL(location.href),payload={v:1,size:$('#labelSize').value||DEFAULT_SIZE,layout:cloneLayout(layout)};url.searchParams.set('labelSettings',encodeSettings(payload));const button=$('#copySettingsButton'),text=url.href;try{if(!navigator.clipboard||!window.isSecureContext)throw new Error('Clipboard unavailable');await navigator.clipboard.writeText(text)}catch(error){const field=document.createElement('textarea');field.value=text;field.style.position='fixed';field.style.opacity='0';document.body.appendChild(field);field.select();document.execCommand('copy');field.remove()}button.textContent='Copied';setTimeout(()=>button.textContent='Copy settings',1400);setStatus('Shareable layout settings link copied.','good')}
+    function labelMarkup(item,className='print-label'){const boxes=item.layout||DEFAULT_LAYOUT,sizeKey=item.size||DEFAULT_SIZE;return`<article class="${className}"><div class="label-inner"><img class="label-logo label-element" style="${layoutStyle(boxes.logo,false)}" src="${CONFIG.logoUrl}" alt="Demo Packaging"><div class="label-title label-element" style="${layoutStyle(boxes.title,true,'title',item.title,sizeKey)}">${esc(item.title)}</div><div class="label-revision label-element" style="${layoutStyle(boxes.revision,true,'revision',item.revision,sizeKey)}">${esc(item.revision)}</div><div class="label-dimensions label-element" style="${layoutStyle(boxes.dimensions,true,'dimensions',item.dimensions,sizeKey)}">${esc(item.dimensions)}</div></div></article>`}
+    function renderQueue(){const count=queue.reduce((sum,item)=>sum+item.quantity,0),trashIcon='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>',emptyIcon='<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>';$('#queueCount').textContent=count;$('#clearButton').disabled=!queue.length;$('#printButton').disabled=!queue.length;$('#queueList').innerHTML=queue.length?queue.map((item,index)=>`<article class="queue-item"><div class="queue-thumb"><img src="${CONFIG.logoUrl}" alt=""></div><div class="queue-copy"><strong>${esc(item.title)} / ${esc(item.revision)}</strong><span>${esc(item.dimensions)} / Qty ${item.quantity}</span></div><button class="remove" type="button" data-remove="${index}" aria-label="Remove ${esc(item.title)}">${trashIcon}</button></article>`).join(''):`<div class="empty"><div><div class="empty-icon" aria-hidden="true">${emptyIcon}</div><strong>No labels yet</strong>Find a mockup or enter the label details, then add it to the batch.</div></div>`;$('#labelSheet').innerHTML=queue.flatMap(item=>Array.from({length:item.quantity},()=>labelMarkup(item))).join('')}
+    function applyPrintSize(sizeKey){const size=SIZES[sizeKey]||SIZES[DEFAULT_SIZE];document.documentElement.style.setProperty('--label-w',`${size[0]}in`);document.documentElement.style.setProperty('--label-h',`${size[1]}in`);$('#pageSizeStyle').textContent=`@page{size:${size[0]}in ${size[1]}in;margin:0}`}
+    async function lookup(event){event.preventDefault();if(mode==='samples')return lookupSample();const number=clean($('#mockupNumber').value);if(!number)return;const button=$('#searchButton');button.disabled=true;button.textContent='Searching...';setStatus(`Looking for mockup ${number}...`);try{let record;try{record=await findMockup(number)}catch(error){if(['localhost','127.0.0.1',''].includes(window.__DEMO_HOST)&&number==='1547'){record={...sampleRecord(number),dimensionSource:'preview'};setConnection('Preview sample','ready')}else throw error}populate(record);const source=record.dimensionSource==='specification'?'specification dimensions':record.dimensionSource==='actual'?'actual dimensions':'preview dimensions';setStatus(`Mockup ${number} loaded using ${source}. Review the label, then add it to the batch.`,'good')}catch(error){setConnection('Quickbase unavailable','error');setStatus(error.message||String(error),'bad')}finally{button.disabled=false;button.textContent='Find mockup'}}
+    function addLabel(event){event.preventDefault();const title=clean($('#labelTitle').value),revision=clean($('#revision').value),dimensions=clean($('#dimensionText').value)||buildDimensions(),quantity=Math.max(1,Math.min(100,Number($('#quantity').value)||1));if(!title){$('#labelTitle').focus();return}const item={title,revision,dimensions,quantity,size:$('#labelSize').value,layout:cloneLayout(layout)};if(queue.length&&queue[0].size!==item.size){setStatus('Use one Dymo label size per print batch. Clear the batch to change sizes.','bad');return}queue.push(item);renderQueue();setStatus(`Added ${quantity} ${quantity===1?'label':'labels'} to the print batch.`,'good')}
+    function resetForm(){populate({title:'',revision:'',dimensions:'',width:'',height:'',gusset:''});$('#mockupNumber').value='';$('#barcodeInput').value='';showQbLink('');$('#quantity').value='1';setStatus('Enter a mockup number to begin.');$('#mockupNumber').focus()}
+    function printLabels(){if(!queue.length)return;applyPrintSize(queue[0].size);window.print()}
+
+    $('#lookupForm').addEventListener('submit',lookup);document.querySelectorAll('.mode-switch button').forEach(button=>button.addEventListener('click',()=>setMode(button.dataset.mode)));$('#labelForm').addEventListener('submit',addLabel);$('#resetButton').addEventListener('click',resetForm);$('#resetLayoutButton').addEventListener('click',resetLayout);$('#copySettingsButton').addEventListener('click',copySettings);$('#toggleLayoutButton').addEventListener('click',()=>setLayoutEditing(!layoutEditing));$('#clearButton').addEventListener('click',()=>{queue=[];renderQueue();setStatus('Print batch cleared.')});$('#printButton').addEventListener('click',printLabels);$('#queueList').addEventListener('click',event=>{const button=event.target.closest('[data-remove]');if(!button)return;queue.splice(Number(button.dataset.remove),1);renderQueue()});
+    ['labelTitle','revision','dimensionText'].forEach(id=>$(`#${id}`).addEventListener('input',updatePreview));['width','height','gusset'].forEach(id=>$(`#${id}`).addEventListener('input',updateDimensionText));$('#labelSize').addEventListener('change',updatePreview);window.addEventListener('beforeprint',()=>{if(queue.length)applyPrintSize(queue[0].size)});
+    $('#tunerElement').addEventListener('change',event=>selectLayoutElement(event.target.value));['tunerX','tunerY','tunerWidth','tunerHeight','tunerAlign','tunerFontSize','tunerWeight','tunerWrap'].forEach(id=>$(`#${id}`).addEventListener('input',updateLayoutFromTuner));$('.label-preview-stage').addEventListener('click',event=>{if(!layoutEditing)return;const element=event.target.closest('[data-layout-key]');if(element)selectLayoutElement(element.dataset.layoutKey)});
+    restoreSharedSettings();populate(sampleRecord('1547'));loadTuner();setLayoutEditing(false);renderQueue();
+  </script>
+<!-- demo-choice:start (managed by demo_choice.py: edit demo_choice_snippet.html, not this copy) -->
+<style id="demo-choice-style">
+  /* "Which barcode did you mean?" When several different UPCs end in the same five digits, the person picks one. */
+  dialog.exc{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 32px);margin:auto;padding:0;border:1px solid #d6e0e3;border-radius:14px;background:#fff;color:#132a35;box-shadow:0 24px 70px rgba(2,32,40,.3);font:14px/1.45 "Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;text-align:left;overflow:hidden}
+  dialog.exc::backdrop{background:rgba(2,32,40,.45)}
+  dialog.exc[open]{display:flex;flex-direction:column}
+  dialog.exc *{box-sizing:border-box}
+  /* Reset whatever the page does to these tags; :where() keeps the reset weaker than the rules below. */
+  :where(dialog.exc) :where(button,a,h2,p,ul,li,div,span,b,code){all:unset;box-sizing:border-box}
+  :where(dialog.exc) :where(div,p,h2,ul,li){display:block}
+  .exc-head{padding:18px 20px 12px;border-bottom:1px solid #e3eaec}
+  .exc-head h2{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .exc-head p{margin-top:5px;color:#62757c}
+  .exc-list{flex:1 1 auto;min-height:0;overflow:auto;padding:6px 12px}
+  .exc-item{display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid #eef2f3}
+  .exc-item:last-child{border-bottom:0}
+  .exc-text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .exc-text b{font-size:15px;font-weight:700;overflow-wrap:anywhere}
+  .exc-text code{font:600 14px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.03em}
+  .exc-text code mark{all:unset;border-radius:3px;background:#ffe9a8;color:#132a35}
+  .exc-text span{color:#62757c;font-size:13px;overflow-wrap:anywhere}
+  .exc-text a{width:max-content;max-width:100%;margin-top:2px;color:#5257b8;font-size:13px;font-weight:700;text-decoration:underline;cursor:pointer}
+  .exc-text a:focus-visible,.exc-use:focus-visible,.exc-cancel:focus-visible{outline:2px solid #5257b8;outline-offset:2px}
+  .exc-use{flex:none;height:38px;padding:0 14px;display:inline-flex;align-items:center;border-radius:9px;background:#3b3f8f;color:#fff;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer}
+  .exc-use:hover{background:#2d3070}
+  .exc-foot{display:flex;justify-content:flex-end;padding:12px 20px;border-top:1px solid #e3eaec}
+  .exc-cancel{height:36px;padding:0 14px;display:inline-flex;align-items:center;border:1px solid #c3d2d6;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer}
+  .exc-cancel:hover{background:#eef4f5}
+  @media(max-width:480px){.exc-item{flex-wrap:wrap}.exc-use{width:100%;justify-content:center}}
+  /* Inside the Illustrator panel the dialog takes the panel's dark greys. */
+  html.panel-mode dialog.exc{border-color:#2f2f2f;border-radius:4px;background:#535353;color:#dedede;font:12px/1.4 "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif}
+  html.panel-mode .exc-head,html.panel-mode .exc-foot,html.panel-mode .exc-item{border-color:#434343}
+  html.panel-mode .exc-head{padding:12px 12px 9px}html.panel-mode .exc-head h2{font-size:13px;color:#f2f2f2}
+  html.panel-mode .exc-head p,html.panel-mode .exc-text span{color:#b9b9b9;font-size:11.5px}
+  html.panel-mode .exc-list{padding:2px 8px}html.panel-mode .exc-item{gap:10px;padding:9px 4px}
+  html.panel-mode .exc-text b{font-size:12.5px;color:#f2f2f2}html.panel-mode .exc-text code{font-size:12px}
+  html.panel-mode .exc-text a{color:#8ab4f8;font-size:11.5px}
+  /* Buttons look the same in every panel, whatever the panel's own button styles are: grey, compact, on the right. */
+  html.panel-mode dialog.exc .exc-use,html.panel-mode dialog.exc .exc-cancel{flex:none;width:auto!important;height:24px!important;padding:0 10px!important;display:inline-flex;align-items:center;justify-content:center;border:1px solid #8c8c8c!important;border-radius:3px!important;background:#4a4a4a!important;color:#f0f0f0!important;font:600 11.5px "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif!important;white-space:nowrap;box-shadow:none!important;cursor:pointer}
+  html.panel-mode dialog.exc .exc-use:hover,html.panel-mode dialog.exc .exc-cancel:hover{background:#5e5e5e!important}
+  html.panel-mode .exc-foot{padding:8px 12px}
+  @media(max-width:330px){html.panel-mode .exc-item{flex-wrap:wrap}}
+</style>
+<script id="demo-choice-script">
+/*
+  DemoChoice: one shared answer to "several barcodes end in these five digits".
+
+    const rows = await DemoChoice.resolve({
+      code,                         // the digits that were typed
+      rows,                         // every record that matched
+      upc:    row => '...',         // full barcode of a record
+      brand:  row => '...',         // brand (or item name) shown in bold
+      detail: row => '...',         // optional second line
+      link:   row => 'https://...', // the record in Quickbase, so the person can check it
+      remember: false,              // true = ask once per code until the page reloads or DemoChoice.forget()
+      memo: ''                      // optional name for that memory (default: the code), e.g. one per slot
+    });
+
+  One distinct barcode among the rows: they come straight back, nothing is shown. Several: a dialog lists each
+  barcode once and resolves to that barcode's rows, or to null when the person cancels.
+*/
+(function () {
+  'use strict';
+  const digits = value => String(value == null ? '' : value).replace(/\D/g, '');
+  const esc = text => String(text == null ? '' : text).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const remembered = new Map();
+  let queue = Promise.resolve();
+
+  function ask(code, groups) {
+    return new Promise(resolve => {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'exc';
+      const tail = digits(code).slice(-5);
+      const shown = upc => { const text = esc(upc), at = tail ? text.lastIndexOf(tail) : -1; return at < 0 ? text : `${text.slice(0, at)}<mark>${tail}</mark>${text.slice(at + tail.length)}`; };
+      dialog.innerHTML = `<div class="exc-head"><h2>${groups.length} barcodes end in ${esc(tail || code)}</h2><p>Choose the one you mean. Open it in Quickbase first if you want to check.</p></div>` +
+        `<ul class="exc-list">${groups.map((group, index) => `<li class="exc-item"><div class="exc-text"><b>${esc(group.brand || 'No brand on record')}</b><code>${shown(group.upc)}</code>` +
+          `${group.detail ? `<span>${esc(group.detail)}</span>` : ''}${group.link ? `<a href="${esc(group.link)}" target="_blank" rel="noopener">Open in Quickbase</a>` : ''}</div>` +
+          `<button type="button" class="exc-use" data-index="${index}">Use this one</button></li>`).join('')}</ul>` +
+        '<div class="exc-foot"><button type="button" class="exc-cancel">Cancel</button></div>';
+      let answer = null, done = false;
+      // Finishes straight away on a click; the close event alone can arrive late (or not at all in a hidden tab).
+      const finish = () => { if (done) return; done = true; if (dialog.open) dialog.close(); dialog.remove(); resolve(answer); };
+      dialog.addEventListener('click', event => {
+        const use = event.target.closest('.exc-use');
+        if (use) { answer = groups[Number(use.dataset.index)]; finish(); }
+        else if (event.target.closest('.exc-cancel')) finish();
+      });
+      dialog.addEventListener('close', finish);     // Esc
+      document.body.append(dialog);
+      dialog.showModal();
+    });
+  }
+
+  function resolve(options) {
+    const rows = options.rows || [], groups = [], byKey = new Map();
+    for (const row of rows) {
+      // The same barcode written with or without its leading zeros is still one barcode.
+      const upc = String(options.upc(row) || '').trim(), key = digits(upc).replace(/^0+/, '') || upc.toLowerCase();
+      if (!byKey.has(key)) {
+        const group = { key, upc, rows: [], brand: options.brand ? String(options.brand(row) || '').trim() : '',
+                        detail: options.detail ? String(options.detail(row) || '').trim() : '', link: options.link ? String(options.link(row) || '') : '' };
+        byKey.set(key, group);
+        groups.push(group);
+      }
+      byKey.get(key).rows.push(row);
+    }
+    if (groups.length <= 1) return Promise.resolve(rows);
+    groups.sort((a, b) => a.brand.localeCompare(b.brand, undefined, { sensitivity: 'base' }) || a.key.localeCompare(b.key));
+    const memo = options.memo || digits(options.code) || String(options.code);
+    if (options.remember && byKey.has(remembered.get(memo))) return Promise.resolve(byKey.get(remembered.get(memo)).rows);
+    // One dialog at a time, even when several lookups run together.
+    const turn = queue.then(async () => {
+      if (options.remember && byKey.has(remembered.get(memo))) return byKey.get(remembered.get(memo)).rows;
+      const picked = await ask(options.code, groups);
+      if (picked && options.remember) remembered.set(memo, picked.key);
+      return picked ? picked.rows : null;
+    });
+    queue = turn.catch(() => {});
+    return turn;
+  }
+
+  window.DemoChoice = { resolve, forget(code) { if (code === undefined) remembered.clear(); else remembered.delete(digits(code) || String(code)); },
+                         record: (table, rid) => `https://demo.quickbase.example/db/${encodeURIComponent(table)}?a=dr&rid=${encodeURIComponent(String(rid).replace(/\.0+$/, ''))}` };
+})();
+</script>
+<!-- demo-choice:end -->
+<!-- demo-launcher:start (managed by demo_launcher.py: edit demo_launcher_snippet.html, not this copy) -->
+
+
+
+</body>
+</html>

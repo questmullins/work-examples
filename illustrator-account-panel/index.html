@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en" class="panel-mode">
+<head>
+  <meta charset="utf-8">
+  <meta name="app-version" content="1.2" data-tool="account">
+  <title>Demo Account</title>
+  <link rel="stylesheet" href="demo_panel.css">
+</head>
+<body>
+  <div class="xg-bar" id="bar"><i class="off"></i><b id="barName">Not signed in</b><span id="barVersion"></span></div>
+  <main>
+    <div id="signedIn" hidden>
+      <details open>
+        <summary>Signed in</summary>
+        <div class="detail-body">
+          <div class="fields">
+            <div class="field"><span>Name</span><span class="text" id="name"></span></div>
+            <div class="field"><span>Quickbase login</span><span class="text" id="email"></span></div>
+          </div>
+          <div class="note">Every Demo panel in Illustrator on this computer works under this account.</div>
+        </div>
+      </details>
+    </div>
+
+    <form id="signedOut" hidden autocomplete="off">
+      <section class="lookup-section">
+        <div class="lookup">
+          <input id="token" type="password" spellcheck="false" autocomplete="off" placeholder="Paste your Quickbase token" aria-label="Quickbase user token">
+          <button id="save" type="submit">Sign in</button>
+        </div>
+        <div class="note">You do this once. It unlocks every Demo panel in Illustrator on this computer.</div>
+      </section>
+      <details open>
+        <summary>Where to get your token</summary>
+        <div class="detail-body">
+          <ol>
+            <li><a href="https://demo.quickbase.example/db/main?a=GenUserTokenList" id="tokenLink">Open your user tokens page in Quickbase</a> (sign in if it asks). You can also get there from your name (top right) &rarr; <b>My preferences</b> &rarr; <b>Manage my user tokens</b>.</li>
+            <li>Click <b>New user token</b>, name it "Illustrator panels", assign it to the Demo Packaging app, and save.</li>
+            <li>Copy the token and paste it above.</li>
+          </ol>
+          <div class="note">The token is you: the panels can only see and do what your own Quickbase account is allowed to. It gives no extra access.</div>
+          <div class="note">Use your own token, not a coworker's: the panels show and act under the name on the token. It is stored for your login on this computer only, never in the plugin files.</div>
+        </div>
+      </details>
+    </form>
+  </main>
+  <footer class="panel-foot">
+    <div id="status">Checking your sign-in&hellip;</div>
+    <div class="panel-actions" id="actionsIn" hidden>
+      <button id="signOut" type="button">Sign out</button>
+      <button id="change" type="button">Change token</button>
+      <button id="recheck" type="button" class="primary">Check again</button>
+    </div>
+    <div class="panel-actions" id="actionsOut" hidden>
+      <button id="cancel" type="button" hidden>Cancel</button>
+      <button id="saveMain" type="submit" form="signedOut" class="primary">Sign in</button>
+    </div>
+  </footer>
+  <script src="account_panel.js"></script>
+</body>
+</html>

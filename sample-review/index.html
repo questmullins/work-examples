@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script id="demo-backend">
+/* Demo backend. Answers this page's Quickbase calls in the browser from made-up records, so the tool runs with no
+   server and no account. Every company, product, person and address here is fictional. Changes last until reload. */
+(function () {
+  var HOST = 'demo.quickbase.example';
+  window.__DEMO_HOST = HOST;
+
+  var BRANDS = [
+    {customer: 'Trailhead Pet Co', code: 'TH', prefix: '00011'},
+    {customer: 'Northfield Pet Foods', code: 'NF', prefix: '00012'},
+    {customer: 'Sunny Paws Kitchen', code: 'SP', prefix: '00013'},
+    {customer: 'Bramble & Bone', code: 'BB', prefix: '00014'},
+    {customer: 'Copper Creek Provisions', code: 'CC', prefix: '00015'},
+    {customer: 'Little Harbor Treats', code: 'LH', prefix: '00016'},
+    {customer: 'Meadowlark Mills', code: 'MM', prefix: '00017'},
+    {customer: 'Oak & Ember Foods', code: 'OE', prefix: '00018'},
+    {customer: 'Tidewater Snacks', code: 'TW', prefix: '00019'},
+    {customer: 'Pine Ridge Grains', code: 'PR', prefix: '00020'}
+  ];
+  // Every shape here has a template in the mockup tool.
+  var SHAPES = [
+    {format: 'Quad Seal Bag', style: 'Flat Bottom', gusset: 'Terminated Gusset', sizes: [[7, 11.5, 3.5, '12 oz'], [8.5, 14, 4, '2 lb'], [10, 16, 4.5, '4 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Non-Terminated Gusset', sizes: [[11.5, 18.25, 4.125, '10 lb'], [13, 22, 5, '15 lb'], [15.75, 26.5, 4.5, '25 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Terminated Gusset', sizes: [[8, 13, 4, '3.5 lb'], [9.5, 15, 4, '5 lb'], [12, 20, 4.5, '12 lb']]},
+    {format: 'Stand-Up Pouch', style: 'Angle Plow', gusset: '', sizes: [[5, 7.75, 2.5, '5 oz'], [6, 9, 3, '8 oz'], [7.25, 11, 3.5, '1 lb']]},
+    {format: 'Stand-Up Pouch', style: 'K-Seal', gusset: '', sizes: [[7, 10, 3.25, '10 oz'], [6, 8.5, 2.75, '6 oz'], [8, 12, 3.5, '1.5 lb']]}
+  ];
+  var RECIPES = ['Grain-Free Salmon Kibble', 'Turkey Training Bites', 'Pumpkin Berry Minis', 'Chicken Recipe Kibble', 'Freeze-Dried Beef Morsels', 'Duck & Sweet Potato Bites', 'Lamb & Rice Dinner', 'Peanut Butter Crunch', 'Ancient Grain Granola', 'Sea Salt Veggie Crisps', 'Dark Roast Coffee', 'Honey Oat Clusters'];
+  var LAYERS = ['MATTE / PET / FOIL / LLDPE', 'MATTE / PET / MET PET / LLDPE', 'GLOSS / PET / MET PET / LLDPE', 'SOFT TOUCH / PET / FOIL / LLDPE', 'SOFT TOUCH / PET / MET PET / LLDPE', 'MATTE / PET / PET / LLDPE', 'GLOSS / PET / EVOH / LLDPE', 'MATTE / PE / EVOH / PE', 'GLOSS / KRAFT / MET PET / LLDPE', 'SOFT TOUCH / PET / ALOX / LLDPE'];
+  var COLORS = ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'PMS 186 C', 'PMS 2728 C', 'PMS 349 C', 'PMS 7406 C', 'PMS 485 C', 'PMS 2607 C', 'PMS 7421 C'];
+  var PEOPLE = ['Demo Designer', 'Alex Morgan', 'Jordan Lee', 'Priya Nair', 'Casey Tran', 'Riley Brooks'];
+  var ZIPPERS = ['Small Zipper', 'No Zipper', 'Small Zipper', 'Pocket Zipper'];
+  var PRODUCTS = [];
+  BRANDS.forEach(function (brand, b) {
+    for (var i = 0; i < 6; i++) {
+      var shape = SHAPES[(b + i) % SHAPES.length], size = shape.sizes[(b + i * 2) % 3];
+      PRODUCTS.push({b: b, name: RECIPES[(b * 2 + i) % RECIPES.length], weight: size[3], format: shape.format, style: shape.style, gusset: shape.gusset, w: size[0], h: size[1], g: size[2], layers: LAYERS[(b + i * 3) % LAYERS.length]});
+    }
+  });
+  var ADDRESSES = [
+    ['100 Example Way', 'Dock 2', 'Springfield', 'IL', '62704'],
+    ['250 Sample Road', '', 'Riverton', 'WY', '82501'],
+    ['17 Placeholder Ave', 'Suite 300', 'Fairview', 'TN', '37062'],
+    ['900 Demo Parkway', '', 'Madison', 'WI', '53703'],
+    ['44 Mockup Lane', 'Building B', 'Georgetown', 'TX', '78626'],
+    ['312 Fictional Blvd', '', 'Salem', 'OR', '97301'],
+    ['8 Test Harbor Rd', 'Unit 12', 'Clinton', 'IA', '52732'],
+    ['1200 Sample Mill Dr', '', 'Franklin', 'KY', '42134'],
+    ['75 Placeholder Pier', 'Dock 9', 'Bristol', 'RI', '02809'],
+    ['560 Example Ridge', '', 'Greenville', 'SC', '29601']
+  ];
+  function day(offset) { var d = new Date(Date.UTC(2026, 8, 20) - offset * 864e5); return d.toISOString().slice(0, 10); }
+  function pick(list, i) { return list[i % list.length]; }
+  function colorBank(row, start, n) { for (var c = 0; c < 10; c++) row[start + c] = c < 4 ? COLORS[c] : c < 4 + (n % 4) ? COLORS[4 + (n + c) % 8] : ''; }
+  function ms(offset) { return String(Date.UTC(2026, 8, 20) - offset * 864e5); }
+
+  var tables = {
+    bdemocust: [], bdemoopps: [], bdemofami: [], bdemospec: [], bdemostyl: [], bdemoaddr: [], bdemoship: [],
+    bdemoprod: [], bdemoordr: [], bdemoitem: [], bdemoartv: [], bdemomock: [], bdemorevw: [], bdemodens: [],
+    bdemofont: [], bdemolayr: [], bdemofill: [], bdemolist: [], bdemotask: [], bdemotime: [], bdemosrvc: []
+  };
+  var labels = {
+    bdemoprod: {name: 'Products', 2209: 'Filing #', 3: 'Record ID#', 12: 'Item Name', 13: 'Legacy Item Name', 14: 'Legacy UPC', 128: 'Art Versions', 132: 'UPC', 136: 'Art Version Count', 141: 'Brand', 353: 'Current Vendor Proof', 604: 'Approved Color Standard', 662: 'Current Customer Proof'},
+    bdemoitem: {name: 'Order Items', 1: 'Date Created', 3: 'Record ID#', 7: 'Customer', 13: 'UPC', 14: 'Item', 161: 'Weight', 184: 'PO', 329: 'Artwork Link', 382: 'Brand', 506: 'Family', 710: 'Layers', 711: 'Dimensions', 2122: 'Format', 2243: 'Style'},
+    bdemoartv: {name: 'Art Versions', 3: 'Record ID#', 11: 'Version Date', 12: 'Art Type', 37: 'Related Item', 61: 'Art REV', 152: 'Version', 361: 'Vendor Proof', 583: 'Inactive Art', 588: 'Customer Proof'},
+    bdemocust: {name: 'Customers', 3: 'Record ID#', 6: 'Customer Name', 125: 'Inactive'},
+    bdemoordr: {name: 'Orders', 3: 'Record ID#', 18: 'Customer PO'},
+    bdemofami: {name: 'Families', 3: 'Record ID#', 6: 'Family', 31: 'Current Spec'},
+    bdemospec: {name: 'Family Specifications', 3: 'Record ID#', 15: 'Format', 14: 'Style', 151: 'Layers'},
+    bdemomock: {name: 'Mock-Ups', 3: 'Record ID#', 9: 'Format', 10: 'Style', 39: 'Product Name'},
+    bdemolist: {name: 'Art Checklists', 3: 'Record ID#', 13: 'Description', 18: 'Brand'},
+    bdemotask: {name: 'Checklist Tasks', 3: 'Record ID#', 27: 'Department', 28: 'Description'},
+    bdemofill: {name: 'Fill Recordings', 3: 'Record ID#', 12: 'Format', 13: 'Style'},
+    bdemodens: {name: 'Product Densities', 3: 'Record ID#', 6: 'Brand', 7: 'Product', 14: 'Average'},
+    bdemofont: {name: 'System Fonts', 3: 'Record ID#', 6: 'Font Name', 7: 'Font File'}
+  };
+
+  BRANDS.forEach(function (b, i) {
+    var rid = String(i + 1), a = ADDRESSES[i];
+    tables.bdemocust.push({3: rid, 6: b.customer, 125: '0'});
+    ['new pouch line', 'holiday pack', 'club size relaunch'].forEach(function (name, k) {
+      tables.bdemoopps.push({3: String(100 + i * 3 + k), 6: rid, 8: b.customer + ' ' + name, 23: k === 2 ? '1' : '0', 24: k === 2 ? 'Closed' : 'Open'});
+    });
+    tables.bdemoaddr.push({3: String(200 + i), 6: 'Main warehouse', 7: a[0], 8: a[1], 13: rid, 18: '1', 23: a[2], 24: a[3], 25: a[4]});
+    tables.bdemoaddr.push({3: String(250 + i), 6: 'Co-packer', 7: pick(ADDRESSES, i + 3)[0], 8: '', 13: rid, 18: '0', 23: pick(ADDRESSES, i + 3)[2], 24: pick(ADDRESSES, i + 3)[3], 25: pick(ADDRESSES, i + 3)[4]});
+    tables.bdemoship.push({3: String(300 + i), 8: a[0], 9: a[1], 10: a[2], 11: a[3], 12: a[4], 13: 'United States', 16: b.customer});
+  });
+  SHAPES.forEach(function (shape, s) {
+    shape.sizes.forEach(function (size, k) {
+      for (var r = 0; r < 4; r++) {
+        var area = size[0] * size[1], fill = 68 + (s * 3 + k * 5 + r * 4) % 24;
+        tables.bdemofill.push({3: String(400 + s * 12 + k * 4 + r), 1: ms(s * 30 + k * 11 + r * 17), 6: String(+(2 + r * 1.5 + k).toFixed(1)), 7: String(+(0.5 + k * 2 + r).toFixed(1)), 8: String(size[1]), 9: String(size[0]), 10: String(size[2]), 11: pick(BRANDS, s + r).prefix + '00' + (101 + s + r), 12: shape.format, 13: shape.style, 14: shape.gusset, 15: pick(ZIPPERS, k + r), 16: String(+area.toFixed(1)), 17: String(fill), 18: String(Math.round(area * size[2] * fill / 100))});
+      }
+    });
+  });
+  [['Quad Seal Bag', 'Flat Bottom'], ['Quad Seal Bag', 'Pinched Bottom'], ['Stand-Up Pouch', 'K-Seal'], ['Stand-Up Pouch', 'Doyen'], ['Three Side Seal', 'Flat Pouch']].forEach(function (s, i) {
+    tables.bdemostyl.push({3: String(i + 1), 6: s[1], 7: s[0]});
+  });
+
+  PRODUCTS.forEach(function (p, i) {
+    var b = BRANDS[p.b], n = i + 1, upc = b.prefix + '00' + (100 + n), rid = String(100 + n), title = b.customer + ' ' + p.name + ' ' + p.weight;
+    var dims = p.w + ' x ' + p.h + ' x ' + p.g, combo = [p.format, p.style, p.gusset].join(' / '), family = b.code + '-' + String(p.w * 100) + '-' + n;
+    var po = String(21000 + n), order = String(500 + n), art = 'https://files.demo-packaging.example/f/' + b.code + n;
+    var spec = String(300 + n), fam = String(200 + n);
+    tables.bdemospec.push({3: spec, 6: fam, 12: 'v1', 14: p.style, 15: p.format, 43: p.gusset, 53: String(p.w), 54: String(p.h), 55: String(p.g), 56: String(p.w * 25.4), 57: String(p.h * 25.4), 58: String(p.g * 25.4), 65: 'in', 146: 'Zipper', 149: '1.5', 151: p.layers, 154: dims, 155: p.format + ' / ' + p.style, 428: '1.5', 1543: 'Current'});
+    tables.bdemofami.push({3: fam, 6: family, 9: String(p.b + 1), 31: spec, 76: b.customer + ' ' + family, 144: '0'});
+    tables.bdemoprod.push({3: rid, 12: title, 13: title, 14: upc, 128: '2', 132: upc, 136: '2', 141: b.customer, 225: '', 2209: 'Shelf ' + n, 353: 'Rev ' + n, 539: 'Match the approved pantone swatch.', 604: 'On file', 662: 'Rev ' + n});
+    // The first order of each product keeps PO 21000 + n; some products reorder under later POs.
+    for (var o = 0; o < 1 + i % 3; o++) {
+      var line = String(1000 + n * 10 + o), orderId = String(+order + o * 100), thisPo = String(+po + o * 1000), age = i * 8 + o * 120, approved = (i + o) % 3 > 0;
+      tables.bdemoordr.push({3: orderId, 18: thisPo});
+      tables.bdemoitem.push({1: ms(age), 2: ms(age / 2), 3: line, 6: orderId, 7: b.customer, 8: orderId, 13: upc, 14: title, 151: rid, 161: p.weight, 162: title, 163: o ? 'Reorder' : 'New', 184: thisPo, 262: day(age), 265: '0' + (o + 1) + '.26', 329: art, 382: b.customer, 417: approved ? '1' : '0', 419: approved ? day(age / 2) : '', 420: 'Press sheet ' + thisPo, 506: family, 573: o ? 'Revised' : 'New', 710: p.layers, 711: dims, 712: combo, 794: 'Zipper at 1.5"', 2122: p.format, 2209: 'Shelf ' + n, 2243: p.style, 2331: String(p.w), 2332: String(p.h), 2333: String(p.g), 2412: '0', 2519: '0', 2693: '', 2694: '', 2695: '0', 2696: ''});
+      tables.bdemorevw.push({3: String(5000 + n * 10 + o), 7: '', 8: '', 10: '', 16: '', 17: '', 19: '', 31: '', 34: '', 35: line, 41: p.format, 42: p.style, 44: dims, 54: '0', 63: '0', 67: combo});
+    }
+    [0, 1, 2].slice(0, 2 + i % 2).forEach(function (v, index, all) {
+      var artRow = {3: String(2000 + n * 4 + v), 10: title, 11: day(i * 8 + v * 95), 12: v === all.length - 1 ? 'New' : 'Revised', 18: 'Art REV', 37: rid, 40: title, 58: upc, 59: title, 61: '0' + (all.length - v) + '.26', 84: b.customer, 127: fam, 152: String(all.length - v), 205: v ? '0' : '1', 330: b.customer, 361: art + '-vendor.pdf', 376: p.weight, 481: String(parseFloat(p.weight)), 522: dims, 523: combo, 524: 'Tear notch', 525: p.layers, 526: 'Zipper, tear notch', 583: v ? '1' : '0', 588: art + '-customer.pdf', 624: upc};
+      colorBank(artRow, 191, n); colorBank(artRow, 571, n + 1); colorBank(artRow, 589, n + 2);
+      tables.bdemoartv.push(artRow);
+    });
+    tables.bdemomock.push({1: ms(i * 7), 3: String(1500 + n), 6: 'Opportunity ' + n, 7: p.format, 9: p.format, 10: p.style, 11: p.style, 12: String(p.w), 13: String(p.h), 14: String(p.g), 15: p.weight, 16: '1', 18: '3', 19: 'Demo mockup request.', 22: day(-7), 26: pick(ZIPPERS, i), 27: 'PET12/LLDPE100', 33: p.gusset, 35: String(p.b + 1), 36: b.customer, 39: p.name, 40: '1.5', 49: 'Mockup', 51: 'Opportunity ' + n, 53: p.format, 54: p.style, 56: p.gusset, 57: String(p.w), 58: String(p.h), 59: String(p.g), 62: pick(ZIPPERS, i), 63: '1.5', 74: ADDRESSES[p.b][0], 75: ADDRESSES[p.b][1], 76: ADDRESSES[p.b][2], 77: ADDRESSES[p.b][3], 78: ADDRESSES[p.b][4], 79: 'United States'});
+    var cups = [0, 1, 2, 3, 4].map(function (c) { return (2.1 + (n % 7) * 0.12 + ((n + c * 3) % 5) * 0.02).toFixed(2); });
+    tables.bdemodens.push({3: String(i + 1), 1: ms(i * 5), 6: b.customer, 7: p.name, 8: '', 9: cups[0], 10: cups[1], 11: cups[2], 12: cups[3], 13: cups[4], 14: (cups.reduce(function (s, v) { return s + +v; }, 0) / 5).toFixed(2)});
+  });
+
+  ['Demo Sans Regular', 'Demo Sans Medium', 'Demo Sans Bold', 'Demo Serif Regular', 'Demo Serif Italic', 'Demo Mono', 'Demo Condensed'].forEach(function (name, i) { tables.bdemofont.push({3: String(i + 1), 6: name, 7: ''}); });
+  LAYERS.forEach(function (name, i) { tables.bdemolayr.push({3: String(i + 1), 6: name, 7: String(40 - i * 3)}); });
+  PRODUCTS.slice(0, 12).forEach(function (p, i) {
+    var lid = String(3000 + i), b = BRANDS[p.b], done = i % 5;
+    tables.bdemolist.push({3: lid, 10: String(501 + i), 13: 'Art checklist: ' + p.name, 14: '0', 16: '0', 17: String(p.b + 1), 18: b.customer, 19: String(21001 + i), 21: '4', 25: pick(PEOPLE, i), 29: String(1 + i % 4 * 0.5), 30: String(4 - Math.min(done, 4))});
+    ['Prepress', 'Proofreading', 'PC', 'Engineering'].forEach(function (dept, t) {
+      tables.bdemotask.push({3: String(3100 + i * 10 + t), 12: lid, 14: '0', 15: '', 16: t < done ? '1' : '0', 18: String(t + 1), 26: 'General', 27: dept, 28: dept + ' review of ' + p.name, 29: '', 32: String(t + 1), 34: '0'});
+    });
+  });
+  [['Prepress', 'Production Art'], ['Prepress', 'Proof Review'], ['Project Coordination', 'Scheduling'], ['Engineering', 'Dieline Review']].forEach(function (s, i) { tables.bdemosrvc.push({3: String(i + 1), 6: s[0], 7: s[1]}); });
+
+  var ids = {};
+  function nextRid(table) { ids[table] = ids[table] || Object.keys(tables[table] || {}).length + 90000; return String(++ids[table]); }
+  function rows(table) { return tables[table] || (tables[table] = []); }
+  function xmlEsc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+
+  // Quickbase query language: {fid.OP.'value'} joined by AND / OR, with parentheses.
+  function when(value) { return /^\d{10,}$/.test(value) ? +value : Date.parse(value) || 0; }
+  function test(row, fid, op, want) {
+    var have = String(row[fid] == null ? '' : row[fid]), h = have.toLowerCase(), w = String(want).toLowerCase(), n = parseFloat(have), m = parseFloat(want);
+    switch (op) {
+      case 'EX': case 'TV': return h === w;
+      case 'XEX': case 'XTV': return h !== w;
+      case 'CT': case 'HAS': return h.indexOf(w) >= 0;
+      case 'XCT': return h.indexOf(w) < 0;
+      case 'SW': return h.indexOf(w) === 0;
+      case 'XSW': return h.indexOf(w) !== 0;
+      case 'OAF': case 'AF': return when(have) >= when(want);
+      case 'OBF': case 'BF': return when(have) <= when(want);
+      case 'GT': return isNaN(n) ? have > want : n > m;
+      case 'GTE': return n >= m;
+      case 'LT': return isNaN(n) ? have < want : n < m;
+      case 'LTE': return n <= m;
+      default: return true;
+    }
+  }
+  function tokenize(q) {
+    var out = [], re = /\{\s*'?(\d+)'?\s*\.\s*([A-Z]+)\s*\.\s*'((?:\\.|[^'])*)'\s*\}|\(|\)|AND|OR/gi, m;
+    while ((m = re.exec(q))) out.push(m[1] ? {fid: m[1], op: m[2].toUpperCase(), value: m[3].replace(/\\(.)/g, '$1')} : m[0].toUpperCase());
+    return out;
+  }
+  function matcher(q) {
+    var t = tokenize(q || ''), i = 0;
+    if (!t.length) return function () { return true; };
+    function atom(row) {
+      var k = t[i++];
+      if (k === '(') { var v = or(row); i++; return v; }
+      return !k || !k.fid || test(row, k.fid, k.op, k.value);
+    }
+    function and(row) { var v = atom(row); while (t[i] === 'AND') { i++; var r = atom(row); v = v && r; } return v; }
+    function or(row) { var v = and(row); while (t[i] === 'OR') { i++; var r = and(row); v = v || r; } return v; }
+    return function (row) { i = 0; return or(row); };
+  }
+  function select(table, q, slist, options) {
+    var list = rows(table).filter(matcher(q)), opt = String(options || ''), sort = String(slist || '').split('.').filter(Boolean)[0];
+    if (sort) {
+      var desc = /sortorder-D/.test(opt);
+      list = list.slice().sort(function (a, b) { var x = a[sort], y = b[sort], nx = parseFloat(x), ny = parseFloat(y), c = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x || '').localeCompare(String(y || '')); return desc ? -c : c; });
+    }
+    var skip = /skp-(\d+)/.exec(opt), num = /num-(\d+)/.exec(opt);
+    if (skip) list = list.slice(+skip[1]);
+    if (num) list = list.slice(0, +num[1]);
+    return list;
+  }
+  function ok(body) { return '<?xml version="1.0"?><qdbapi><action>demo</action><errcode>0</errcode><errtext>No error</errtext>' + (body || '') + '</qdbapi>'; }
+  function labelOf(table, fid) { return (labels[table] && labels[table][fid]) || 'Field ' + fid; }
+  function fidsOf(table) { var seen = {}; rows(table).forEach(function (r) { Object.keys(r).forEach(function (k) { seen[k] = 1; }); }); Object.keys(labels[table] || {}).forEach(function (k) { if (k !== 'name') seen[k] = 1; }); return Object.keys(seen).sort(function (a, b) { return a - b; }); }
+  function doQuery(table, p) {
+    var list = select(table, p.query, p.slist, p.options), clist = String(p.clist || '').split('.').filter(function (x) { return /^\d+$/.test(x); });
+    if (!clist.length) clist = fidsOf(table);
+    var fields = clist.map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    var body = list.map(function (r) {
+      return '<record rid="' + xmlEsc(r[3]) + '">' + clist.map(function (f) { return '<f id="' + f + '">' + xmlEsc(r[f]) + '</f>'; }).join('') + '<update_id>1</update_id></record>';
+    }).join('');
+    return ok('<table><fields>' + fields + '</fields><records>' + body + '</records></table>');
+  }
+  function schema(table) {
+    if (!tables[table]) {
+      var kids = Object.keys(labels).map(function (t) { return '<chdbid name="_dbid_' + xmlEsc(labels[t].name.toLowerCase().replace(/\W+/g, '_')) + '">' + t + '</chdbid>'; }).join('');
+      return ok('<table><name>Demo Packaging</name><original><app_id>' + table + '</app_id></original><chdbids>' + kids + '</chdbids><fields></fields></table>');
+    }
+    var fields = fidsOf(table).map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    return ok('<table><name>' + xmlEsc((labels[table] || {}).name || table) + '</name><original><table_id>' + table + '</table_id></original><fields>' + fields + '</fields></table>');
+  }
+  function writeFields(p, body) {
+    var out = {}, k;
+    for (k in p) { var m = /^_fid_(\d+)$/.exec(k); if (m) out[m[1]] = p[k]; }
+    if (body && /<field/.test(body)) {
+      var doc = new DOMParser().parseFromString(body, 'text/xml');
+      [].forEach.call(doc.querySelectorAll('field'), function (n) { if (n.getAttribute('fid')) out[n.getAttribute('fid')] = n.textContent; });
+      var rid = doc.querySelector('rid'); if (rid) p.rid = rid.textContent;
+      ['query', 'clist', 'slist', 'options', 'varname'].forEach(function (name) { var e = doc.querySelector(name); if (e && !p[name]) p[name] = e.textContent; });
+    }
+    return out;
+  }
+  // The real page stores a generated script on the record. There is no record to open here, so hand it over as a download.
+  function saveUpload(body) {
+    var file = new DOMParser().parseFromString(body, 'text/xml').querySelector('field[filename]');
+    if (file) {
+      var bytes = Uint8Array.from(atob(file.textContent), function (c) { return c.charCodeAt(0); });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([bytes], {type: 'application/javascript'}));
+      link.download = file.getAttribute('filename');
+      window.__demoLastFile = {name: link.download, text: new TextDecoder().decode(bytes)};
+      link.click();
+    }
+    return ok('<rid>1</rid>');
+  }
+  function xmlApi(table, p, body) {
+    var fields = writeFields(p, body), row;
+    switch (p.a) {
+      case 'API_DoQuery': return doQuery(table, p);
+      case 'API_DoQueryCount': return ok('<numMatches>' + select(table, p.query).length + '</numMatches>');
+      case 'API_GetDBVar': return ok('<value>demo-value</value>');
+      case 'API_SetDBVar': return ok();
+      case 'API_GetUserInfo': return ok('<user id="1.demo"><firstName>Demo</firstName><lastName>User</lastName><login>demo.user</login><email>demo.user@demo-packaging.example</email><screenName>Demo User</screenName></user>');
+      case 'API_GetSchema': return schema(table);
+      case 'API_GetDBPage': return '';
+      case 'dbpage': return (window.__DEMO_PAGES || {})[p.pageID || p.pageid] || '';
+      case 'API_UploadFile': return saveUpload(body);
+      case 'API_AddRecord':
+        row = fields; row[3] = nextRid(table); row[1] = String(Date.now()); row[2] = row[1]; rows(table).unshift(row);
+        return ok('<rid>' + row[3] + '</rid><update_id>1</update_id>');
+      case 'API_EditRecord':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid || p.key); })[0];
+        if (row) Object.keys(fields).forEach(function (f) { row[f] = fields[f]; });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid><num_fields_changed>1</num_fields_changed><update_id>2</update_id>');
+      case 'API_DeleteRecord':
+        tables[table] = rows(table).filter(function (r) { return String(r[3]) !== String(p.rid); });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>');
+      case 'API_GetRecordInfo':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid); })[0] || {};
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>' + Object.keys(row).map(function (f) { return '<field><fid>' + f + '</fid><name>' + xmlEsc(labelOf(table, f)) + '</name><type>Text</type><value>' + xmlEsc(row[f]) + '</value></field>'; }).join(''));
+      default: return ok();
+    }
+  }
+  function restWhere(where) { return where || ''; }
+  function restApi(url, init) {
+    var path = url.pathname, body = {};
+    try { body = JSON.parse(init.body || '{}'); } catch (e) {}
+    if (/\/v1\/auth\/temporary\//.test(path)) return {temporaryAuthorization: 'demo-token'};
+    if (/\/v1\/records\/query/.test(path)) {
+      var select_ = body.select || [], sort = (body.sortBy || [])[0], list = select(body.from, restWhere(body.where), sort && sort.fieldId, sort && sort.order === 'DESC' ? 'sortorder-D' : '');
+      return {data: list.map(function (r) { var o = {}; select_.forEach(function (f) { o[f] = {value: r[f] == null ? '' : r[f]}; }); return o; }),
+        fields: select_.map(function (f) { return {id: f, label: labelOf(body.from, f), type: 'text'}; }),
+        metadata: {numRecords: list.length, numFields: select_.length, totalRecords: list.length, skip: 0}};
+    }
+    if (/\/v1\/records/.test(path)) {
+      var created = (body.data || []).map(function (src) { var row = {}; Object.keys(src).forEach(function (f) { row[f] = src[f] && src[f].value; }); row[3] = row[3] || nextRid(body.to); rows(body.to).unshift(row); return +row[3]; });
+      return {data: [], metadata: {createdRecordIds: created, updatedRecordIds: [], unchangedRecordIds: [], totalNumberOfRecordsProcessed: created.length}};
+    }
+    if (/\/v1\/fields/.test(path)) { var t = url.searchParams.get('tableId'); return fidsOf(t).map(function (f) { return {id: +f, label: labelOf(t, f), fieldType: 'text'}; }); }
+    if (/\/v1\/tables/.test(path)) return Object.keys(labels).map(function (t) { return {id: t, name: labels[t].name}; });
+    return {};
+  }
+  function params(url, init) {
+    var p = {};
+    url.searchParams.forEach(function (v, k) { p[k] = v; });
+    var b = init && init.body;
+    if (b && typeof b === 'string' && !/^\s*</.test(b)) new URLSearchParams(b).forEach(function (v, k) { p[k] = v; });
+    else if (b && b.forEach && !(b instanceof Blob)) b.forEach(function (v, k) { if (typeof v === 'string') p[k] = v; });
+    var h = init && init.headers, action = h && (h['QUICKBASE-ACTION'] || (h.get && h.get('QUICKBASE-ACTION')));
+    if (action) p.a = action;
+    return p;
+  }
+  function respond(url, init) {
+    var host = url.hostname;
+    if (host === 'api.quickbase.com') return new Response(JSON.stringify(restApi(url, init || {})), {status: 200, headers: {'Content-Type': 'application/json'}});
+    var m = /^\/db\/([^/?#]+)/.exec(url.pathname), p = params(url, init), text = m ? xmlApi(m[1], p, typeof (init || {}).body === 'string' ? init.body : '') : '';
+    return new Response(text, {status: 200, headers: {'Content-Type': 'text/xml'}});
+  }
+  var realFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var raw = input && input.url ? input.url : String(input), url = new URL(raw, location.href);
+    if (url.hostname === HOST || url.hostname === 'api.quickbase.com' || (url.origin === location.origin && /^\/db\//.test(url.pathname))) return Promise.resolve(respond(url, init || {}));
+    if (url.hostname.indexOf('.example') > 0) return Promise.resolve(new Response('', {status: 404}));
+    return realFetch.apply(this, arguments);
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var tag = document.createElement('div');
+    tag.textContent = 'Demo: fictional company and data';
+    tag.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 10px;border-radius:999px;background:#1f2937;color:#fff;font:600 12px/1 system-ui,sans-serif;opacity:.85;pointer-events:none';
+    document.body.appendChild(tag);
+  });
+})();
+
+</script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <link rel="icon" id="app-favicon" type="image/webp" href="">
+  <title>Press Review</title>
+  <style>
+    :root{color-scheme:light;--navy:#12283f;--teal:#064858;--mint:#b7e3da;--mint-soft:#e8f5f2;--coral:#dd7c59;--bg:#f2f5f6;--card:#fff;--ink:#15343c;--muted:#687d82;--line:#d8e3e5;--success:#16836b;--warning:#a75b20;--danger:#b42318;--shadow:0 12px 34px rgba(6,72,88,.1)}
+    *{box-sizing:border-box}html{-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden}html,body{margin:0;width:100%;min-width:320px;min-height:100%;overflow-x:hidden;background:var(--bg);color:var(--ink);font:16px/1.45 "Demo Grotesk UI",Inter,"Segoe UI",system-ui,-apple-system,sans-serif}button,input,textarea{max-width:100%;font:inherit}.hidden{display:none!important}
+    .hero{border-bottom:1px solid var(--line);background:linear-gradient(135deg,#e4f2ef,#f6f8f8)}.hero-inner{width:min(1420px,calc(100% - 40px));margin:auto;padding:28px 0;display:grid;grid-template-columns:minmax(250px,1fr) minmax(460px,660px);align-items:end;gap:30px}.eyebrow{margin:0 0 6px;color:var(--teal);font-size:12px;font-weight:850;letter-spacing:.14em;text-transform:uppercase}.hero h1{margin:0;font-size:36px;line-height:1.1;letter-spacing:-.035em}.hero p{max-width:590px;margin:8px 0 0;color:var(--muted);font-size:14px}
+    .search-card{min-width:0;padding:8px;display:grid;grid-template-columns:.72fr 1fr auto;gap:8px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:var(--shadow)}.field{min-width:0;display:grid;gap:5px}.field label{color:var(--muted);font-size:12px;font-weight:750;letter-spacing:.04em;text-transform:uppercase}.search-card .field{gap:0}.search-card label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}input,textarea{width:100%;min-width:0;border:1px solid #cbd9dc;border-radius:9px;outline:none;background:#fff;color:var(--ink);font-size:16px}input{height:42px;padding:0 12px}textarea{min-height:96px;padding:11px 12px;resize:vertical}input:focus,textarea:focus{border-color:#2d7d87;box-shadow:0 0 0 3px rgba(45,125,135,.14)}.search-card input{height:44px;border:0;background:#eef3f4;font-weight:750;box-shadow:none}.barcode{font-family:ui-monospace,Consolas,monospace;letter-spacing:.13em}.recent-searches,.upc-choices{grid-column:1/-1;display:flex;align-items:center;gap:6px;overflow-x:auto;padding:2px 1px 0;scrollbar-width:none}.recent-searches::-webkit-scrollbar,.upc-choices::-webkit-scrollbar{display:none}.recent-label,.upc-label{flex:0 0 auto;color:var(--muted);font-size:12px;font-weight:750}.recent-button,.upc-choice{min-height:32px;flex:0 0 auto;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--mint-soft);color:var(--teal);cursor:pointer;font-size:13px;font-weight:800}.recent-button:hover,.upc-choice:hover{border-color:var(--mint);background:#dff1ed}.upc-choice{font-family:ui-monospace,Consolas,monospace;letter-spacing:.08em}.upc-loading{color:var(--muted);font-size:13px}
+    .search-combo{position:relative}.search-suggestions{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:60;max-height:250px;overflow-y:auto;padding:5px;border:1px solid #cddad7;border-radius:10px;background:#fff;box-shadow:0 14px 30px rgba(20,57,63,.2)}.search-suggestions[hidden]{display:none!important}.search-suggestion{width:100%;min-height:42px;padding:8px 10px;border:0;border-radius:7px;display:block;background:transparent;color:var(--ink);cursor:pointer;text-align:left;font-size:16px;font-weight:750}.search-suggestion:hover,.search-suggestion.active{background:#edf5f3;color:var(--teal)}.search-suggestion-empty{padding:11px 10px;color:var(--muted);font-size:14px}.search-suggestion-loading{display:flex;align-items:center;gap:8px}.search-suggestion-loading:before{width:10px;height:10px;border:2px solid #b9d1d1;border-top-color:var(--teal);border-radius:50%;content:"";animation:comboSpin .7s linear infinite}@keyframes comboSpin{to{transform:rotate(360deg)}}
+    .button{min-height:40px;padding:0 14px;border:1px solid transparent;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--teal);color:#fff;cursor:pointer;font-weight:750}.button:hover{filter:brightness(.94)}.button:disabled{cursor:not-allowed;opacity:.5}.button.secondary{border-color:var(--line);background:#fff;color:var(--ink)}.button.soft{background:var(--mint-soft);color:var(--teal)}.button.coral{background:var(--coral)}.button.large{min-height:44px;padding:0 18px}.search-card .button{height:44px}
+    .shell{width:min(1420px,calc(100% - 40px));margin:0 auto;padding:24px 0 70px}.status{margin-bottom:14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;gap:9px;background:#fff;color:var(--muted);font-size:14px}.status.good{border-color:#b8dfd5;background:#f2fbf8;color:var(--success)}.status.bad{border-color:#f0c4bf;background:#fff5f4;color:var(--danger)}.status.saving{color:var(--teal)}.dot{width:8px;height:8px;border-radius:50%;background:currentColor}.status.saving .dot{animation:pulse .8s infinite alternate}@keyframes pulse{to{opacity:.25}}
+    .empty{min-height:330px;padding:45px;display:grid;place-items:center;border:1px dashed #bdced1;border-radius:16px;background:rgba(255,255,255,.6);text-align:center}.empty-icon{width:54px;height:54px;margin:auto;display:grid;place-items:center;border-radius:16px;background:var(--mint-soft);color:var(--teal);font-size:26px}.empty h2{margin:16px 0 5px;font-size:22px}.empty p{margin:0;color:var(--muted)}
+    .workspace{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:20px;align-items:start}.card{min-width:0;border:1px solid var(--line);border-radius:15px;background:var(--card);box-shadow:0 2px 8px rgba(6,72,88,.04)}.completion-banner{margin:0 0 10px;padding:11px 14px;border:1px solid #9fd8cb;border-radius:11px;background:#e8f7f3;color:#08705f;font-weight:850;text-align:center}.item-head{padding:19px 20px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--line)}.suffix{width:44px;height:44px;display:grid;place-items:center;border-radius:11px;background:var(--mint);color:var(--teal);font:850 15px/1 ui-monospace,Consolas,monospace}.item-copy{min-width:0}.item-copy h2{margin:0 0 4px;font-size:19px}.meta-line{color:var(--muted);font:600 13px/1.4 ui-monospace,Consolas,monospace}.pill{margin-left:auto;padding:4px 9px;border-radius:999px;background:#eef3f4;color:var(--teal);font-size:12px;font-weight:800}.spec-grid{padding:17px 20px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;border-bottom:1px solid var(--line)}.spec{min-width:0;padding:10px;border-radius:9px;background:#f5f8f8}.spec span{display:block;color:var(--muted);font-size:11px;font-weight:750;text-transform:uppercase}.spec strong{display:block;margin-top:3px;overflow-wrap:anywhere;font-size:14px}.spec.wide{grid-column:span 2}
+    .section{padding:21px 20px;border-bottom:1px solid var(--line)}.section:last-child{border-bottom:0}.section-title{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:14px}.section-title h3{margin:0;font-size:18px}.section-title p{margin:3px 0 0;color:var(--muted);font-size:14px}.review-list{display:grid;gap:9px}.review-row{min-width:0;padding:11px 12px;display:grid;grid-template-columns:minmax(190px,1fr) auto;align-items:center;gap:16px;border:1px solid var(--line);border-radius:10px;background:#fbfcfc}.question{min-width:0}.question strong{display:block;font-size:15px}.question small{display:block;margin-top:3px;overflow-wrap:anywhere;color:var(--muted);font-size:13px}.dimension-lines span{display:block}.dimension-lines span+span{margin-top:2px}.choices{display:flex;padding:3px;border:1px solid var(--line);border-radius:8px;background:#fff}.choice{min-width:58px;height:34px;padding:0 9px;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;font-weight:800}.choice:hover{background:#eef3f4}.choice.selected{background:var(--teal);color:#fff}.choice.fail.selected{background:var(--danger)}
+    .notes-grid{min-width:0;display:grid;grid-template-columns:1fr 260px;gap:14px}.save-note{padding:12px;border-radius:10px;background:var(--mint-soft);color:var(--teal);font-size:14px}.save-note strong{display:block;margin-bottom:4px}.attachment-field{min-width:0;margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fbfcfc}.attachment-field input[type=file]{height:auto;padding:9px;background:#fff}.attachment-meta{min-height:18px;margin:6px 0 0;color:var(--muted);font-size:13px}.attachment-meta.saved{color:var(--success)}.footer-actions{padding:16px 20px;display:flex;justify-content:flex-end;gap:9px;background:#f8fafb;border-radius:0 0 15px 15px}
+    .side-card{padding:18px;position:sticky;top:14px}.side-card h3{margin:0;font-size:15px;text-transform:uppercase;letter-spacing:.08em}.progress{height:7px;margin:13px 0 6px;overflow:hidden;border-radius:999px;background:#e5edef}.progress span{height:100%;display:block;border-radius:inherit;background:linear-gradient(90deg,var(--teal),#4fa99f);transition:width .2s}.progress-copy{display:flex;justify-content:space-between;color:var(--muted);font-size:13px}.steps{margin:20px 0 0;padding:0;display:grid;gap:17px;list-style:none}.step{display:grid;grid-template-columns:27px 1fr;gap:10px}.step-num{width:27px;height:27px;display:grid;place-items:center;border:1px solid var(--line);border-radius:50%;background:#f3f6f7;color:var(--muted);font-size:13px;font-weight:850}.step.done .step-num{border-color:var(--teal);background:var(--teal);color:#fff}.step.active .step-num{border:2px solid var(--mint);background:#fff;color:var(--teal)}.step strong{display:block;font-size:14px}.step small{display:block;margin-top:2px;color:var(--muted);font-size:13px}.side-rule{height:1px;margin:18px 0;background:var(--line)}.record-link{display:block;color:var(--teal);font-size:13px;text-decoration:none}.record-link:hover{text-decoration:underline}
+    .closed{padding:34px;text-align:center}.closed-icon{width:54px;height:54px;margin:auto;display:grid;place-items:center;border-radius:50%;background:var(--mint-soft);color:var(--success);font-size:26px}.closed h2{margin:15px 0 5px}.closed p{margin:0 auto 18px;max-width:520px;color:var(--muted)}.closed-actions{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}.qc-box{margin:18px auto 0;padding:14px;max-width:560px;border:1px solid #efd4bf;border-radius:11px;background:#fff8f2;color:var(--warning);font-size:14px}.entry-toast{position:fixed;left:50%;bottom:24px;z-index:140;min-width:190px;padding:13px 18px;border-radius:11px;background:#073c4a;color:#fff;box-shadow:0 12px 34px rgba(0,0,0,.24);font-weight:850;text-align:center;transform:translate(-50%,18px);opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease}.entry-toast.show{transform:translate(-50%,0);opacity:1}.modal-backdrop{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px;background:rgba(10,27,42,.62)}.email-modal{width:min(620px,100%);max-height:calc(100vh - 32px);overflow:auto;border-radius:16px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.28)}.modal-head{padding:18px 20px;border-bottom:1px solid var(--line)}.modal-head h2{margin:0;font-size:20px}.modal-head p{margin:3px 0 0;color:var(--muted);font-size:13px}.modal-body{padding:18px 20px;display:grid;gap:14px}.recipient-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.recipient-option{min-width:0;padding:9px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;background:#fbfcfc}.recipient-option input{width:18px;height:18px;flex:0 0 18px}.recipient-option span{min-width:0;overflow-wrap:anywhere;font-size:13px}.modal-actions{padding:14px 20px;display:flex;justify-content:flex-end;gap:9px;border-top:1px solid var(--line);background:#f8fafb}
+    @media(max-width:960px){.hero-inner{grid-template-columns:minmax(0,1fr)}.workspace{grid-template-columns:minmax(0,1fr)}.side-card{position:static}.spec-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.hero-inner,.shell{width:calc(100% - 16px)}.hero-inner{padding:14px 0;gap:10px}.eyebrow,.hero p{display:none}.hero h1{font-size:24px}.search-card{padding:6px;grid-template-columns:minmax(0,1fr)}.search-card .button{width:100%}.shell{padding:10px 0 74px}.status{margin-bottom:8px;padding:7px 10px}.empty{min-height:240px;padding:28px}.empty p{display:none}.review-active .hero{display:none}.completion-banner{margin-bottom:8px;padding:9px 10px}.item-head{padding:12px;align-items:center;flex-wrap:nowrap}.suffix{width:40px;height:40px;flex:0 0 40px}.item-copy h2{font-size:17px;line-height:1.2}.meta-line{font-size:11px}.pill{margin-left:auto;font-size:10px}.spec-grid{padding:8px 12px;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.spec{padding:7px}.spec.wide{grid-column:1/-1}.spec span{font-size:10px}.spec strong{font-size:13px}.section{padding:11px 12px}.section-title{margin-bottom:7px}.section-title h3{font-size:16px}.section-title p,.question small,.save-note{display:none}.review-list{gap:6px}.review-row{padding:7px;grid-template-columns:minmax(68px,1fr) auto;gap:7px}.question strong{font-size:14px}.choices{width:auto}.choice{min-width:54px;min-height:42px;padding:0 6px;flex:0 1 auto}.notes-grid{grid-template-columns:minmax(0,1fr)}textarea{min-height:70px}.attachment-field{margin-top:8px;padding:8px}.attachment-field input[type=file]{padding:6px;font-size:16px}.attachment-meta{margin-top:3px}.side-card{display:none}.footer-actions{position:sticky;bottom:0;z-index:20;padding:9px 12px;justify-content:stretch;flex-wrap:wrap;box-shadow:0 -5px 16px rgba(6,72,88,.12)}.footer-actions .button{min-width:0;min-height:48px;flex:1}.footer-actions #reloadButton{display:none}.footer-actions #newSearchButton{flex:1 0 100%}.entry-toast{bottom:82px;width:calc(100% - 32px)}.closed{padding:24px 14px}.modal-backdrop{padding:8px;place-items:end center}.email-modal{max-height:calc(100vh - 16px);border-radius:16px 16px 0 0}.modal-head,.modal-body,.modal-actions{padding:12px}.recipient-list{grid-template-columns:minmax(0,1fr)}.modal-actions .button{min-height:46px;flex:1}}
+    .barcode{font-family:inherit;letter-spacing:normal}.entry-toast{top:16px;bottom:auto;border:1px solid #79c8b5;background:#e1f6f0;color:#063f4c;box-shadow:0 10px 28px rgba(3,61,77,.24);transform:translate(-50%,-18px)}.modal-backdrop{place-items:start center}
+    @media(max-width:640px){.entry-toast{top:8px;bottom:auto}.modal-backdrop{place-items:start center}.email-modal{border-radius:0 0 16px 16px}}
+    .entry-toast{transform:translate(-50%,-22px) scale(.96);transition:opacity .28s ease,transform .38s cubic-bezier(.2,.8,.2,1);will-change:opacity,transform}.entry-toast.show{transform:translate(-50%,0) scale(1)}
+    .modal-backdrop:not(.hidden){animation:popupBackdropIn .24s ease both}.modal-backdrop:not(.hidden) .email-modal{animation:popupPanelIn .34s cubic-bezier(.2,.8,.2,1) both}.modal-backdrop.closing{animation:popupBackdropOut .22s ease both}.modal-backdrop.closing .email-modal{animation:popupPanelOut .22s ease both}
+    @keyframes popupBackdropIn{from{background:rgba(10,27,42,0)}to{background:rgba(10,27,42,.62)}}@keyframes popupBackdropOut{from{background:rgba(10,27,42,.62)}to{background:rgba(10,27,42,0)}}@keyframes popupPanelIn{from{opacity:0;transform:translateY(-22px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes popupPanelOut{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(-16px) scale(.98)}}
+    @media(prefers-reduced-motion:reduce){.entry-toast{transition-duration:.01ms}.modal-backdrop:not(.hidden),.modal-backdrop:not(.hidden) .email-modal,.modal-backdrop.closing,.modal-backdrop.closing .email-modal{animation-duration:.01ms}}
+    .qr-modal{width:min(430px,100%);max-height:calc(100vh - 32px);overflow:auto;border-radius:16px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.28)}.qr-body{padding:18px 20px;display:grid;justify-items:center;gap:12px;text-align:center}.qr-code{width:282px;min-height:282px;padding:10px;display:grid;place-items:center;border:1px solid var(--line);border-radius:14px;background:#fff}.qr-code canvas,.qr-code img{display:block;max-width:100%;height:auto!important}.qr-status{margin:0;color:var(--muted);font-size:13px}.qr-link{height:38px!important;font-size:12px!important;font-weight:550!important}.modal-backdrop:not(.hidden) .qr-modal{animation:popupPanelIn .34s cubic-bezier(.2,.8,.2,1) both}.modal-backdrop.closing .qr-modal{animation:popupPanelOut .22s ease both}
+  
+    /* Demo Packaging app header - shared standard (see App Development/HEADER-STANDARD.md) */
+    :root{--xh-height:60px}
+    .xh{position:relative;z-index:20;background:#3b3f8f;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.18);font-family:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.2}
+    .xh-inner{height:var(--xh-height);padding:0 24px;display:flex;align-items:center;gap:16px}
+    .xh-logo{flex:none;display:block;width:auto;height:26px}
+    .xh-home{flex:none;display:flex;align-items:center;border-radius:6px;text-decoration:none;transition:opacity .15s}.xh-home:hover{opacity:.82}.xh-home:focus-visible{outline:2px solid #8fd6e1;outline-offset:5px}
+    .xh-symbol{flex:none;display:none;width:22px;height:22px}
+    .xh-divider{flex:none;width:1px;height:28px;background:rgba(255,255,255,.28)}
+    .xh-title{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .xh-title strong{overflow:hidden;color:#fff;font-size:16px;font-weight:700;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+    .xh-title span{overflow:hidden;color:#a3c9d1;font-size:11px;font-weight:700;letter-spacing:.1em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    .xh-badge{flex:none;padding:4px 7px;border:1px solid rgba(255,255,255,.3);border-radius:6px;color:#d9eef2;font:700 11px/1 ui-monospace,Consolas,monospace}
+    .xh-actions{flex:none;margin-left:auto;display:flex;align-items:center;gap:8px}
+    .xh-button{height:36px;min-height:0;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(255,255,255,.26);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;box-shadow:none;transform:none;cursor:pointer;font:inherit;font-size:13px;font-weight:700;line-height:1;list-style:none;text-decoration:none;white-space:nowrap}
+    .xh-button:hover{background:rgba(255,255,255,.16);box-shadow:none;transform:none}
+    .xh-button:focus-visible{outline:2px solid #8fd6e1;outline-offset:2px}
+    .xh-button:disabled{cursor:not-allowed;opacity:.45}
+    .xh-button[aria-pressed="true"],details[open]>summary.xh-button{border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.2)}
+    .xh-button.primary{border-color:#fff;background:#fff;color:#3b3f8f}.xh-button.primary:hover:not(:disabled){background:#dff0f3}
+    .xh-button::-webkit-details-marker{display:none}
+    .xh-button svg{flex:none;width:16px;height:16px}
+    @media(max-width:640px){:root{--xh-height:52px}.xh-inner{padding:0 14px;gap:11px}.xh-logo{height:21px}.xh-inner:has(.xh-actions) .xh-logo{display:none}.xh-inner:has(.xh-actions) .xh-symbol{display:block}.xh-divider{height:24px}.xh-title strong{font-size:15px}.xh-title span{display:none}.xh-button{height:34px;padding:0 10px;font-size:12px}}
+    @media print{.xh{display:none!important}}
+  </style>
+  <style id="demo-theme">
+    /* Demo Packaging app theme - shared tokens (see tools/README.md) */
+    :root{--x-brand:#3b3f8f;--x-brand-hover:#2d3070;--x-accent:#5257b8;--x-accent-soft:#e4f0f2;--x-ink:#132a35;--x-muted:#62757c;--x-line:#d6e0e3;--x-line-strong:#c3d2d6;--x-soft:#eef4f5;--x-paper:#fff;--x-canvas:#f3f6f7;--x-danger:#a73543;--x-success:#18705f;--x-warning:#8a5a00;--x-radius-card:14px;--x-radius-inner:11px;--x-radius-control:9px;--x-radius-small:7px;--x-shadow-card:0 1px 2px rgba(3,61,75,.05),0 6px 18px rgba(3,61,75,.06);--x-shadow-pop:0 14px 32px rgba(3,61,75,.16);--x-shadow-modal:0 24px 70px rgba(2,32,40,.3);--x-focus:0 0 0 3px rgba(13,99,114,.18);--x-font:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    body{font-family:var(--x-font)}
+    /* App mapping */
+    :root{--navy:var(--x-brand);--teal:var(--x-brand);--mint-soft:var(--x-accent-soft);--bg:var(--x-canvas);--card:var(--x-paper);--ink:var(--x-ink);--muted:var(--x-muted);--line:var(--x-line);--success:var(--x-success);--warning:var(--x-warning);--danger:var(--x-danger);--shadow:var(--x-shadow-card)}
+    .card,.search-card{border-radius:var(--x-radius-card);box-shadow:var(--x-shadow-card)}
+    .eyebrow{color:var(--x-accent);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    .hero h1{color:var(--x-ink);font-size:clamp(28px,3.4vw,38px);font-weight:750;line-height:1.08;letter-spacing:-.035em}
+    .button{border-radius:var(--x-radius-control);font-weight:700}.button:not(.secondary):not(.soft):not(.coral):hover:not(:disabled){background:var(--x-brand-hover)}
+    .button.secondary{border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:#fff;color:var(--x-ink);font-weight:700}.button.secondary:hover:not(:disabled){border-color:#9fb4ba;background:var(--x-soft)}
+    input,textarea{border-color:var(--x-line-strong)}
+    .empty{border-color:var(--x-line-strong);border-radius:var(--x-radius-card)}
+    .email-modal,.qr-modal{border-radius:var(--x-radius-card);box-shadow:var(--x-shadow-modal)}
+    .search-suggestions{border-color:var(--x-line);border-radius:var(--x-radius-inner);box-shadow:var(--x-shadow-pop)}
+    .completion-banner,.qc-box,.suffix{border-radius:var(--x-radius-inner)}
+  </style>
+  <style id="no-sideways-scroll">
+    /* Phones never scroll sideways. clip (unlike hidden) keeps sticky headers and inner scroll areas working. */
+    @media (max-width:760px){html,body{max-width:100%;overflow-x:clip}body{min-width:0!important}}
+  </style>
+  
+<!-- app-version:start (managed by demo_versions.py: change versions.json, not this copy) -->
+
+
+
+
+</head>
+<body>
+  <header class="xh">
+    <div class="xh-inner">
+      <a class="xh-home" href="#" title="All demo apps" aria-label="Demo Apps: all our tools"><img class="xh-logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27white%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging" width="89" height="26">
+      <img class="xh-symbol" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27white%27/%3E%3C/svg%3E" alt="Demo Packaging" width="22" height="22"></a>
+      <span class="xh-divider" aria-hidden="true"></span>
+      <div class="xh-title"><strong>Press Review</strong><span>Production sample workflow</span></div>
+      <div class="xh-actions">
+        <button id="qrButton" class="xh-button qr-trigger" type="button">Open on phone</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div><p class="eyebrow">Production sample workflow</p><h1>Find a review sheet</h1><p>Search by PO and the last five barcode digits. Every response is saved to Quickbase as you click.</p></div>
+      <form id="lookupForm" class="search-card">
+        <div id="poCombo" class="field search-combo"><label for="poInput">PO number</label><input id="poInput" inputmode="numeric" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="poSuggestions" placeholder="PO number"><div id="poSuggestions" class="search-suggestions" role="listbox" hidden></div></div>
+        <div id="barcodeCombo" class="field search-combo"><label for="barcodeInput">Last 5 of barcode</label><input id="barcodeInput" class="barcode" inputmode="text" maxlength="5" autocomplete="off" autocapitalize="characters" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="barcodeSuggestions" placeholder="Last 5 of barcode"><div id="barcodeSuggestions" class="search-suggestions" role="listbox" hidden></div></div>
+        <button id="findButton" class="button large" type="submit">Find item</button>
+        <div id="recentSearches" class="recent-searches hidden"></div>
+      </form>
+    </div>
+  </section>
+
+  <main class="shell">
+    <div id="status" class="status"><span class="dot"></span><span>Enter a PO number and barcode to begin.</span></div>
+    <section id="emptyState" class="empty"><div><div class="empty-icon">QB</div><h2>Ready for a review</h2><p>The matching order item and review questions will appear here.</p></div></section>
+
+    <section id="workspace" class="workspace hidden">
+      <div>
+        <div id="completionBanner" class="completion-banner hidden"></div>
+        <article id="reviewCard" class="card">
+          <header class="item-head"><div id="suffix" class="suffix">-</div><div class="item-copy"><h2 id="itemTitle">Order item</h2><div id="itemMeta" class="meta-line"></div></div><span id="revisionPill" class="pill">REVIEW</span></header>
+          <div class="spec-grid">
+            <div class="spec"><span>Format</span><strong id="specFormat">Quad Seal Bag</strong></div>
+            <div class="spec"><span>Dimensions IN</span><strong id="specDimensionsIn">11.5&quot; W x 18.25&quot; H + 4.125&quot; G</strong></div>
+            <div class="spec"><span>Style</span><strong id="specStyle">Flat Bottom</strong></div>
+            <div class="spec"><span>Dimensions MM</span><strong id="specDimensionsMm">292.1 mm W x 463.55 mm H + 104.78 mm G</strong></div>
+            <div class="spec wide"><span>Features</span><strong id="specFeatures">Zipper at 2.01&quot;; 2 rows micro-perfs; tear notch at 1.5&quot;; round corners</strong></div>
+            <div class="spec"><span>Spec type</span><strong id="specType">Revised</strong></div>
+            <div class="spec"><span>Art type</span><strong id="artType">Revised</strong></div>
+          </div>
+          <section class="section"><div class="section-title"><div><h3>Detail review</h3><p>Does the physical bag match the package specification?</p></div></div><div id="detailQuestions" class="review-list"></div></section>
+          <section class="section"><div class="section-title"><div><h3>Design review</h3><p>Inspect the printed sample and record a pass, fail, or N/A.</p></div></div><div id="designQuestions" class="review-list"></div></section>
+          <section class="section"><div class="section-title"><div><h3>Additional notes</h3><p>Use this for any mismatch, measurement detail, or follow-up.</p></div></div><div class="notes-grid"><div class="field"><label for="notesInput">Review notes</label><textarea id="notesInput" placeholder="Add details if anything differs from the specification..."></textarea></div><div class="save-note"><strong>Autosave is on</strong>Selections and attachments save immediately. Notes save after you pause typing or when you close the review.</div></div><div class="attachment-field field"><label for="attachmentInput">Review attachment</label><input id="attachmentInput" type="file"><p id="attachmentMeta" class="attachment-meta">No file selected.</p></div></section>
+          <footer class="footer-actions"><button id="reloadButton" class="button secondary" type="button">Reload</button><button id="saveCloseButton" class="button coral" type="button" disabled>QC Signoff</button><button id="emailButton" class="button" type="button" disabled>QC + Email</button><button id="newSearchButton" class="button secondary" type="button">New Search</button></footer>
+        </article>
+        <article id="closedCard" class="card closed hidden"><div class="closed-icon">OK</div><h2>Review saved</h2><p id="closedCopy">Your answers are in Quickbase. Reopen the review to verify the saved values, then complete QC sign-off.</p><div class="closed-actions"><button id="reopenButton" class="button secondary" type="button">Reopen review</button><button id="qcButton" class="button coral" type="button">QC sign off</button></div><div id="qcHelp" class="qc-box hidden"></div></article>
+      </div>
+
+      <aside class="card side-card">
+        <h3>Review progress</h3><div class="progress"><span id="progressBar" style="width:0"></span></div><div class="progress-copy"><span id="progressLabel">0 of 6 answered</span><strong id="progressPercent">0%</strong></div>
+        <ol class="steps"><li id="stepFind" class="step done"><span class="step-num">OK</span><div><strong>Item found</strong><small id="stepFindCopy">PO and barcode matched</small></div></li><li id="stepReview" class="step active"><span class="step-num">2</span><div><strong>Review &amp; verify</strong><small id="stepReviewCopy">Waiting for answers</small></div></li><li id="stepQc" class="step"><span class="step-num">3</span><div><strong>QC sign-off</strong><small id="stepQcCopy">Unlocks after review</small></div></li></ol>
+        <div class="side-rule"></div><a id="nativeRecordLink" class="record-link hidden" target="_blank" rel="noopener noreferrer">Open Review Sheet in Quickbase (new tab)</a>
+      </aside>
+    </section>
+  </main>
+
+  <div id="entryToast" class="entry-toast" role="status" aria-live="polite">Entry Submitted</div>
+
+  <div id="emailModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
+    <div class="email-modal">
+      <header class="modal-head"><h2 id="emailModalTitle">QC Signoff + Email</h2><p>Choose recipients, edit the subject and message, then send.</p></header>
+      <div class="modal-body">
+        <div class="field"><label for="emailRecipientsBox">Recipients</label><textarea id="emailRecipientsBox" rows="3" inputmode="email" placeholder="name@example.com; another@example.com"></textarea></div>
+        <div class="field"><label>Quick recipients</label><div id="recipientList" class="recipient-list"></div></div>
+        <div class="field"><label for="emailSubject">Subject</label><input id="emailSubject" type="text"></div>
+        <div class="field"><label for="emailMessage">Personal message</label><textarea id="emailMessage" rows="5"></textarea></div>
+      </div>
+      <footer class="modal-actions"><button id="cancelEmailButton" class="button secondary" type="button">Cancel</button><button id="sendEmailButton" class="button" type="button">QC Signoff + Send Email</button></footer>
+    </div>
+  </div>
+
+  <div id="qrModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
+    <div class="qr-modal">
+      <header class="modal-head"><h2 id="qrModalTitle">Continue on your phone</h2><p>Scan to open this review with the current answers and notes.</p></header>
+      <div class="qr-body"><div id="qrCode" class="qr-code" aria-label="QR code for this review"></div><p id="qrStatus" class="qr-status">Keep this window open while you scan.</p><input id="qrLink" class="qr-link" type="text" readonly aria-label="Phone handoff link"></div>
+      <footer class="modal-actions"><button id="closeQrButton" class="button secondary" type="button">Close</button><button id="copyQrButton" class="button" type="button">Copy link</button></footer>
+    </div>
+  </div>
+
+  <script src="https://demo.quickbase.example/db/bdemoapp0?a=dbpage&amp;pageID=1"></script>
+  <script>
+    const CONFIG={
+      realm:'demo.quickbase.example',appId:'bdemoapp0',ordersTableId:'bdemoordr',orderItemsTableId:'bdemoitem',reviewTableId:'bdemorevw',
+      userTokenVariable:'usertoken',appTokenVariable:'q_apptoken',
+      order:{po:18},item:{relatedOrder:6,upc:13,name:14,weight:161,description:162,specType:163,artRevision:265,artType:573,artworkLink:329},
+      review:{relatedItem:35,format:7,style:8,dimensions:10,registration:16,matte:17,window:19,notes:31,qcSign:32,completedOn:34,needsQc:63,complete:54,attachment:77,specFormat:41,specStyle:42,specDimensions:44,specSummary:67},
+      qcSignoffFieldId:null,
+      allowLocalSample:false
+    };
+    const DETAIL=[{fid:7,key:'format',label:'Format',spec:'Package format',choices:['Yes','No','N/A']},{fid:8,key:'style',label:'Style',spec:'Package style',choices:['Yes','No','N/A']},{fid:10,key:'dimensions',label:'Dimensions',spec:'Package dimensions',choices:['Yes','No','N/A']}];
+    const DESIGN=[{fid:16,label:'Registration',spec:'Color-to-color and front-to-back registration',choices:['Pass','Fail','N/A']},{fid:17,label:'Matte',spec:'Matte finish appearance and coverage',choices:['Pass','Fail','N/A']},{fid:19,label:'Window',spec:'Window placement, clarity, and seal area',choices:['Pass','Fail','N/A']}];
+    const EMAIL_RECIPIENTS=['demo.user@demo-packaging.example','demo.user@demo-packaging.example','demo.user@demo-packaging.example','demo.user@demo-packaging.example'];
+    const SAMPLE_ITEM={rid:'40772',poRid:'6644',po:'2092',upc:'00015-00579',name:'BRB.BAG.CAT.KBL.CX.10LB.V26',weight:'10 lb',description:'Bramble Dry Food for Cats - Chicken Recipe',specType:'Revised',artRevision:'05.26',artType:'Revised'};
+    const htmlApostrophe=String.fromCharCode(38,35,51,57,59);
+    const $=selector=>document.querySelector(selector),esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":htmlApostrophe}[char])),barcodeKey=value=>String(value??'').toUpperCase().replace(/[^A-Z0-9]/g,''),barcodeSuffix=value=>{const key=barcodeKey(value),tagged=key.match(/(\d{5})[A-Z]+$/);return tagged?tagged[1]:key.slice(-5)};
+    const RECENT_SEARCH_KEY='demoPackagingPressReviewRecentSearches',ENTRY_SUBMITTED_KEY='demoPackagingPressReviewEntrySubmitted';
+    const credentials={user:'',app:'',loading:null},fieldSchemaCache=new Map(),upcCache=new Map(),barcodePoCache=new Map();
+    let state={item:null,reviewRid:'',answers:{},specs:{format:'',style:'',dimensions:'',features:''},notes:'',attachmentName:'',pendingAttachment:null,qcUrl:'',completedOn:'',closed:false,qcSigned:false,saveQueue:Promise.resolve(),notesTimer:null,saveError:false,qcFieldId:null},toastTimer=null,modalTimer=null,qrTimer=null,qrInstance=null,poSuggestTimer=null,barcodeSuggestTimer=null,poSuggestionRequestId=0,barcodeSuggestionRequestId=0,searchComboValues={po:[],barcode:[]},searchComboActive={po:-1,barcode:-1};
+
+    function setStatus(message,type=''){const el=$('#status');el.className=`status ${type}`.trim();el.innerHTML=`<span class="dot"></span><span>${esc(message)}</span>`}
+    function showEntryToast(){const toast=$('#entryToast');clearTimeout(toastTimer);toast.classList.add('show');toastTimer=setTimeout(()=>{toast.classList.remove('show');try{sessionStorage.removeItem(ENTRY_SUBMITTED_KEY)}catch{}},5000)}
+    function markEntrySubmitted(){try{sessionStorage.setItem(ENTRY_SUBMITTED_KEY,'1')}catch{}showEntryToast()}
+    function clearEntrySubmitted(){try{sessionStorage.removeItem(ENTRY_SUBMITTED_KEY)}catch{}const toast=$('#entryToast');clearTimeout(toastTimer);toast.classList.remove('show')}
+    function restoreEntrySubmitted(){try{if(sessionStorage.getItem(ENTRY_SUBMITTED_KEY)==='1')showEntryToast()}catch{}}
+    function encodeHandoff(value){const bytes=new TextEncoder().encode(JSON.stringify(value));let binary='';bytes.forEach(byte=>binary+=String.fromCharCode(byte));return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+    function decodeHandoff(value){try{const base64=String(value||'').replace(/-/g,'+').replace(/_/g,'/'),binary=atob(base64+'='.repeat((4-base64.length%4)%4)),bytes=Uint8Array.from(binary,char=>char.charCodeAt(0)),payload=JSON.parse(new TextDecoder().decode(bytes));return payload&&payload.v===1?payload:null}catch{return null}}
+    function handoffDraft(){const questions=[...DETAIL,...DESIGN],notes=state.item?$('#notesInput').value:state.notes;return{v:1,a:questions.map(question=>state.answers[question.fid]||''),n:String(notes||'')}}
+    function handoffUrl(){const url=new URL(location.href),po=numeric($('#poInput').value||state.item?.po),suffix=barcodeSuffix($('#barcodeInput').value||(state.item?.upc||''));url.hash='';url.searchParams.delete('po');url.searchParams.delete('barcode');url.searchParams.delete('handoff');if(po)url.searchParams.set('po',po);if(suffix)url.searchParams.set('barcode',suffix);if(state.item)url.searchParams.set('handoff',encodeHandoff(handoffDraft()));return url.href}
+    function closeQrModal(){const modal=$('#qrModal');if(modal.classList.contains('hidden')||modal.classList.contains('closing'))return;clearTimeout(qrTimer);modal.classList.add('closing');qrTimer=setTimeout(()=>{modal.classList.add('hidden');modal.classList.remove('closing')},230)}
+    function openQrModal(){hideSearchCombos();const modal=$('#qrModal'),container=$('#qrCode'),url=handoffUrl();$('#qrLink').value=url;$('#qrStatus').textContent=['localhost','127.0.0.1'].includes(window.__DEMO_HOST)?'Open the published Quickbase app before scanning from another device.':'Keep this window open while you scan.';container.innerHTML='';clearTimeout(qrTimer);modal.classList.remove('hidden','closing');if(typeof QRCode!=='function'){container.innerHTML='<div class="search-suggestion-empty">QR generator unavailable.<br>Use Copy link instead.</div>';return}try{qrInstance=new QRCode(container,{text:url,width:260,height:260,colorDark:'#12283f',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.L})}catch(error){container.innerHTML='<div class="search-suggestion-empty">The notes are too long for a QR code.<br>Use Copy link instead.</div>';$('#qrStatus').textContent='The complete handoff link is still available below.'}}
+    async function copyQrLink(){const link=$('#qrLink').value;try{await navigator.clipboard.writeText(link);$('#copyQrButton').textContent='Copied';setTimeout(()=>$('#copyQrButton').textContent='Copy link',1400)}catch{$('#qrLink').focus();$('#qrLink').select()}}
+    function applyHandoffDraft(draft){if(!draft)return;[...DETAIL,...DESIGN].forEach((question,index)=>{const value=String(draft.a?.[index]||'');if(question.choices.includes(value))state.answers[question.fid]=value});if(typeof draft.n==='string')state.notes=draft.n}
+    async function restorePhoneHandoff(){const params=new URLSearchParams(location.search),po=numeric(params.get('po')),suffix=barcodeKey(params.get('barcode')).slice(-5),draft=decodeHandoff(params.get('handoff'));if(po)$('#poInput').value=po;if(suffix)$('#barcodeInput').value=suffix;if(po&&suffix.length===5){await lookup(draft);return}if(po)loadBarcodeSuggestions(po);else if(suffix.length===5)loadPoSuggestions(suffix)}
+    function displayDate(value){const text=String(value||'').trim();if(!text)return'';let date;if(/^\d{4}-\d{2}-\d{2}/.test(text)){const parts=text.slice(0,10).split('-').map(Number);date=new Date(parts[0],parts[1]-1,parts[2])}else if(/^\d{2}-\d{2}-\d{4}$/.test(text)){const parts=text.split('-').map(Number);date=new Date(parts[2],parts[0]-1,parts[1])}else if(/^\d{10,13}$/.test(text)){date=new Date(Number(text)*(text.length===10?1000:1))}else date=new Date(text);return Number.isNaN(date.getTime())?text:new Intl.DateTimeFormat(undefined,{month:'long',day:'numeric',year:'numeric'}).format(date)}
+    function recentSearches(){try{const value=JSON.parse(localStorage.getItem(RECENT_SEARCH_KEY)||'[]');return Array.isArray(value)?value.filter(entry=>entry&&numeric(entry.po)&&barcodeKey(entry.suffix).length===5).slice(0,12):[]}catch{return[]}}
+    function saveRecentSearch(po,suffix){const cleanPo=numeric(po),cleanSuffix=barcodeKey(suffix).slice(-5);if(!cleanPo||cleanSuffix.length!==5)return;const next=[{po:cleanPo,suffix:cleanSuffix},...recentSearches().filter(entry=>entry.po!==cleanPo||entry.suffix!==cleanSuffix)].slice(0,12);try{localStorage.setItem(RECENT_SEARCH_KEY,JSON.stringify(next))}catch{}renderRecentSearches()}
+    function comboParts(name){return{input:$(`#${name}Input`),menu:$(`#${name}Suggestions`)}}
+    function comboQuery(name){const value=comboParts(name).input.value;return name==='po'?numeric(value):barcodeKey(value)}
+    function visibleComboValues(name){const query=comboQuery(name);return searchComboValues[name].filter(value=>!query||String(value).toUpperCase().includes(query.toUpperCase()))}
+    function renderSearchCombo(name){const{menu}=comboParts(name),values=visibleComboValues(name);searchComboActive[name]=Math.min(searchComboActive[name],values.length-1);menu.innerHTML=values.length?values.map((value,index)=>`<button class="search-suggestion${index===searchComboActive[name]?' active':''}" type="button" role="option" aria-selected="${index===searchComboActive[name]}" data-search-option="${name}" data-value="${esc(value)}">${esc(value)}</button>`).join(''):'<div class="search-suggestion-empty">No matching options.</div>'}
+    function hideSearchCombo(name){const{input,menu}=comboParts(name);menu.hidden=true;input.setAttribute('aria-expanded','false');searchComboActive[name]=-1}
+    function hideSearchCombos(except=''){['po','barcode'].forEach(name=>{if(name!==except)hideSearchCombo(name)})}
+    function showSearchCombo(name){hideSearchCombos(name);const{input,menu}=comboParts(name);menu.hidden=false;input.setAttribute('aria-expanded','true');renderSearchCombo(name)}
+    function setSearchComboValues(name,values,open=false){searchComboValues[name]=[...new Set(values.map(String).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));searchComboActive[name]=-1;if(open)showSearchCombo(name);else renderSearchCombo(name)}
+    function showSearchComboLoading(name){hideSearchCombos(name);const{input,menu}=comboParts(name);searchComboActive[name]=-1;menu.innerHTML='<div class="search-suggestion-empty search-suggestion-loading">Loading options...</div>';menu.hidden=false;input.setAttribute('aria-expanded','true')}
+    function updatePoHistory(open=false){const suffix=barcodeKey($('#barcodeInput').value).slice(-5),matches=recentSearches().filter(entry=>suffix.length!==5||entry.suffix===suffix);setSearchComboValues('po',[...new Set(matches.map(entry=>entry.po))],open);return matches}
+    function updateBarcodeHistory(open=false){const po=numeric($('#poInput').value),matches=recentSearches().filter(entry=>!po||entry.po===po);setSearchComboValues('barcode',[...new Set(matches.map(entry=>entry.suffix))],open);return matches}
+    function renderRecentSearches(){hideSearchCombos();const entries=recentSearches(),container=$('#recentSearches'),recentByPo=[...new Map(entries.map(entry=>[entry.po,entry])).values()];container.classList.toggle('hidden',!recentByPo.length);container.innerHTML=recentByPo.length?`<span class="recent-label">Recent PO</span>${recentByPo.slice(0,6).map(entry=>`<button type="button" class="recent-button" data-po="${esc(entry.po)}">${esc(entry.po)}</button>`).join('')}`:'';container.querySelectorAll('.recent-button').forEach(button=>button.addEventListener('click',()=>{hideSearchCombos();$('#poInput').value=button.dataset.po;$('#barcodeInput').value='';updatePoHistory();$('#barcodeInput').focus();loadBarcodeSuggestions(button.dataset.po,true)}));updatePoHistory();updateBarcodeHistory()}
+    async function poUpcSuffixes(po){if(upcCache.has(po))return upcCache.get(po);const orders=await queryRecords(CONFIG.ordersTableId,`{${CONFIG.order.po}.EX.'${po}'}`,[3,CONFIG.order.po]);if(!orders.length)throw new Error(`No order was found for PO ${po}.`);const rows=(await Promise.all(orders.map(order=>queryRecords(CONFIG.orderItemsTableId,`{${CONFIG.item.relatedOrder}.EX.'${String(fieldValue(order,3))}'}`,[3,CONFIG.item.upc])))).flat(),values=[...new Set(rows.map(row=>barcodeSuffix(fieldValue(row,CONFIG.item.upc))).filter(value=>value.length===5))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));upcCache.set(po,values);return values}
+    async function poNumbersForBarcode(suffix){if(barcodePoCache.has(suffix))return barcodePoCache.get(suffix);const rows=(await queryRecords(CONFIG.orderItemsTableId,`{${CONFIG.item.upc}.CT.'${suffix}'}`,[3,CONFIG.item.relatedOrder,CONFIG.item.upc])).filter(row=>barcodeSuffix(fieldValue(row,CONFIG.item.upc))===suffix),orderIds=[...new Set(rows.map(row=>String(fieldValue(row,CONFIG.item.relatedOrder))).filter(Boolean))],orders=(await Promise.all(orderIds.map(rid=>queryRecords(CONFIG.ordersTableId,`{3.EX.'${rid}'}`,[3,CONFIG.order.po])))).flat(),values=[...new Set(orders.map(order=>numeric(fieldValue(order,CONFIG.order.po))).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));barcodePoCache.set(suffix,values);return values}
+    async function loadBarcodeSuggestions(poValue=$('#poInput').value,open=false){const po=numeric(poValue),requestId=++barcodeSuggestionRequestId;clearTimeout(poSuggestTimer);if(!po){updateBarcodeHistory(open);return}if(open)showSearchComboLoading('barcode');try{const values=await poUpcSuffixes(po);if(requestId!==barcodeSuggestionRequestId)return;setSearchComboValues('barcode',values,open)}catch(error){if(requestId===barcodeSuggestionRequestId)updateBarcodeHistory(open)}}
+    async function loadPoSuggestions(suffixValue=$('#barcodeInput').value,open=false){const suffix=barcodeKey(suffixValue).slice(-5),requestId=++poSuggestionRequestId;clearTimeout(barcodeSuggestTimer);if(suffix.length!==5){updatePoHistory(open);return}if(open)showSearchComboLoading('po');try{const values=await poNumbersForBarcode(suffix);if(requestId!==poSuggestionRequestId)return;setSearchComboValues('po',values,open)}catch(error){if(requestId===poSuggestionRequestId)updatePoHistory(open)}}
+    function scheduleBarcodeSuggestions(){clearTimeout(poSuggestTimer);const po=numeric($('#poInput').value);if(!po){barcodeSuggestionRequestId++;updateBarcodeHistory();return}poSuggestTimer=setTimeout(()=>loadBarcodeSuggestions(po),450)}
+    function schedulePoSuggestions(){clearTimeout(barcodeSuggestTimer);const suffix=barcodeKey($('#barcodeInput').value).slice(-5);if(suffix.length!==5){poSuggestionRequestId++;updatePoHistory();return}barcodeSuggestTimer=setTimeout(()=>loadPoSuggestions(suffix),450)}
+    function chooseSearchOption(name,value){const{input}=comboParts(name);input.value=name==='po'?numeric(value):barcodeKey(value).slice(-5);hideSearchCombo(name);const po=numeric($('#poInput').value),suffix=barcodeKey($('#barcodeInput').value).slice(-5);if(po&&suffix){$('#findButton').focus();return}if(name==='po'){$('#barcodeInput').focus();loadBarcodeSuggestions(input.value,true)}else{$('#poInput').focus();loadPoSuggestions(input.value,true)}}
+    function moveSearchCombo(name,direction){showSearchCombo(name);const values=visibleComboValues(name);if(!values.length)return;searchComboActive[name]=searchComboActive[name]<0?(direction>0?0:values.length-1):(searchComboActive[name]+direction+values.length)%values.length;renderSearchCombo(name);comboParts(name).menu.querySelector('.active')?.scrollIntoView({block:'nearest'})}
+    function handleSearchComboKeydown(event){if(event.isComposing)return;const name=event.target.id==='poInput'?'po':event.target.id==='barcodeInput'?'barcode':'';if(name&&(event.key==='ArrowDown'||event.key==='ArrowUp')){event.preventDefault();moveSearchCombo(name,event.key==='ArrowDown'?1:-1);return}if(event.key==='Escape'){hideSearchCombos();return}if(event.key!=='Enter')return;if(name&&!comboParts(name).menu.hidden&&searchComboActive[name]>=0){event.preventDefault();const value=visibleComboValues(name)[searchComboActive[name]];if(value)chooseSearchOption(name,value);return}const po=numeric($('#poInput').value),suffix=barcodeKey($('#barcodeInput').value).slice(-5);if(po&&!suffix){event.preventDefault();$('#barcodeInput').focus({preventScroll:true});loadBarcodeSuggestions(po,true);return}if(!po&&suffix){event.preventDefault();$('#poInput').focus({preventScroll:true});loadPoSuggestions(suffix,true)}}
+    function fieldValue(record,fid){const field=record?.[fid]??record?.[String(fid)];return field&&typeof field==='object'&&'value'in field?field.value:field??''}
+    function xml(text){return new DOMParser().parseFromString(text,'text/xml')}
+    function xmlError(doc){if(doc.querySelector('parsererror'))return'Quickbase returned malformed XML.';const code=String(doc.querySelector('errcode')?.textContent||'').trim(),message=String(doc.querySelector('errtext')?.textContent||'').trim(),detail=String(doc.querySelector('errdetail')?.textContent||'').trim();return code&&code!=='0'?`Quickbase Error ${code}: ${message} ${detail}`.trim():''}
+    function variableApp(){const match=location.pathname.match(/^\/(?:db|up)\/([^/?#]+)/i);return match?match[1]:CONFIG.appId}
+    async function dbVariable(name){const query=new URLSearchParams({a:'API_GetDBVar',varname:name});const response=await fetch(`https://${CONFIG.realm}/db/${encodeURIComponent(variableApp())}?${query}`,{credentials:'include'});if(!response.ok)throw new Error(`Variable request failed (${response.status}).`);const doc=xml(await response.text()),error=xmlError(doc);if(error)throw new Error(error);const value=String(doc.querySelector('value')?.textContent||'').trim();if(!value)throw new Error(`${name} is empty.`);return value}
+    async function loadCredentials(){if(credentials.user&&credentials.app)return credentials;if(!credentials.loading)credentials.loading=Promise.all([dbVariable(CONFIG.userTokenVariable),dbVariable(CONFIG.appTokenVariable)]).then(([user,app])=>Object.assign(credentials,{user,app})).catch(error=>{credentials.loading=null;throw error});return credentials.loading}
+    function xmlRecord(record){const mapped={};record.querySelectorAll('f, field').forEach(field=>{const fid=String(Number(field.getAttribute('id')||field.getAttribute('fid')||field.querySelector('fid')?.textContent)||'');if(!fid)return;const values=[...field.querySelectorAll(':scope > value')].map(value=>value.textContent);mapped[fid]={value:values.length>1?values:(values[0]??field.textContent??'')};});return mapped}
+    async function variableQuery(tableId,where,select){const auth=await loadCredentials(),query=new URLSearchParams({a:'API_DoQuery',query:where,clist:select.join('.'),fmt:'structured',usertoken:auth.user,apptoken:auth.app});const response=await fetch(`https://${CONFIG.realm}/db/${tableId}?${query}`,{credentials:'include'});if(!response.ok)throw new Error(`Quickbase search failed (${response.status}).`);const doc=xml(await response.text()),error=xmlError(doc);if(error)throw new Error(error);return[...doc.querySelectorAll('record')].map(xmlRecord)}
+    async function restHeaders(contentType){const auth=await loadCredentials(),headers={'QB-Realm-Hostname':CONFIG.realm,'Authorization':`QB-USER-TOKEN ${auth.user}`,'User-Agent':'DemoPackagingPressReview/1.0'};if(contentType)headers['Content-Type']=contentType;return headers}
+    async function restQuery(tableId,where,select){const headers=await restHeaders('application/json'),response=await fetch('https://api.quickbase.com/v1/records/query',{method:'POST',headers,body:JSON.stringify({from:tableId,select,where,options:{skip:0,top:100}})});if(!response.ok){let detail='';try{const body=await response.json();detail=body.description||body.message||''}catch{}throw new Error(`Quickbase query failed (${response.status})${detail?`: ${detail}`:''}`)}return(await response.json()).data||[]}
+    async function queryRecords(tableId,where,select){if(window.__DEMO_HOST.toLowerCase()===CONFIG.realm){try{return await variableQuery(tableId,where,select)}catch(error){console.warn('Token-variable query failed; using session token.',error)}}return restQuery(tableId,where,select)}
+    async function tableFields(tableId){if(fieldSchemaCache.has(tableId))return fieldSchemaCache.get(tableId);const auth=await loadCredentials(),query=new URLSearchParams({a:'API_GetSchema',usertoken:auth.user,apptoken:auth.app}),response=await fetch(`https://${CONFIG.realm}/db/${tableId}?${query}`,{credentials:'include'});if(!response.ok)throw new Error(`Quickbase field lookup failed (${response.status}).`);const doc=xml(await response.text()),error=xmlError(doc);if(error)throw new Error(error);const fields=[...doc.querySelectorAll('fields > field')].map(field=>({id:Number(field.getAttribute('id')),label:String(field.querySelector('label')?.textContent||''),fieldType:String(field.querySelector('field_type')?.textContent||''),properties:{allowHTML:String(field.querySelector('allowHTML')?.textContent||'').toLowerCase()==='true'}}));fieldSchemaCache.set(tableId,fields);return fields}
+    function numeric(value){return String(value??'').replace(/\D/g,'')}
+
+    async function findItem(po,suffix){const orders=await queryRecords(CONFIG.ordersTableId,`{${CONFIG.order.po}.EX.'${po}'}`,[3,CONFIG.order.po]);if(!orders.length)throw new Error(`No order was found for PO ${po}.`);const orderRid=String(fieldValue(orders[0],3));const f=CONFIG.item,select=[3,382,f.relatedOrder,f.upc,f.name,f.weight,f.description,f.specType,f.artRevision,f.artType,f.artworkLink];let items=await queryRecords(CONFIG.orderItemsTableId,`{${f.relatedOrder}.EX.'${orderRid}'}AND{${f.upc}.CT.'${suffix}'}`,select);items=items.filter(row=>barcodeSuffix(fieldValue(row,f.upc))===suffix);if(!items.length)throw new Error(`PO ${po} has no order item ending in ${suffix}.`);items=await DemoChoice.resolve({code:suffix,rows:items,upc:row=>fieldValue(row,f.upc),brand:row=>fieldValue(row,382)||fieldValue(row,f.name),detail:row=>[fieldValue(row,382)?fieldValue(row,f.name):'',`PO ${po}`].filter(Boolean).join(' | '),link:row=>DemoChoice.record(CONFIG.orderItemsTableId,fieldValue(row,3))});if(!items)throw new Error('No barcode was chosen.');const row=items[0];return{rid:String(fieldValue(row,3)),poRid:orderRid,po,upc:String(fieldValue(row,f.upc)),name:String(fieldValue(row,f.name)),weight:String(fieldValue(row,f.weight)),description:String(fieldValue(row,f.description)),specType:String(fieldValue(row,f.specType)),artRevision:String(fieldValue(row,f.artRevision)),artType:String(fieldValue(row,f.artType)),artworkLink:String(fieldValue(row,f.artworkLink))}}
+    function attachmentFileName(value){if(!value)return'';if(typeof value==='string')return value;const versions=Array.isArray(value.versions)?value.versions:[];return String(versions[versions.length-1]?.fileName||value.fileName||'')}
+    function plainFieldText(value){if(value===null||value===undefined)return'';if(typeof value==='object')return'';const holder=document.createElement('div');holder.innerHTML=String(value).replace(/<br\s*\/?>/gi,'\n');return(holder.textContent||'').replace(/\r/g,'').trim()}
+    function dimensionVersions(value){const inches=String(value||'').trim();if(!inches)return{inches:'',millimeters:''};if(/\bmm\b/i.test(inches))return{inches,millimeters:''};let converted=0;const millimeters=inches.replace(/(\d+(?:\.\d+)?)\s*(?:"|″)/g,(_,amount)=>{converted++;const value=Number(amount)*25.4,formatted=value.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1');return`${formatted} mm`});return{inches,millimeters:converted?millimeters:''}}
+    function parseSpecSummary(text){const lines=String(text||'').split(/\n+/).map(line=>line.trim()).filter(Boolean),dimensions=lines.find(line=>/\bW\s*x\s*.*\bH\b/i.test(line)&&/\d/.test(line))||'',dimensionIndex=dimensions?lines.indexOf(dimensions):-1,construction=dimensionIndex>=0?lines[dimensionIndex+1]||'':'',featureLine=dimensionIndex>=0?lines[dimensionIndex+2]||'':'';const constructionParts=construction.split('/').map(part=>part.trim()).filter(Boolean);return{format:constructionParts[0]||'',style:constructionParts[1]||'',dimensions,features:[...constructionParts.slice(2),featureLine].filter(Boolean).join('; ')}}
+    function applyReviewSpecs(row,fields){const r=CONFIG.review,specs={format:plainFieldText(fieldValue(row,r.specFormat)),style:plainFieldText(fieldValue(row,r.specStyle)),dimensions:plainFieldText(fieldValue(row,r.specDimensions)),features:''},known=new Set([r.format,r.style,r.dimensions]);for(const field of fields){const id=Number(field.id);if(known.has(id))continue;const label=String(field.label||'').toLowerCase(),value=plainFieldText(fieldValue(row,id));if(!value)continue;if(!specs.format&&/(^|\b)(package |bag )?format(\b|$)/.test(label))specs.format=value;if(!specs.style&&/(^|\b)(package |bag )?style(\b|$)/.test(label))specs.style=value;if(!specs.dimensions&&/(dimension|finished size|bag size)/.test(label))specs.dimensions=value;if(!specs.features&&/(feature|construction detail|bag detail)/.test(label))specs.features=value}const directSummary=plainFieldText(fieldValue(row,r.specSummary)),summaryCandidates=[directSummary,...fields.map(field=>plainFieldText(fieldValue(row,Number(field.id))))].filter(value=>/\bUPC\b/i.test(value)&&/\bW\s*x\s*.*\bH\b/i.test(value)).sort((a,b)=>b.length-a.length);if(summaryCandidates.length){const parsed=parseSpecSummary(summaryCandidates[0]);for(const key of Object.keys(specs))if(!specs[key]&&parsed[key])specs[key]=parsed[key]}state.specs=specs}
+    async function reviewSpecFields(){try{const fields=await tableFields(CONFIG.reviewTableId),known=new Set([3,...Object.values(CONFIG.review).filter(Number.isFinite)]);return fields.filter(field=>{const id=Number(field.id),label=String(field.label||'').toLowerCase(),type=String(field.fieldType||'').toLowerCase();return!known.has(id)&&(/rich/.test(type)||field.properties?.allowHTML===true||/(format|style|dimension|finished size|bag size|feature|construction|spec|summary|detail)/.test(label))}).slice(0,40)}catch(error){console.warn('Could not discover specification fields.',error);return[]}}
+    async function loadReview(item){const r=CONFIG.review,specFields=await reviewSpecFields(),select=[...new Set([3,r.relatedItem,r.format,r.style,r.dimensions,r.registration,r.matte,r.window,r.notes,r.qcSign,r.completedOn,r.needsQc,r.complete,r.attachment,r.specFormat,r.specStyle,r.specDimensions,r.specSummary,...specFields.map(field=>Number(field.id))])],where=state.reviewRid?`{3.EX.'${state.reviewRid}'}`:`{${r.relatedItem}.EX.'${item.rid}'}`,rows=await queryRecords(CONFIG.reviewTableId,where,select);if(!rows.length)return false;const row=rows.sort((a,b)=>Number(fieldValue(b,3)||0)-Number(fieldValue(a,3)||0))[0];state.reviewRid=String(fieldValue(row,3));[...DETAIL,...DESIGN].forEach(q=>state.answers[q.fid]=String(fieldValue(row,q.fid)||''));applyReviewSpecs(row,specFields);state.notes=String(fieldValue(row,r.notes)||'');state.attachmentName=attachmentFileName(fieldValue(row,r.attachment));state.qcUrl=actionUrl(fieldValue(row,r.qcSign));state.completedOn=String(fieldValue(row,r.completedOn)||'');state.qcSigned=Boolean(state.completedOn)||String(fieldValue(row,r.complete)).toLowerCase()==='true'||String(fieldValue(row,r.complete))==='1';return true}
+    function coreSpecsAvailable(){return['format','style','dimensions'].every(key=>Boolean(state.specs[key]))}
+    async function prepareReview(item){let found=await loadReview(item);if(!found){setStatus('Creating the Review Sheet...','saving');await writeReview()}for(let attempt=0;attempt<20&&!coreSpecsAvailable();attempt++){setStatus('Waiting for specification data...','saving');await new Promise(resolve=>setTimeout(resolve,500));await loadReview(item)}if(!coreSpecsAvailable())throw new Error('Quickbase did not finish loading Format, Style, and Dimensions. Please try the search again.');return true}
+    function resetReviewState(){state.reviewRid='';state.answers={};state.specs={format:'',style:'',dimensions:'',features:''};state.notes='';state.attachmentName='';state.pendingAttachment=null;state.qcUrl='';state.completedOn='';state.closed=false;state.qcSigned=false;state.saveError=false;state.qcFieldId=null}
+
+    async function lookup(draft=null){const po=numeric($('#poInput').value),suffix=barcodeKey($('#barcodeInput').value).slice(-5);if(!po){setStatus('Enter a PO number.','bad');return}if(suffix.length!==5){setStatus('Enter exactly five barcode characters.','bad');return}clearEntrySubmitted();const button=$('#findButton');button.disabled=true;document.body.classList.remove('review-active');setStatus('Searching Quickbase...','saving');resetReviewState();try{state.item=await findItem(po,suffix);saveRecentSearch(po,suffix);await prepareReview(state.item);applyHandoffDraft(draft);renderWorkspace();if(draft){setStatus('Review transferred from desktop. Saving current answers and notes...','saving');await queueSave()}else setStatus(`Loaded Review Sheet ${state.reviewRid}.`,'good')}catch(error){state.item=null;document.body.classList.remove('review-active');$('#workspace').classList.add('hidden');$('#emptyState').classList.remove('hidden');const isLocal=location.protocol==='file:'||['localhost','127.0.0.1'].includes(window.__DEMO_HOST);setStatus(isLocal?'Live Quickbase data is unavailable in the local preview. Open the app from its Quickbase code page.':error.message||String(error),'bad')}finally{button.disabled=false}}
+
+    function renderQuestionGroup(target,questions){$(target).innerHTML=questions.map(q=>{const spec=q.key&&state.specs[q.key]?state.specs[q.key]:q.spec,dimensions=q.key==='dimensions'?dimensionVersions(spec):null,specMarkup=dimensions?`<small class="dimension-lines"><span>${esc(dimensions.inches)}</span><span>${esc(dimensions.millimeters)}</span></small>`:`<small>${esc(spec)}</small>`;return`<div class="review-row"><div class="question"><strong>${esc(q.label)}</strong>${specMarkup}</div><div class="choices" role="group" aria-label="${esc(q.label)}">${q.choices.map(choice=>`<button type="button" class="choice ${choice==='No'||choice==='Fail'?'fail ':''}${state.answers[q.fid]===choice?'selected':''}" data-fid="${q.fid}" data-value="${esc(choice)}">${esc(choice)}</button>`).join('')}</div></div>`}).join('')}
+    function nativeReviewUrl(){if(!state.item)return'';const params=new URLSearchParams();if(state.reviewRid){params.set('a','dr');params.set('rid',state.reviewRid)}else{params.set('a','API_GenAddRecordForm');if(credentials.app)params.set('apptoken',credentials.app);params.set(`_fid_${CONFIG.review.relatedItem}`,state.item.rid)}return`https://${CONFIG.realm}/db/${CONFIG.reviewTableId}?${params}`}
+    function updateNativeReviewLink(){const link=$('#nativeRecordLink');if(!state.item){link.classList.add('hidden');return}link.classList.remove('hidden');link.href=nativeReviewUrl();link.textContent=state.reviewRid?'Open saved Review Sheet in Quickbase (new tab)':'Open new Review Sheet form in Quickbase (new tab)'}
+    function renderWorkspace(){const item=state.item;if(!item)return;document.body.classList.add('review-active');$('#emptyState').classList.add('hidden');$('#workspace').classList.remove('hidden');$('#reviewCard').classList.toggle('hidden',state.closed);$('#closedCard').classList.toggle('hidden',!state.closed);const completionBanner=$('#completionBanner'),completedDate=displayDate(state.completedOn);completionBanner.classList.toggle('hidden',!state.qcSigned);completionBanner.textContent=state.qcSigned?`Submission Completed${completedDate?` on ${completedDate}`:''}`:'';$('#suffix').textContent=numeric(item.upc).slice(-3);$('#itemTitle').textContent=`${item.weight?item.weight+' ':''}${item.description}`.trim()||item.name;$('#itemMeta').textContent=`UPC ${item.upc} | REV ${item.artRevision||'-'} | PO ${item.po}`;$('#revisionPill').textContent=(item.specType||'Review').toUpperCase();const dimensions=dimensionVersions(state.specs.dimensions);$('#specFormat').textContent=state.specs.format||'';$('#specDimensionsIn').textContent=dimensions.inches;$('#specStyle').textContent=state.specs.style||'';$('#specDimensionsMm').textContent=dimensions.millimeters;$('#specFeatures').textContent=state.specs.features||'';$('#specType').textContent=item.specType||'';$('#artType').textContent=item.artType||'';renderQuestionGroup('#detailQuestions',DETAIL);renderQuestionGroup('#designQuestions',DESIGN);$('#notesInput').value=state.notes;const attachmentMeta=$('#attachmentMeta');attachmentMeta.textContent=state.pendingAttachment?`Uploading ${state.pendingAttachment.fileName}...`:state.attachmentName?`Saved: ${state.attachmentName}`:'Add a photo or file';attachmentMeta.classList.toggle('saved',Boolean(state.attachmentName&&!state.pendingAttachment));updateNativeReviewLink();bindChoiceButtons();updateProgress()}
+    function bindChoiceButtons(){document.querySelectorAll('.choice').forEach(button=>button.addEventListener('click',()=>{const fid=Number(button.dataset.fid),value=button.dataset.value;state.answers[fid]=value;renderQuestionGroup(fid<16?'#detailQuestions':'#designQuestions',fid<16?DETAIL:DESIGN);bindChoiceButtons();updateProgress();queueSave()}))}
+    function updateProgress(){const total=DETAIL.length+DESIGN.length,answered=[...DETAIL,...DESIGN].filter(q=>state.answers[q.fid]).length,ready=answered===total,percent=Math.round(answered/total*100);$('#progressBar').style.width=`${percent}%`;$('#progressLabel').textContent=`${answered} of ${total} answered`;$('#progressPercent').textContent=`${percent}%`;$('#stepReview').className=`step ${ready?'done':'active'}`;$('#stepReview').querySelector('.step-num').textContent=ready?'OK':'2';$('#stepReviewCopy').textContent=ready?'Ready for QC':`${total-answered} checks remaining`;$('#stepQc').className=`step ${state.qcSigned?'done':ready?'active':''}`;$('#stepQc').querySelector('.step-num').textContent=state.qcSigned?'OK':'3';$('#stepQcCopy').textContent=state.qcSigned?'QC approval complete':ready?'Choose signoff or email':'Finish the checks';$('#qcButton').disabled=!ready||state.qcSigned;$('#saveCloseButton').disabled=!ready||state.qcSigned;$('#emailButton').disabled=!ready||state.qcSigned;$('#saveCloseButton').textContent=state.qcSigned?'QC Complete':'QC Signoff';$('#emailButton').textContent='QC + Email'}
+    function reviewFieldXml(){const fields=[];if(!state.reviewRid)fields.push([CONFIG.review.relatedItem,state.item.rid]);[...DETAIL,...DESIGN].forEach(question=>{if(state.answers[question.fid])fields.push([question.fid,state.answers[question.fid]])});fields.push([CONFIG.review.notes,state.notes]);return fields.map(([fid,value])=>`<field fid="${fid}">${esc(value)}</field>`).join('')}
+    async function classicReviewRequest(action,body){const auth=await loadCredentials(),query=new URLSearchParams({a:action,usertoken:auth.user,apptoken:auth.app}),response=await fetch(`https://${CONFIG.realm}/db/${CONFIG.reviewTableId}?${query}`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/xml'},body});if(!response.ok)throw new Error(`Quickbase save failed (${response.status}).`);const doc=xml(await response.text()),error=xmlError(doc);if(error)throw new Error(error);return doc}
+    async function uploadReviewAttachment(attachment){const body=`<?xml version="1.0"?><qdbapi><rid>${esc(state.reviewRid)}</rid><field fid="${CONFIG.review.attachment}" filename="${esc(attachment.fileName)}">${attachment.data}</field></qdbapi>`;await classicReviewRequest('API_UploadFile',body)}
+    async function writeReview(){if(!state.item)return;const attachment=state.pendingAttachment;if(window.__DEMO_HOST!==CONFIG.realm&&(location.protocol==='file:'||['localhost','127.0.0.1'].includes(window.__DEMO_HOST))){await new Promise(resolve=>setTimeout(resolve,220));if(attachment&&state.pendingAttachment===attachment){state.attachmentName=attachment.fileName;state.pendingAttachment=null}return}const action=state.reviewRid?'API_EditRecord':'API_AddRecord',ridXml=state.reviewRid?`<rid>${esc(state.reviewRid)}</rid>`:'',body=`<?xml version="1.0"?><qdbapi>${ridXml}${reviewFieldXml()}</qdbapi>`,doc=await classicReviewRequest(action,body);if(!state.reviewRid)state.reviewRid=String(doc.querySelector('rid')?.textContent||'').trim();if(!state.reviewRid)throw new Error('Quickbase saved the review but did not return its Record ID.');if(attachment){await uploadReviewAttachment(attachment);if(state.pendingAttachment===attachment){state.attachmentName=attachment.fileName;state.pendingAttachment=null}}updateNativeReviewLink()}
+    function queueSave(){setStatus('Saving changes to Quickbase...','saving');const snapshot=state.saveQueue.catch(()=>{}).then(writeReview).then(()=>{state.saveError=false;setStatus('All changes saved to Quickbase.','good');renderWorkspace()}).catch(error=>{state.saveError=true;setStatus(error.message||String(error),'bad');throw error});state.saveQueue=snapshot;return snapshot}
+    async function flushSave(){clearTimeout(state.notesTimer);state.notes=$('#notesInput')?.value??state.notes;return queueSave()}
+
+    function actionUrl(value){if(!value)return'';if(typeof value==='object')value=value.url||value.href||value.value||'';const text=String(value).trim().replace(/&amp;/gi,'&'),href=(text.match(/href=["']([^"']+)/i)?.[1]||text).replace(/&amp;/gi,'&');if(!/^(https?:\/\/|\/)/i.test(href))return'';try{return new URL(href,`https://${CONFIG.realm}`).href}catch{return''}}
+    function appReturnUrl(){const url=new URL(location.href);url.hash='';return url.href}
+    function withRedirect(action,target){const url=new URL(action,`https://${CONFIG.realm}`);url.searchParams.set('rdr',target);return url.href}
+    function nativeEmailUrl(){const params=new URLSearchParams({a:'GenEmailRecord',rid:state.reviewRid,dfid:'2'});return`https://${CONFIG.realm}/db/${CONFIG.reviewTableId}?${params}`}
+    function returnToMainApp(message,submitted=false){clearTimeout(modalTimer);clearTimeout(poSuggestTimer);clearTimeout(barcodeSuggestTimer);poSuggestionRequestId++;barcodeSuggestionRequestId++;$('#emailModal').classList.add('hidden');$('#emailModal').classList.remove('closing');document.body.classList.remove('review-active');state.item=null;resetReviewState();$('#workspace').classList.add('hidden');$('#emptyState').classList.remove('hidden');$('#poInput').value='';$('#barcodeInput').value='';renderRecentSearches();setStatus(message,'good');if(submitted)markEntrySubmitted();window.scrollTo({top:0,behavior:'smooth'})}
+    function newSearch(){clearEntrySubmitted();returnToMainApp('Enter a PO number and barcode to begin.');$('#poInput').focus()}
+    async function refreshQcAction(){if(!state.reviewRid||window.__DEMO_HOST!==CONFIG.realm)return state.qcUrl;try{const rows=await queryRecords(CONFIG.reviewTableId,`{3.EX.'${state.reviewRid}'}`,[3,CONFIG.review.qcSign,CONFIG.review.completedOn,CONFIG.review.complete]),row=rows[0];if(row){state.qcUrl=actionUrl(fieldValue(row,CONFIG.review.qcSign));state.completedOn=String(fieldValue(row,CONFIG.review.completedOn)||'');state.qcSigned=Boolean(state.completedOn)||String(fieldValue(row,CONFIG.review.complete)).toLowerCase()==='true'||String(fieldValue(row,CONFIG.review.complete))==='1'}}catch(error){console.warn('Could not refresh the QC action.',error)}return state.qcUrl}
+    async function qcSignoff(){const allAnswered=[...DETAIL,...DESIGN].every(q=>state.answers[q.fid]);if(!allAnswered||state.qcSigned)return;const button=$('#saveCloseButton');button.disabled=true;button.textContent='Saving...';setStatus('Saving and preparing QC Signoff...','saving');try{await flushSave();if(window.__DEMO_HOST!==CONFIG.realm){returnToMainApp('Entry Submitted',true);return}if(!state.reviewRid)throw new Error('The Review Sheet record was not created.');const url=await refreshQcAction(),fallback=`https://${CONFIG.realm}/db/${CONFIG.reviewTableId}?a=er&rid=${encodeURIComponent(state.reviewRid)}`;setStatus(url?'Completing QC Signoff...':'Opening the Quickbase QC Sign button...','good');markEntrySubmitted();location.assign(url?withRedirect(url,appReturnUrl()):fallback)}catch(error){button.disabled=false;updateProgress();setStatus(error.message||String(error),'bad')}}
+    function recipientBoxValues(){return[...new Set($('#emailRecipientsBox').value.split(/[\s,;]+/).map(value=>value.trim().toLowerCase()).filter(Boolean))]}
+    function syncRecipientChecks(){const values=new Set(recipientBoxValues());document.querySelectorAll('#recipientList input[data-email]').forEach(input=>input.checked=values.has(input.dataset.email.toLowerCase()))}
+    function toggleQuickRecipient(input){const email=input.dataset.email.toLowerCase(),values=recipientBoxValues().filter(value=>value!==email);if(input.checked)values.push(email);$('#emailRecipientsBox').value=[...new Set(values)].join('; ');syncRecipientChecks()}
+    function closeEmailComposer(){const modal=$('#emailModal');if(modal.classList.contains('hidden')||modal.classList.contains('closing'))return;clearTimeout(modalTimer);modal.classList.add('closing');modalTimer=setTimeout(()=>{modal.classList.add('hidden');modal.classList.remove('closing')},230)}
+    function openEmailComposer(){const allAnswered=[...DETAIL,...DESIGN].every(q=>state.answers[q.fid]);if(!allAnswered||state.qcSigned)return;$('#emailRecipientsBox').value=EMAIL_RECIPIENTS.join('; ');$('#recipientList').innerHTML=EMAIL_RECIPIENTS.map(email=>`<label class="recipient-option"><input type="checkbox" data-email="${esc(email)}" checked><span>${esc(email)}</span></label>`).join('');document.querySelectorAll('#recipientList input[data-email]').forEach(input=>input.addEventListener('change',()=>toggleQuickRecipient(input)));$('#emailSubject').value=state.reviewRid?`Review Sheet #${state.reviewRid} (from Order Management System)`:`Review Sheet for PO ${state.item?.po||''} (from Order Management System)`;$('#emailMessage').value='A Review Sheet from the Order Management System is ready.';clearTimeout(modalTimer);$('#emailModal').classList.remove('hidden','closing');$('#emailRecipientsBox').focus()}
+    function emailRecipients(){const all=recipientBoxValues();if(!all.length)throw new Error('Enter at least one recipient in the recipients box.');const invalid=all.find(value=>!/^\S+@\S+\.\S+$/.test(value));if(invalid)throw new Error(`Invalid email address: ${invalid}`);return all}
+    async function sendQcEmail(){let recipients;try{recipients=emailRecipients()}catch(error){setStatus(error.message||String(error),'bad');return}const button=$('#sendEmailButton');button.disabled=true;button.textContent='Sending...';setStatus('Saving, signing off, and preparing email...','saving');try{await flushSave();if(window.__DEMO_HOST!==CONFIG.realm){returnToMainApp('Entry Submitted',true);return}if(!state.reviewRid)throw new Error('The Review Sheet record was not created.');const qcUrl=await refreshQcAction();if(!qcUrl)throw new Error('Quickbase did not return the QC Sign action.');const emailUrl=nativeEmailUrl(),qcResponse=await fetch(withRedirect(qcUrl,emailUrl),{credentials:'include'});if(!qcResponse.ok)throw new Error(`QC Signoff failed (${qcResponse.status}).`);await qcResponse.text();const form=new URLSearchParams({toList:recipients.join('; '),subject:$('#emailSubject').value.trim(),msg:$('#emailMessage').value,send:'Send Email'}),sendResponse=await fetch(`https://${CONFIG.realm}/db/${CONFIG.reviewTableId}?a=DoValidateEmailRecord`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:form,redirect:'follow'}),result=await sendResponse.text();if(!sendResponse.ok)throw new Error(`Quickbase email failed (${sendResponse.status}).`);if(/a=DoValidateEmailRecord/i.test(sendResponse.url)&&/(error|invalid|required)/i.test(result.replace(/<style[\s\S]*?<\/style>/gi,'')))throw new Error('Quickbase did not accept the recipients box. Check the addresses and try again.');returnToMainApp('Entry Submitted',true)}catch(error){button.disabled=false;button.textContent='QC Signoff + Send Email';setStatus(error.message||String(error),'bad')}}
+
+    function readAttachment(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>{const result=String(reader.result||''),comma=result.indexOf(',');if(comma<0){reject(new Error('The selected file could not be encoded.'));return}resolve({fileName:file.name,data:result.slice(comma+1)})};reader.onerror=()=>reject(new Error('The selected file could not be read.'));reader.readAsDataURL(file)})}
+    async function optimizeImage(file){if(!/^image\//i.test(file.type)||/gif|svg/i.test(file.type))return file;try{const bitmap=await createImageBitmap(file),maxSide=1000,targetBytes=950*1024,scale=Math.min(1,maxSide/Math.max(bitmap.width,bitmap.height));if(scale===1&&file.size<=targetBytes){bitmap.close();return file}const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));const context=canvas.getContext('2d',{alpha:false});context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();let quality=.82,blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));while(blob&&blob.size>targetBytes&&quality>.42){quality=Math.max(.42,quality-.1);blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality))}while(blob&&blob.size>targetBytes&&Math.max(canvas.width,canvas.height)>300){const copy=document.createElement('canvas');copy.width=Math.max(1,Math.round(canvas.width*.85));copy.height=Math.max(1,Math.round(canvas.height*.85));const copyContext=copy.getContext('2d',{alpha:false});copyContext.fillStyle='#fff';copyContext.fillRect(0,0,copy.width,copy.height);copyContext.drawImage(canvas,0,0,copy.width,copy.height);canvas.width=copy.width;canvas.height=copy.height;context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(copy,0,0);blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.42))}if(!blob||blob.size>targetBytes)throw new Error('The photo could not be reduced below 1 MB.');const name=/\.jpe?g$/i.test(file.name)?file.name:file.name.replace(/\.[^.]+$/,'')+'.jpg';return new File([blob],name,{type:'image/jpeg',lastModified:Date.now()})}catch(error){console.warn('Photo optimization failed.',error);throw new Error('This photo could not be optimized. Please choose a JPEG, PNG, or WebP image.')}}
+    $('#lookupForm').addEventListener('submit',event=>{event.preventDefault();lookup()});$('#poInput').addEventListener('input',event=>{event.target.value=numeric(event.target.value);scheduleBarcodeSuggestions()});$('#poInput').addEventListener('change',()=>loadBarcodeSuggestions());$('#barcodeInput').addEventListener('input',event=>{event.target.value=numeric(event.target.value).slice(0,5);schedulePoSuggestions()});$('#barcodeInput').addEventListener('change',()=>loadPoSuggestions());$('#notesInput').addEventListener('input',event=>{state.notes=event.target.value;clearTimeout(state.notesTimer);setStatus('Notes changed...','saving');state.notesTimer=setTimeout(queueSave,650)});$('#attachmentInput').addEventListener('change',async event=>{let file=event.target.files?.[0];if(!file)return;if(file.size>30*1024*1024){event.target.value='';setStatus('Files must be 30 MB or smaller.','bad');return}try{setStatus(/^image\//i.test(file.type)?'Optimizing photo...':`Preparing ${file.name}...`,'saving');file=await optimizeImage(file);setStatus(`Uploading ${file.name}...`,'saving');state.pendingAttachment=await readAttachment(file);renderWorkspace();await queueSave();event.target.value=''}catch(error){setStatus(error.message||String(error),'bad')}});$('#saveCloseButton').addEventListener('click',qcSignoff);$('#emailButton').addEventListener('click',openEmailComposer);$('#newSearchButton').addEventListener('click',newSearch);$('#emailRecipientsBox').addEventListener('input',syncRecipientChecks);$('#cancelEmailButton').addEventListener('click',()=>$('#emailModal').classList.add('hidden'));$('#sendEmailButton').addEventListener('click',sendQcEmail);$('#emailModal').addEventListener('click',event=>{if(event.target===event.currentTarget)event.currentTarget.classList.add('hidden')});document.addEventListener('keydown',event=>{if(event.key==='Escape')$('#emailModal').classList.add('hidden')});$('#reloadButton').addEventListener('click',async()=>{setStatus('Reloading...','saving');const item=state.item;resetReviewState();state.item=item;await prepareReview(item);renderWorkspace();setStatus('Reloaded.','good')});$('#reopenButton').addEventListener('click',async()=>{state.closed=false;if(state.reviewRid&&window.__DEMO_HOST===CONFIG.realm){setStatus('Reopening...','saving');const item=state.item;resetReviewState();state.item=item;await loadReview(item)}renderWorkspace();setStatus('Review reopened.','good')});$('#qcButton').addEventListener('click',qcSignoff);renderRecentSearches();restoreEntrySubmitted();
+    $('#lookupForm').addEventListener('keydown',handleSearchComboKeydown,true);
+    $('#poInput').addEventListener('input',()=>showSearchCombo('po'));
+    $('#barcodeInput').addEventListener('input',event=>{event.stopImmediatePropagation();event.target.value=barcodeKey(event.target.value).slice(0,5);schedulePoSuggestions();showSearchCombo('barcode')},true);
+    ['po','barcode'].forEach(name=>{const{input,menu}=comboParts(name),field=input.closest('.search-combo');input.addEventListener('focus',()=>showSearchCombo(name));input.addEventListener('click',()=>showSearchCombo(name));field.addEventListener('focusout',()=>setTimeout(()=>{if(!field.matches(':focus-within'))hideSearchCombo(name)},0));menu.addEventListener('mousedown',event=>{const option=event.target.closest('[data-search-option]');if(!option)return;event.preventDefault();chooseSearchOption(name,option.dataset.value)})});
+    document.addEventListener('pointerdown',event=>{if(!event.target.closest?.('#lookupForm'))hideSearchCombos()});window.addEventListener('blur',()=>hideSearchCombos());
+    $('#cancelEmailButton').addEventListener('click',event=>{event.stopImmediatePropagation();closeEmailComposer()},true);$('#emailModal').addEventListener('click',event=>{if(event.target===event.currentTarget){event.stopImmediatePropagation();closeEmailComposer()}},true);document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('#emailModal').classList.contains('hidden')){event.stopImmediatePropagation();closeEmailComposer()}},true);
+    $('#qrButton').addEventListener('click',openQrModal);$('#closeQrButton').addEventListener('click',closeQrModal);$('#copyQrButton').addEventListener('click',copyQrLink);$('#qrModal').addEventListener('click',event=>{if(event.target===event.currentTarget)closeQrModal()});document.addEventListener('keydown',event=>{if(event.key==='Escape')closeQrModal()});restorePhoneHandoff();
+  </script>
+<!-- demo-choice:start (managed by demo_choice.py: edit demo_choice_snippet.html, not this copy) -->
+<style id="demo-choice-style">
+  /* "Which barcode did you mean?" When several different UPCs end in the same five digits, the person picks one. */
+  dialog.exc{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 32px);margin:auto;padding:0;border:1px solid #d6e0e3;border-radius:14px;background:#fff;color:#132a35;box-shadow:0 24px 70px rgba(2,32,40,.3);font:14px/1.45 "Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;text-align:left;overflow:hidden}
+  dialog.exc::backdrop{background:rgba(2,32,40,.45)}
+  dialog.exc[open]{display:flex;flex-direction:column}
+  dialog.exc *{box-sizing:border-box}
+  /* Reset whatever the page does to these tags; :where() keeps the reset weaker than the rules below. */
+  :where(dialog.exc) :where(button,a,h2,p,ul,li,div,span,b,code){all:unset;box-sizing:border-box}
+  :where(dialog.exc) :where(div,p,h2,ul,li){display:block}
+  .exc-head{padding:18px 20px 12px;border-bottom:1px solid #e3eaec}
+  .exc-head h2{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .exc-head p{margin-top:5px;color:#62757c}
+  .exc-list{flex:1 1 auto;min-height:0;overflow:auto;padding:6px 12px}
+  .exc-item{display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid #eef2f3}
+  .exc-item:last-child{border-bottom:0}
+  .exc-text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .exc-text b{font-size:15px;font-weight:700;overflow-wrap:anywhere}
+  .exc-text code{font:600 14px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.03em}
+  .exc-text code mark{all:unset;border-radius:3px;background:#ffe9a8;color:#132a35}
+  .exc-text span{color:#62757c;font-size:13px;overflow-wrap:anywhere}
+  .exc-text a{width:max-content;max-width:100%;margin-top:2px;color:#5257b8;font-size:13px;font-weight:700;text-decoration:underline;cursor:pointer}
+  .exc-text a:focus-visible,.exc-use:focus-visible,.exc-cancel:focus-visible{outline:2px solid #5257b8;outline-offset:2px}
+  .exc-use{flex:none;height:38px;padding:0 14px;display:inline-flex;align-items:center;border-radius:9px;background:#3b3f8f;color:#fff;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer}
+  .exc-use:hover{background:#2d3070}
+  .exc-foot{display:flex;justify-content:flex-end;padding:12px 20px;border-top:1px solid #e3eaec}
+  .exc-cancel{height:36px;padding:0 14px;display:inline-flex;align-items:center;border:1px solid #c3d2d6;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer}
+  .exc-cancel:hover{background:#eef4f5}
+  @media(max-width:480px){.exc-item{flex-wrap:wrap}.exc-use{width:100%;justify-content:center}}
+  /* Inside the Illustrator panel the dialog takes the panel's dark greys. */
+  html.panel-mode dialog.exc{border-color:#2f2f2f;border-radius:4px;background:#535353;color:#dedede;font:12px/1.4 "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif}
+  html.panel-mode .exc-head,html.panel-mode .exc-foot,html.panel-mode .exc-item{border-color:#434343}
+  html.panel-mode .exc-head{padding:12px 12px 9px}html.panel-mode .exc-head h2{font-size:13px;color:#f2f2f2}
+  html.panel-mode .exc-head p,html.panel-mode .exc-text span{color:#b9b9b9;font-size:11.5px}
+  html.panel-mode .exc-list{padding:2px 8px}html.panel-mode .exc-item{gap:10px;padding:9px 4px}
+  html.panel-mode .exc-text b{font-size:12.5px;color:#f2f2f2}html.panel-mode .exc-text code{font-size:12px}
+  html.panel-mode .exc-text a{color:#8ab4f8;font-size:11.5px}
+  /* Buttons look the same in every panel, whatever the panel's own button styles are: grey, compact, on the right. */
+  html.panel-mode dialog.exc .exc-use,html.panel-mode dialog.exc .exc-cancel{flex:none;width:auto!important;height:24px!important;padding:0 10px!important;display:inline-flex;align-items:center;justify-content:center;border:1px solid #8c8c8c!important;border-radius:3px!important;background:#4a4a4a!important;color:#f0f0f0!important;font:600 11.5px "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif!important;white-space:nowrap;box-shadow:none!important;cursor:pointer}
+  html.panel-mode dialog.exc .exc-use:hover,html.panel-mode dialog.exc .exc-cancel:hover{background:#5e5e5e!important}
+  html.panel-mode .exc-foot{padding:8px 12px}
+  @media(max-width:330px){html.panel-mode .exc-item{flex-wrap:wrap}}
+</style>
+<script id="demo-choice-script">
+/*
+  DemoChoice: one shared answer to "several barcodes end in these five digits".
+
+    const rows = await DemoChoice.resolve({
+      code,                         // the digits that were typed
+      rows,                         // every record that matched
+      upc:    row => '...',         // full barcode of a record
+      brand:  row => '...',         // brand (or item name) shown in bold
+      detail: row => '...',         // optional second line
+      link:   row => 'https://...', // the record in Quickbase, so the person can check it
+      remember: false,              // true = ask once per code until the page reloads or DemoChoice.forget()
+      memo: ''                      // optional name for that memory (default: the code), e.g. one per slot
+    });
+
+  One distinct barcode among the rows: they come straight back, nothing is shown. Several: a dialog lists each
+  barcode once and resolves to that barcode's rows, or to null when the person cancels.
+*/
+(function () {
+  'use strict';
+  const digits = value => String(value == null ? '' : value).replace(/\D/g, '');
+  const esc = text => String(text == null ? '' : text).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const remembered = new Map();
+  let queue = Promise.resolve();
+
+  function ask(code, groups) {
+    return new Promise(resolve => {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'exc';
+      const tail = digits(code).slice(-5);
+      const shown = upc => { const text = esc(upc), at = tail ? text.lastIndexOf(tail) : -1; return at < 0 ? text : `${text.slice(0, at)}<mark>${tail}</mark>${text.slice(at + tail.length)}`; };
+      dialog.innerHTML = `<div class="exc-head"><h2>${groups.length} barcodes end in ${esc(tail || code)}</h2><p>Choose the one you mean. Open it in Quickbase first if you want to check.</p></div>` +
+        `<ul class="exc-list">${groups.map((group, index) => `<li class="exc-item"><div class="exc-text"><b>${esc(group.brand || 'No brand on record')}</b><code>${shown(group.upc)}</code>` +
+          `${group.detail ? `<span>${esc(group.detail)}</span>` : ''}${group.link ? `<a href="${esc(group.link)}" target="_blank" rel="noopener">Open in Quickbase</a>` : ''}</div>` +
+          `<button type="button" class="exc-use" data-index="${index}">Use this one</button></li>`).join('')}</ul>` +
+        '<div class="exc-foot"><button type="button" class="exc-cancel">Cancel</button></div>';
+      let answer = null, done = false;
+      // Finishes straight away on a click; the close event alone can arrive late (or not at all in a hidden tab).
+      const finish = () => { if (done) return; done = true; if (dialog.open) dialog.close(); dialog.remove(); resolve(answer); };
+      dialog.addEventListener('click', event => {
+        const use = event.target.closest('.exc-use');
+        if (use) { answer = groups[Number(use.dataset.index)]; finish(); }
+        else if (event.target.closest('.exc-cancel')) finish();
+      });
+      dialog.addEventListener('close', finish);     // Esc
+      document.body.append(dialog);
+      dialog.showModal();
+    });
+  }
+
+  function resolve(options) {
+    const rows = options.rows || [], groups = [], byKey = new Map();
+    for (const row of rows) {
+      // The same barcode written with or without its leading zeros is still one barcode.
+      const upc = String(options.upc(row) || '').trim(), key = digits(upc).replace(/^0+/, '') || upc.toLowerCase();
+      if (!byKey.has(key)) {
+        const group = { key, upc, rows: [], brand: options.brand ? String(options.brand(row) || '').trim() : '',
+                        detail: options.detail ? String(options.detail(row) || '').trim() : '', link: options.link ? String(options.link(row) || '') : '' };
+        byKey.set(key, group);
+        groups.push(group);
+      }
+      byKey.get(key).rows.push(row);
+    }
+    if (groups.length <= 1) return Promise.resolve(rows);
+    groups.sort((a, b) => a.brand.localeCompare(b.brand, undefined, { sensitivity: 'base' }) || a.key.localeCompare(b.key));
+    const memo = options.memo || digits(options.code) || String(options.code);
+    if (options.remember && byKey.has(remembered.get(memo))) return Promise.resolve(byKey.get(remembered.get(memo)).rows);
+    // One dialog at a time, even when several lookups run together.
+    const turn = queue.then(async () => {
+      if (options.remember && byKey.has(remembered.get(memo))) return byKey.get(remembered.get(memo)).rows;
+      const picked = await ask(options.code, groups);
+      if (picked && options.remember) remembered.set(memo, picked.key);
+      return picked ? picked.rows : null;
+    });
+    queue = turn.catch(() => {});
+    return turn;
+  }
+
+  window.DemoChoice = { resolve, forget(code) { if (code === undefined) remembered.clear(); else remembered.delete(digits(code) || String(code)); },
+                         record: (table, rid) => `https://demo.quickbase.example/db/${encodeURIComponent(table)}?a=dr&rid=${encodeURIComponent(String(rid).replace(/\.0+$/, ''))}` };
+})();
+</script>
+<!-- demo-choice:end -->
+<!-- demo-launcher:start (managed by demo_launcher.py: edit demo_launcher_snippet.html, not this copy) -->
+
+
+
+</body>
+</html>

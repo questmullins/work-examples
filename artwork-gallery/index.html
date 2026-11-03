@@ -1,0 +1,1604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script id="demo-backend">
+/* Demo backend. Answers this page's Quickbase calls in the browser from made-up records, so the tool runs with no
+   server and no account. Every company, product, person and address here is fictional. Changes last until reload. */
+(function () {
+  var HOST = 'demo.quickbase.example';
+  window.__DEMO_HOST = HOST;
+
+  var BRANDS = [
+    {customer: 'Trailhead Pet Co', code: 'TH', prefix: '00011'},
+    {customer: 'Northfield Pet Foods', code: 'NF', prefix: '00012'},
+    {customer: 'Sunny Paws Kitchen', code: 'SP', prefix: '00013'},
+    {customer: 'Bramble & Bone', code: 'BB', prefix: '00014'},
+    {customer: 'Copper Creek Provisions', code: 'CC', prefix: '00015'},
+    {customer: 'Little Harbor Treats', code: 'LH', prefix: '00016'},
+    {customer: 'Meadowlark Mills', code: 'MM', prefix: '00017'},
+    {customer: 'Oak & Ember Foods', code: 'OE', prefix: '00018'},
+    {customer: 'Tidewater Snacks', code: 'TW', prefix: '00019'},
+    {customer: 'Pine Ridge Grains', code: 'PR', prefix: '00020'}
+  ];
+  // Every shape here has a template in the mockup tool.
+  var SHAPES = [
+    {format: 'Quad Seal Bag', style: 'Flat Bottom', gusset: 'Terminated Gusset', sizes: [[7, 11.5, 3.5, '12 oz'], [8.5, 14, 4, '2 lb'], [10, 16, 4.5, '4 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Non-Terminated Gusset', sizes: [[11.5, 18.25, 4.125, '10 lb'], [13, 22, 5, '15 lb'], [15.75, 26.5, 4.5, '25 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Terminated Gusset', sizes: [[8, 13, 4, '3.5 lb'], [9.5, 15, 4, '5 lb'], [12, 20, 4.5, '12 lb']]},
+    {format: 'Stand-Up Pouch', style: 'Angle Plow', gusset: '', sizes: [[5, 7.75, 2.5, '5 oz'], [6, 9, 3, '8 oz'], [7.25, 11, 3.5, '1 lb']]},
+    {format: 'Stand-Up Pouch', style: 'K-Seal', gusset: '', sizes: [[7, 10, 3.25, '10 oz'], [6, 8.5, 2.75, '6 oz'], [8, 12, 3.5, '1.5 lb']]}
+  ];
+  var RECIPES = ['Grain-Free Salmon Kibble', 'Turkey Training Bites', 'Pumpkin Berry Minis', 'Chicken Recipe Kibble', 'Freeze-Dried Beef Morsels', 'Duck & Sweet Potato Bites', 'Lamb & Rice Dinner', 'Peanut Butter Crunch', 'Ancient Grain Granola', 'Sea Salt Veggie Crisps', 'Dark Roast Coffee', 'Honey Oat Clusters'];
+  var LAYERS = ['MATTE / PET / FOIL / LLDPE', 'MATTE / PET / MET PET / LLDPE', 'GLOSS / PET / MET PET / LLDPE', 'SOFT TOUCH / PET / FOIL / LLDPE', 'SOFT TOUCH / PET / MET PET / LLDPE', 'MATTE / PET / PET / LLDPE', 'GLOSS / PET / EVOH / LLDPE', 'MATTE / PE / EVOH / PE', 'GLOSS / KRAFT / MET PET / LLDPE', 'SOFT TOUCH / PET / ALOX / LLDPE'];
+  var COLORS = ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'PMS 186 C', 'PMS 2728 C', 'PMS 349 C', 'PMS 7406 C', 'PMS 485 C', 'PMS 2607 C', 'PMS 7421 C'];
+  var PEOPLE = ['Demo Designer', 'Alex Morgan', 'Jordan Lee', 'Priya Nair', 'Casey Tran', 'Riley Brooks'];
+  var ZIPPERS = ['Small Zipper', 'No Zipper', 'Small Zipper', 'Pocket Zipper'];
+  var PRODUCTS = [];
+  BRANDS.forEach(function (brand, b) {
+    for (var i = 0; i < 6; i++) {
+      var shape = SHAPES[(b + i) % SHAPES.length], size = shape.sizes[(b + i * 2) % 3];
+      PRODUCTS.push({b: b, name: RECIPES[(b * 2 + i) % RECIPES.length], weight: size[3], format: shape.format, style: shape.style, gusset: shape.gusset, w: size[0], h: size[1], g: size[2], layers: LAYERS[(b + i * 3) % LAYERS.length]});
+    }
+  });
+  var ADDRESSES = [
+    ['100 Example Way', 'Dock 2', 'Springfield', 'IL', '62704'],
+    ['250 Sample Road', '', 'Riverton', 'WY', '82501'],
+    ['17 Placeholder Ave', 'Suite 300', 'Fairview', 'TN', '37062'],
+    ['900 Demo Parkway', '', 'Madison', 'WI', '53703'],
+    ['44 Mockup Lane', 'Building B', 'Georgetown', 'TX', '78626'],
+    ['312 Fictional Blvd', '', 'Salem', 'OR', '97301'],
+    ['8 Test Harbor Rd', 'Unit 12', 'Clinton', 'IA', '52732'],
+    ['1200 Sample Mill Dr', '', 'Franklin', 'KY', '42134'],
+    ['75 Placeholder Pier', 'Dock 9', 'Bristol', 'RI', '02809'],
+    ['560 Example Ridge', '', 'Greenville', 'SC', '29601']
+  ];
+  function day(offset) { var d = new Date(Date.UTC(2026, 8, 20) - offset * 864e5); return d.toISOString().slice(0, 10); }
+  function pick(list, i) { return list[i % list.length]; }
+  function colorBank(row, start, n) { for (var c = 0; c < 10; c++) row[start + c] = c < 4 ? COLORS[c] : c < 4 + (n % 4) ? COLORS[4 + (n + c) % 8] : ''; }
+  function ms(offset) { return String(Date.UTC(2026, 8, 20) - offset * 864e5); }
+
+  var tables = {
+    bdemocust: [], bdemoopps: [], bdemofami: [], bdemospec: [], bdemostyl: [], bdemoaddr: [], bdemoship: [],
+    bdemoprod: [], bdemoordr: [], bdemoitem: [], bdemoartv: [], bdemomock: [], bdemorevw: [], bdemodens: [],
+    bdemofont: [], bdemolayr: [], bdemofill: [], bdemolist: [], bdemotask: [], bdemotime: [], bdemosrvc: []
+  };
+  var labels = {
+    bdemoprod: {name: 'Products', 2209: 'Filing #', 3: 'Record ID#', 12: 'Item Name', 13: 'Legacy Item Name', 14: 'Legacy UPC', 128: 'Art Versions', 132: 'UPC', 136: 'Art Version Count', 141: 'Brand', 353: 'Current Vendor Proof', 604: 'Approved Color Standard', 662: 'Current Customer Proof'},
+    bdemoitem: {name: 'Order Items', 1: 'Date Created', 3: 'Record ID#', 7: 'Customer', 13: 'UPC', 14: 'Item', 161: 'Weight', 184: 'PO', 329: 'Artwork Link', 382: 'Brand', 506: 'Family', 710: 'Layers', 711: 'Dimensions', 2122: 'Format', 2243: 'Style'},
+    bdemoartv: {name: 'Art Versions', 3: 'Record ID#', 11: 'Version Date', 12: 'Art Type', 37: 'Related Item', 61: 'Art REV', 152: 'Version', 361: 'Vendor Proof', 583: 'Inactive Art', 588: 'Customer Proof'},
+    bdemocust: {name: 'Customers', 3: 'Record ID#', 6: 'Customer Name', 125: 'Inactive'},
+    bdemoordr: {name: 'Orders', 3: 'Record ID#', 18: 'Customer PO'},
+    bdemofami: {name: 'Families', 3: 'Record ID#', 6: 'Family', 31: 'Current Spec'},
+    bdemospec: {name: 'Family Specifications', 3: 'Record ID#', 15: 'Format', 14: 'Style', 151: 'Layers'},
+    bdemomock: {name: 'Mock-Ups', 3: 'Record ID#', 9: 'Format', 10: 'Style', 39: 'Product Name'},
+    bdemolist: {name: 'Art Checklists', 3: 'Record ID#', 13: 'Description', 18: 'Brand'},
+    bdemotask: {name: 'Checklist Tasks', 3: 'Record ID#', 27: 'Department', 28: 'Description'},
+    bdemofill: {name: 'Fill Recordings', 3: 'Record ID#', 12: 'Format', 13: 'Style'},
+    bdemodens: {name: 'Product Densities', 3: 'Record ID#', 6: 'Brand', 7: 'Product', 14: 'Average'},
+    bdemofont: {name: 'System Fonts', 3: 'Record ID#', 6: 'Font Name', 7: 'Font File'}
+  };
+
+  BRANDS.forEach(function (b, i) {
+    var rid = String(i + 1), a = ADDRESSES[i];
+    tables.bdemocust.push({3: rid, 6: b.customer, 125: '0'});
+    ['new pouch line', 'holiday pack', 'club size relaunch'].forEach(function (name, k) {
+      tables.bdemoopps.push({3: String(100 + i * 3 + k), 6: rid, 8: b.customer + ' ' + name, 23: k === 2 ? '1' : '0', 24: k === 2 ? 'Closed' : 'Open'});
+    });
+    tables.bdemoaddr.push({3: String(200 + i), 6: 'Main warehouse', 7: a[0], 8: a[1], 13: rid, 18: '1', 23: a[2], 24: a[3], 25: a[4]});
+    tables.bdemoaddr.push({3: String(250 + i), 6: 'Co-packer', 7: pick(ADDRESSES, i + 3)[0], 8: '', 13: rid, 18: '0', 23: pick(ADDRESSES, i + 3)[2], 24: pick(ADDRESSES, i + 3)[3], 25: pick(ADDRESSES, i + 3)[4]});
+    tables.bdemoship.push({3: String(300 + i), 8: a[0], 9: a[1], 10: a[2], 11: a[3], 12: a[4], 13: 'United States', 16: b.customer});
+  });
+  SHAPES.forEach(function (shape, s) {
+    shape.sizes.forEach(function (size, k) {
+      for (var r = 0; r < 4; r++) {
+        var area = size[0] * size[1], fill = 68 + (s * 3 + k * 5 + r * 4) % 24;
+        tables.bdemofill.push({3: String(400 + s * 12 + k * 4 + r), 1: ms(s * 30 + k * 11 + r * 17), 6: String(+(2 + r * 1.5 + k).toFixed(1)), 7: String(+(0.5 + k * 2 + r).toFixed(1)), 8: String(size[1]), 9: String(size[0]), 10: String(size[2]), 11: pick(BRANDS, s + r).prefix + '00' + (101 + s + r), 12: shape.format, 13: shape.style, 14: shape.gusset, 15: pick(ZIPPERS, k + r), 16: String(+area.toFixed(1)), 17: String(fill), 18: String(Math.round(area * size[2] * fill / 100))});
+      }
+    });
+  });
+  [['Quad Seal Bag', 'Flat Bottom'], ['Quad Seal Bag', 'Pinched Bottom'], ['Stand-Up Pouch', 'K-Seal'], ['Stand-Up Pouch', 'Doyen'], ['Three Side Seal', 'Flat Pouch']].forEach(function (s, i) {
+    tables.bdemostyl.push({3: String(i + 1), 6: s[1], 7: s[0]});
+  });
+
+  PRODUCTS.forEach(function (p, i) {
+    var b = BRANDS[p.b], n = i + 1, upc = b.prefix + '00' + (100 + n), rid = String(100 + n), title = b.customer + ' ' + p.name + ' ' + p.weight;
+    var dims = p.w + ' x ' + p.h + ' x ' + p.g, combo = [p.format, p.style, p.gusset].join(' / '), family = b.code + '-' + String(p.w * 100) + '-' + n;
+    var po = String(21000 + n), order = String(500 + n), art = 'https://files.demo-packaging.example/f/' + b.code + n;
+    var spec = String(300 + n), fam = String(200 + n);
+    tables.bdemospec.push({3: spec, 6: fam, 12: 'v1', 14: p.style, 15: p.format, 43: p.gusset, 53: String(p.w), 54: String(p.h), 55: String(p.g), 56: String(p.w * 25.4), 57: String(p.h * 25.4), 58: String(p.g * 25.4), 65: 'in', 146: 'Zipper', 149: '1.5', 151: p.layers, 154: dims, 155: p.format + ' / ' + p.style, 428: '1.5', 1543: 'Current'});
+    tables.bdemofami.push({3: fam, 6: family, 9: String(p.b + 1), 31: spec, 76: b.customer + ' ' + family, 144: '0'});
+    tables.bdemoprod.push({3: rid, 12: title, 13: title, 14: upc, 128: '2', 132: upc, 136: '2', 141: b.customer, 225: '', 2209: 'Shelf ' + n, 353: 'Rev ' + n, 539: 'Match the approved pantone swatch.', 604: 'On file', 662: 'Rev ' + n});
+    // The first order of each product keeps PO 21000 + n; some products reorder under later POs.
+    for (var o = 0; o < 1 + i % 3; o++) {
+      var line = String(1000 + n * 10 + o), orderId = String(+order + o * 100), thisPo = String(+po + o * 1000), age = i * 8 + o * 120, approved = (i + o) % 3 > 0;
+      tables.bdemoordr.push({3: orderId, 18: thisPo});
+      tables.bdemoitem.push({1: ms(age), 2: ms(age / 2), 3: line, 6: orderId, 7: b.customer, 8: orderId, 13: upc, 14: title, 151: rid, 161: p.weight, 162: title, 163: o ? 'Reorder' : 'New', 184: thisPo, 262: day(age), 265: '0' + (o + 1) + '.26', 329: art, 382: b.customer, 417: approved ? '1' : '0', 419: approved ? day(age / 2) : '', 420: 'Press sheet ' + thisPo, 506: family, 573: o ? 'Revised' : 'New', 710: p.layers, 711: dims, 712: combo, 794: 'Zipper at 1.5"', 2122: p.format, 2209: 'Shelf ' + n, 2243: p.style, 2331: String(p.w), 2332: String(p.h), 2333: String(p.g), 2412: '0', 2519: '0', 2693: '', 2694: '', 2695: '0', 2696: ''});
+      tables.bdemorevw.push({3: String(5000 + n * 10 + o), 7: '', 8: '', 10: '', 16: '', 17: '', 19: '', 31: '', 34: '', 35: line, 41: p.format, 42: p.style, 44: dims, 54: '0', 63: '0', 67: combo});
+    }
+    [0, 1, 2].slice(0, 2 + i % 2).forEach(function (v, index, all) {
+      var artRow = {3: String(2000 + n * 4 + v), 10: title, 11: day(i * 8 + v * 95), 12: v === all.length - 1 ? 'New' : 'Revised', 18: 'Art REV', 37: rid, 40: title, 58: upc, 59: title, 61: '0' + (all.length - v) + '.26', 84: b.customer, 127: fam, 152: String(all.length - v), 205: v ? '0' : '1', 330: b.customer, 361: art + '-vendor.pdf', 376: p.weight, 481: String(parseFloat(p.weight)), 522: dims, 523: combo, 524: 'Tear notch', 525: p.layers, 526: 'Zipper, tear notch', 583: v ? '1' : '0', 588: art + '-customer.pdf', 624: upc};
+      colorBank(artRow, 191, n); colorBank(artRow, 571, n + 1); colorBank(artRow, 589, n + 2);
+      tables.bdemoartv.push(artRow);
+    });
+    tables.bdemomock.push({1: ms(i * 7), 3: String(1500 + n), 6: 'Opportunity ' + n, 7: p.format, 9: p.format, 10: p.style, 11: p.style, 12: String(p.w), 13: String(p.h), 14: String(p.g), 15: p.weight, 16: '1', 18: '3', 19: 'Demo mockup request.', 22: day(-7), 26: pick(ZIPPERS, i), 27: 'PET12/LLDPE100', 33: p.gusset, 35: String(p.b + 1), 36: b.customer, 39: p.name, 40: '1.5', 49: 'Mockup', 51: 'Opportunity ' + n, 53: p.format, 54: p.style, 56: p.gusset, 57: String(p.w), 58: String(p.h), 59: String(p.g), 62: pick(ZIPPERS, i), 63: '1.5', 74: ADDRESSES[p.b][0], 75: ADDRESSES[p.b][1], 76: ADDRESSES[p.b][2], 77: ADDRESSES[p.b][3], 78: ADDRESSES[p.b][4], 79: 'United States'});
+    var cups = [0, 1, 2, 3, 4].map(function (c) { return (2.1 + (n % 7) * 0.12 + ((n + c * 3) % 5) * 0.02).toFixed(2); });
+    tables.bdemodens.push({3: String(i + 1), 1: ms(i * 5), 6: b.customer, 7: p.name, 8: '', 9: cups[0], 10: cups[1], 11: cups[2], 12: cups[3], 13: cups[4], 14: (cups.reduce(function (s, v) { return s + +v; }, 0) / 5).toFixed(2)});
+  });
+
+  ['Demo Sans Regular', 'Demo Sans Medium', 'Demo Sans Bold', 'Demo Serif Regular', 'Demo Serif Italic', 'Demo Mono', 'Demo Condensed'].forEach(function (name, i) { tables.bdemofont.push({3: String(i + 1), 6: name, 7: ''}); });
+  LAYERS.forEach(function (name, i) { tables.bdemolayr.push({3: String(i + 1), 6: name, 7: String(40 - i * 3)}); });
+  PRODUCTS.slice(0, 12).forEach(function (p, i) {
+    var lid = String(3000 + i), b = BRANDS[p.b], done = i % 5;
+    tables.bdemolist.push({3: lid, 10: String(501 + i), 13: 'Art checklist: ' + p.name, 14: '0', 16: '0', 17: String(p.b + 1), 18: b.customer, 19: String(21001 + i), 21: '4', 25: pick(PEOPLE, i), 29: String(1 + i % 4 * 0.5), 30: String(4 - Math.min(done, 4))});
+    ['Prepress', 'Proofreading', 'PC', 'Engineering'].forEach(function (dept, t) {
+      tables.bdemotask.push({3: String(3100 + i * 10 + t), 12: lid, 14: '0', 15: '', 16: t < done ? '1' : '0', 18: String(t + 1), 26: 'General', 27: dept, 28: dept + ' review of ' + p.name, 29: '', 32: String(t + 1), 34: '0'});
+    });
+  });
+  [['Prepress', 'Production Art'], ['Prepress', 'Proof Review'], ['Project Coordination', 'Scheduling'], ['Engineering', 'Dieline Review']].forEach(function (s, i) { tables.bdemosrvc.push({3: String(i + 1), 6: s[0], 7: s[1]}); });
+
+  var ids = {};
+  function nextRid(table) { ids[table] = ids[table] || Object.keys(tables[table] || {}).length + 90000; return String(++ids[table]); }
+  function rows(table) { return tables[table] || (tables[table] = []); }
+  function xmlEsc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+
+  // Quickbase query language: {fid.OP.'value'} joined by AND / OR, with parentheses.
+  function when(value) { return /^\d{10,}$/.test(value) ? +value : Date.parse(value) || 0; }
+  function test(row, fid, op, want) {
+    var have = String(row[fid] == null ? '' : row[fid]), h = have.toLowerCase(), w = String(want).toLowerCase(), n = parseFloat(have), m = parseFloat(want);
+    switch (op) {
+      case 'EX': case 'TV': return h === w;
+      case 'XEX': case 'XTV': return h !== w;
+      case 'CT': case 'HAS': return h.indexOf(w) >= 0;
+      case 'XCT': return h.indexOf(w) < 0;
+      case 'SW': return h.indexOf(w) === 0;
+      case 'XSW': return h.indexOf(w) !== 0;
+      case 'OAF': case 'AF': return when(have) >= when(want);
+      case 'OBF': case 'BF': return when(have) <= when(want);
+      case 'GT': return isNaN(n) ? have > want : n > m;
+      case 'GTE': return n >= m;
+      case 'LT': return isNaN(n) ? have < want : n < m;
+      case 'LTE': return n <= m;
+      default: return true;
+    }
+  }
+  function tokenize(q) {
+    var out = [], re = /\{\s*'?(\d+)'?\s*\.\s*([A-Z]+)\s*\.\s*'((?:\\.|[^'])*)'\s*\}|\(|\)|AND|OR/gi, m;
+    while ((m = re.exec(q))) out.push(m[1] ? {fid: m[1], op: m[2].toUpperCase(), value: m[3].replace(/\\(.)/g, '$1')} : m[0].toUpperCase());
+    return out;
+  }
+  function matcher(q) {
+    var t = tokenize(q || ''), i = 0;
+    if (!t.length) return function () { return true; };
+    function atom(row) {
+      var k = t[i++];
+      if (k === '(') { var v = or(row); i++; return v; }
+      return !k || !k.fid || test(row, k.fid, k.op, k.value);
+    }
+    function and(row) { var v = atom(row); while (t[i] === 'AND') { i++; var r = atom(row); v = v && r; } return v; }
+    function or(row) { var v = and(row); while (t[i] === 'OR') { i++; var r = and(row); v = v || r; } return v; }
+    return function (row) { i = 0; return or(row); };
+  }
+  function select(table, q, slist, options) {
+    var list = rows(table).filter(matcher(q)), opt = String(options || ''), sort = String(slist || '').split('.').filter(Boolean)[0];
+    if (sort) {
+      var desc = /sortorder-D/.test(opt);
+      list = list.slice().sort(function (a, b) { var x = a[sort], y = b[sort], nx = parseFloat(x), ny = parseFloat(y), c = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x || '').localeCompare(String(y || '')); return desc ? -c : c; });
+    }
+    var skip = /skp-(\d+)/.exec(opt), num = /num-(\d+)/.exec(opt);
+    if (skip) list = list.slice(+skip[1]);
+    if (num) list = list.slice(0, +num[1]);
+    return list;
+  }
+  function ok(body) { return '<?xml version="1.0"?><qdbapi><action>demo</action><errcode>0</errcode><errtext>No error</errtext>' + (body || '') + '</qdbapi>'; }
+  function labelOf(table, fid) { return (labels[table] && labels[table][fid]) || 'Field ' + fid; }
+  function fidsOf(table) { var seen = {}; rows(table).forEach(function (r) { Object.keys(r).forEach(function (k) { seen[k] = 1; }); }); Object.keys(labels[table] || {}).forEach(function (k) { if (k !== 'name') seen[k] = 1; }); return Object.keys(seen).sort(function (a, b) { return a - b; }); }
+  function doQuery(table, p) {
+    var list = select(table, p.query, p.slist, p.options), clist = String(p.clist || '').split('.').filter(function (x) { return /^\d+$/.test(x); });
+    if (!clist.length) clist = fidsOf(table);
+    var fields = clist.map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    var body = list.map(function (r) {
+      return '<record rid="' + xmlEsc(r[3]) + '">' + clist.map(function (f) { return '<f id="' + f + '">' + xmlEsc(r[f]) + '</f>'; }).join('') + '<update_id>1</update_id></record>';
+    }).join('');
+    return ok('<table><fields>' + fields + '</fields><records>' + body + '</records></table>');
+  }
+  function schema(table) {
+    if (!tables[table]) {
+      var kids = Object.keys(labels).map(function (t) { return '<chdbid name="_dbid_' + xmlEsc(labels[t].name.toLowerCase().replace(/\W+/g, '_')) + '">' + t + '</chdbid>'; }).join('');
+      return ok('<table><name>Demo Packaging</name><original><app_id>' + table + '</app_id></original><chdbids>' + kids + '</chdbids><fields></fields></table>');
+    }
+    var fields = fidsOf(table).map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    return ok('<table><name>' + xmlEsc((labels[table] || {}).name || table) + '</name><original><table_id>' + table + '</table_id></original><fields>' + fields + '</fields></table>');
+  }
+  function writeFields(p, body) {
+    var out = {}, k;
+    for (k in p) { var m = /^_fid_(\d+)$/.exec(k); if (m) out[m[1]] = p[k]; }
+    if (body && /<field/.test(body)) {
+      var doc = new DOMParser().parseFromString(body, 'text/xml');
+      [].forEach.call(doc.querySelectorAll('field'), function (n) { if (n.getAttribute('fid')) out[n.getAttribute('fid')] = n.textContent; });
+      var rid = doc.querySelector('rid'); if (rid) p.rid = rid.textContent;
+      ['query', 'clist', 'slist', 'options', 'varname'].forEach(function (name) { var e = doc.querySelector(name); if (e && !p[name]) p[name] = e.textContent; });
+    }
+    return out;
+  }
+  // The real page stores a generated script on the record. There is no record to open here, so hand it over as a download.
+  function saveUpload(body) {
+    var file = new DOMParser().parseFromString(body, 'text/xml').querySelector('field[filename]');
+    if (file) {
+      var bytes = Uint8Array.from(atob(file.textContent), function (c) { return c.charCodeAt(0); });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([bytes], {type: 'application/javascript'}));
+      link.download = file.getAttribute('filename');
+      window.__demoLastFile = {name: link.download, text: new TextDecoder().decode(bytes)};
+      link.click();
+    }
+    return ok('<rid>1</rid>');
+  }
+  function xmlApi(table, p, body) {
+    var fields = writeFields(p, body), row;
+    switch (p.a) {
+      case 'API_DoQuery': return doQuery(table, p);
+      case 'API_DoQueryCount': return ok('<numMatches>' + select(table, p.query).length + '</numMatches>');
+      case 'API_GetDBVar': return ok('<value>demo-value</value>');
+      case 'API_SetDBVar': return ok();
+      case 'API_GetUserInfo': return ok('<user id="1.demo"><firstName>Demo</firstName><lastName>User</lastName><login>demo.user</login><email>demo.user@demo-packaging.example</email><screenName>Demo User</screenName></user>');
+      case 'API_GetSchema': return schema(table);
+      case 'API_GetDBPage': return '';
+      case 'dbpage': return (window.__DEMO_PAGES || {})[p.pageID || p.pageid] || '';
+      case 'API_UploadFile': return saveUpload(body);
+      case 'API_AddRecord':
+        row = fields; row[3] = nextRid(table); row[1] = String(Date.now()); row[2] = row[1]; rows(table).unshift(row);
+        return ok('<rid>' + row[3] + '</rid><update_id>1</update_id>');
+      case 'API_EditRecord':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid || p.key); })[0];
+        if (row) Object.keys(fields).forEach(function (f) { row[f] = fields[f]; });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid><num_fields_changed>1</num_fields_changed><update_id>2</update_id>');
+      case 'API_DeleteRecord':
+        tables[table] = rows(table).filter(function (r) { return String(r[3]) !== String(p.rid); });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>');
+      case 'API_GetRecordInfo':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid); })[0] || {};
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>' + Object.keys(row).map(function (f) { return '<field><fid>' + f + '</fid><name>' + xmlEsc(labelOf(table, f)) + '</name><type>Text</type><value>' + xmlEsc(row[f]) + '</value></field>'; }).join(''));
+      default: return ok();
+    }
+  }
+  function restWhere(where) { return where || ''; }
+  function restApi(url, init) {
+    var path = url.pathname, body = {};
+    try { body = JSON.parse(init.body || '{}'); } catch (e) {}
+    if (/\/v1\/auth\/temporary\//.test(path)) return {temporaryAuthorization: 'demo-token'};
+    if (/\/v1\/records\/query/.test(path)) {
+      var select_ = body.select || [], sort = (body.sortBy || [])[0], list = select(body.from, restWhere(body.where), sort && sort.fieldId, sort && sort.order === 'DESC' ? 'sortorder-D' : '');
+      return {data: list.map(function (r) { var o = {}; select_.forEach(function (f) { o[f] = {value: r[f] == null ? '' : r[f]}; }); return o; }),
+        fields: select_.map(function (f) { return {id: f, label: labelOf(body.from, f), type: 'text'}; }),
+        metadata: {numRecords: list.length, numFields: select_.length, totalRecords: list.length, skip: 0}};
+    }
+    if (/\/v1\/records/.test(path)) {
+      var created = (body.data || []).map(function (src) { var row = {}; Object.keys(src).forEach(function (f) { row[f] = src[f] && src[f].value; }); row[3] = row[3] || nextRid(body.to); rows(body.to).unshift(row); return +row[3]; });
+      return {data: [], metadata: {createdRecordIds: created, updatedRecordIds: [], unchangedRecordIds: [], totalNumberOfRecordsProcessed: created.length}};
+    }
+    if (/\/v1\/fields/.test(path)) { var t = url.searchParams.get('tableId'); return fidsOf(t).map(function (f) { return {id: +f, label: labelOf(t, f), fieldType: 'text'}; }); }
+    if (/\/v1\/tables/.test(path)) return Object.keys(labels).map(function (t) { return {id: t, name: labels[t].name}; });
+    return {};
+  }
+  function params(url, init) {
+    var p = {};
+    url.searchParams.forEach(function (v, k) { p[k] = v; });
+    var b = init && init.body;
+    if (b && typeof b === 'string' && !/^\s*</.test(b)) new URLSearchParams(b).forEach(function (v, k) { p[k] = v; });
+    else if (b && b.forEach && !(b instanceof Blob)) b.forEach(function (v, k) { if (typeof v === 'string') p[k] = v; });
+    var h = init && init.headers, action = h && (h['QUICKBASE-ACTION'] || (h.get && h.get('QUICKBASE-ACTION')));
+    if (action) p.a = action;
+    return p;
+  }
+  function respond(url, init) {
+    var host = url.hostname;
+    if (host === 'api.quickbase.com') return new Response(JSON.stringify(restApi(url, init || {})), {status: 200, headers: {'Content-Type': 'application/json'}});
+    var m = /^\/db\/([^/?#]+)/.exec(url.pathname), p = params(url, init), text = m ? xmlApi(m[1], p, typeof (init || {}).body === 'string' ? init.body : '') : '';
+    return new Response(text, {status: 200, headers: {'Content-Type': 'text/xml'}});
+  }
+  var realFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var raw = input && input.url ? input.url : String(input), url = new URL(raw, location.href);
+    if (url.hostname === HOST || url.hostname === 'api.quickbase.com' || (url.origin === location.origin && /^\/db\//.test(url.pathname))) return Promise.resolve(respond(url, init || {}));
+    if (url.hostname.indexOf('.example') > 0) return Promise.resolve(new Response('', {status: 404}));
+    return realFetch.apply(this, arguments);
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var tag = document.createElement('div');
+    tag.textContent = 'Demo: fictional company and data';
+    tag.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 10px;border-radius:999px;background:#1f2937;color:#fff;font:600 12px/1 system-ui,sans-serif;opacity:.85;pointer-events:none';
+    document.body.appendChild(tag);
+  });
+})();
+
+</script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" id="app-favicon" type="image/webp" href="">
+  <title>Artwork Visual Search</title>
+  <style>
+    :root {
+      --ink: #123b45; --muted: #64777b; --teal: #4a4fa8; --teal-dark: #34387f;
+      --mint: #d8ebe6; --paper: #fff; --canvas: #f3f6f5; --line: #dce5e3;
+      --coral: #dc7958; --shadow: 0 12px 34px rgba(20, 57, 63, .09);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; background: var(--canvas); color: var(--ink); font: 14px/1.45 "Demo Grotesk UI",Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    button, input, select { font: inherit; }
+    .shell { width: min(1480px, calc(100% - 40px)); margin: 28px auto 56px; display: grid; grid-template-columns: 286px 1fr; gap: 24px; align-items: start; }
+    .filters { position: sticky; top: 20px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); }
+    .filters h1 { margin: 0 0 4px; font-size: 20px; letter-spacing: -.03em; }
+    .filters .hint { margin: 0 0 20px; color: var(--muted); font-size: 12px; }
+    .field { margin: 0 0 13px; }
+    label { display: block; margin-bottom: 5px; color: #36565d; font-size: 12px; font-weight: 700; }
+    .field-name { display:block; margin-bottom:5px; color:#36565d; font-size:12px; font-weight:700; }
+    .field-label-row { margin-bottom: 5px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .field-label-row label { margin:0; }
+    .layer-options-link { padding:0; border:0; background:none; color:#68a8b7; cursor:pointer; font-size:11px; font-weight:450; text-decoration:underline; text-underline-offset:2px; }
+    .layer-options-link:hover { color:var(--teal); }
+    input[type="text"], input[type="number"], input[type="date"], select { width: 100%; height: 39px; padding: 0 10px; border: 1px solid #cddad7; border-radius: 8px; outline: none; background: white; color: var(--ink); }
+    input:focus, select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(11, 102, 114, .1); }
+    select option:disabled { color:#a2b0b2; background:#f1f3f2; }
+    .layers-field { position:relative; z-index:1; }
+    .layers-field:focus-within { z-index:40; }
+    .layers-picker { min-height: 39px; padding: 5px 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; border: 1px solid #cddad7; border-radius: 8px; background: #fff; }
+    .layers-picker:focus-within { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(11,102,114,.1); }
+    .layers-picker input[type="text"] { width: 80px; min-width: 80px; height: 27px; flex: 1; padding: 0 3px; border: 0; box-shadow: none; }
+    .facet-field { position:relative; z-index:1; }
+    .facet-field:focus-within { z-index:40; }
+    .facet-picker { min-height:39px; padding:5px 8px; display:flex; flex-wrap:wrap; align-items:center; gap:5px; border:1px solid #cddad7; border-radius:8px; background:#fff; }
+    .facet-picker:focus-within { border-color:var(--teal); box-shadow:0 0 0 3px rgba(11,102,114,.1); }
+    .facet-picker input[type="text"] { width:80px; min-width:80px; height:27px; flex:1; padding:0 3px; border:0; box-shadow:none; }
+    .facet-chips { display:contents; }
+    .facet-chip { max-width:100%; padding:4px 6px 4px 8px; display:inline-flex; align-items:center; gap:5px; border-radius:6px; background:#e3f0f4; color:var(--teal-dark); font-size:11px; font-weight:800; }
+    .facet-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .facet-chip button { width:17px; height:17px; padding:0; border:0; border-radius:50%; background:rgba(8,76,86,.1); color:var(--teal-dark); cursor:pointer; }
+    .facet-chip svg { width:9px; height:9px; display:block; margin:auto; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+    .facet-suggestions { position:absolute; top:calc(100% - 8px); left:0; right:0; z-index:35; max-height:240px; overflow-y:auto; padding:5px; border:1px solid #cddad7; border-radius:9px; background:#fff; box-shadow:0 12px 28px rgba(20,57,63,.18); }
+    .facet-suggestions[hidden], .layer-suggestions[hidden] { display:none !important; }
+    .facet-field:not(:focus-within) > .facet-suggestions,
+    .layers-field:not(:focus-within) > .layer-suggestions { display:none !important; pointer-events:none !important; }
+    .facet-suggestion { width:100%; padding:8px 9px; border:0; border-radius:6px; background:transparent; color:var(--ink); cursor:pointer; text-align:left; font-size:12px; font-weight:700; }
+    .facet-suggestion:hover, .facet-suggestion.active { background:#edf5f3; color:var(--teal-dark); }
+    .facet-suggestion.unavailable { color:#9aabaa; background:#f5f7f6; cursor:not-allowed; }
+    .facet-help { margin-top:4px; color:var(--muted); font-size:10px; }
+    #layerChips { display: contents; }
+    .layer-chip { max-width: 100%; padding: 4px 6px 4px 8px; display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; background: var(--mint); color: var(--teal-dark); font-size: 11px; font-weight: 800; }
+    .layer-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .layer-chip button { width: 17px; height: 17px; padding: 0; border: 0; border-radius: 50%; background: rgba(8,76,86,.1); color: var(--teal-dark); cursor: pointer; font-size: 13px; line-height: 1; }
+    .layer-chip button svg { width: 9px; height: 9px; display: block; margin: auto; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+    .layer-suggestions { position: absolute; top: calc(100% - 8px); left: 0; right: 0; z-index: 30; max-height: 240px; overflow-y: auto; padding: 5px; border: 1px solid #cddad7; border-radius: 9px; background: #fff; box-shadow: 0 12px 28px rgba(20,57,63,.18); }
+    .layer-suggestion { width: 100%; padding: 8px 9px; display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); cursor: pointer; text-align: left; }
+    .layer-suggestion:hover, .layer-suggestion.active { background: #edf5f3; color: var(--teal-dark); }
+    .layer-suggestion strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+    .layer-suggestion small { flex: none; color: var(--muted); font-size: 10px; }
+    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .date-stack { display: grid; gap: 9px; }
+    .date-control { position:relative; }
+    .date-control .date-text { padding-right:42px; }
+    .date-picker-button { position:absolute; top:1px; right:1px; width:38px; height:37px; display:grid; place-items:center; border:0; border-left:1px solid #dce5e3; border-radius:0 7px 7px 0; background:#f7faf9; color:var(--teal-dark); pointer-events:none; }
+    .date-picker-button svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .date-picker-native { position:absolute; top:1px; right:1px; width:38px !important; height:37px !important; padding:0 !important; border:0 !important; opacity:0; cursor:pointer; }
+    .dimension-ranges { display:grid; gap:9px; }
+    .dimension-range-name { margin-bottom:4px; display:block; color:#587075; font-size:10px; font-weight:750; }
+    .unit-toggle { display:inline-flex; padding:2px; border:1px solid #cddad7; border-radius:8px; background:#fff; }
+    .unit-toggle label { margin:0; cursor:pointer; }
+    .unit-toggle input { position:absolute; opacity:0; pointer-events:none; }
+    .unit-toggle span { min-width:34px; height:26px; padding:0 8px; display:grid; place-items:center; border-radius:6px; color:var(--muted); font-size:11px; font-weight:800; }
+    .unit-toggle input:checked + span { background:var(--teal); color:#fff; }
+    .unit-toggle input:focus-visible + span { outline:2px solid var(--teal); outline-offset:1px; }
+    .check { margin: 16px 0; display: flex; align-items: center; gap: 9px; font-weight: 700; }
+    .check input { width: 17px; height: 17px; accent-color: var(--teal); }
+    .search { width: 100%; height: 43px; border: 0; border-radius: 9px; background: var(--teal); color: white; cursor: pointer; font-weight: 800; }
+    .search:hover { background: var(--teal-dark); }
+    .search:disabled { opacity: .65; cursor: wait; }
+    .clear { width: 100%; margin-top: 8px; padding: 7px; border: 0; background: none; color: var(--muted); cursor: pointer; }
+    .results-head { min-height: 48px; margin: 0 0 16px; display: flex; justify-content: space-between; align-items: end; gap: 16px; }
+    .results-head h2 { margin: 0; font-size: 25px; letter-spacing: -.04em; }
+    #resultMeta { color: var(--muted); }
+    .view-options { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .gallery-controls { display: grid; justify-items: end; gap: 8px; }
+    .column-switch { display: inline-flex; padding: 3px; border: 1px solid #cddad7; border-radius: 9px; background: var(--paper); box-shadow: 0 3px 10px rgba(25, 57, 60, .04); }
+    .column-switch button { width: 34px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 850; }
+    .column-switch button:hover { color: var(--teal); }
+    .column-switch button[aria-pressed="true"] { background: var(--teal); color: #fff; box-shadow: 0 2px 7px rgba(11, 102, 114, .25); }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .grid[data-columns="1"] { grid-template-columns: minmax(0, 1fr); }
+    .grid[data-columns="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid[data-columns="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid[data-columns="1"] .art { height: clamp(380px, 48vw, 650px); }
+    .grid[data-columns="2"] .art { height: clamp(285px, 30vw, 430px); }
+    .card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: var(--paper); box-shadow: 0 7px 22px rgba(25, 57, 60, .06); transition: opacity .18s, transform .16s, box-shadow .16s; }
+    .card.preview-rejected { opacity: 0; transform: scale(.97); pointer-events: none; }
+    .card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+    .art { position: relative; height: 250px; display: grid; place-items: center; overflow: hidden; background: linear-gradient(145deg, #edf3f1, #e4eeeb); color: #6c817e; cursor: zoom-in; }
+    .art > img.artwork-preview-image { width: 100%; height: 100%; display: block; object-fit: contain; background: #f7f9f8; opacity: 0; transition: opacity .25s; }
+    .art > img.artwork-preview-image.ready { opacity: 1; }
+    .placeholder { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font-weight: 750; }
+    .placeholder > span { display: block; max-width: 170px; }
+    .artwork-loading { display: grid !important; justify-items: center; gap: 8px; }
+    .artwork-loading-spinner { width: 78px; height: 78px; display: block; background: center / contain no-repeat url(""); }
+    .artwork-loading small { color: #59716f; font-size: 11px; font-weight: 750; }
+    .carousel { position: absolute; top: 50%; z-index: 3; width: 34px; height: 44px; padding: 0; border: 0; border-radius: 9px; background: rgba(8, 62, 71, .82); color: white; cursor: pointer; font-size: 22px; transform: translateY(-50%); }
+    .carousel:hover { background: var(--teal); }
+    .carousel.prev { left: 9px; } .carousel.next { right: 9px; }
+    .carousel-count { position: absolute; right: 9px; bottom: 9px; z-index: 3; padding: 4px 8px; border-radius: 99px; background: rgba(8, 45, 51, .78); color: white; font-size: 11px; font-weight: 800; }
+    .body { padding: 16px; }
+    .eyebrow { margin-bottom: 5px; color: var(--teal); font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .title { min-height: 43px; margin: 0 0 10px; font-size: 16px; line-height: 1.32; letter-spacing: -.015em; }
+    .facts { margin: 0; color: #4e666b; font-size: 12px; }
+    .facts div { margin: 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .facts b { color: #294d54; }
+    .weight-converted { color: var(--muted); }
+    .actions { margin-top: 14px; padding-top: 12px; display: flex; gap: 12px; border-top: 1px solid #edf1f0; }
+    .actions a { color: var(--teal); font-size: 12px; font-weight: 800; text-decoration: none; }
+    .actions a:hover { text-decoration: underline; }
+    .raw { margin-top: 10px; color: #879694; font: 10px/1.3 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+    .empty { grid-column: 1/-1; min-height: 310px; padding: 50px; display: grid; place-items: center; border: 1px dashed #c4d2cf; border-radius: 14px; color: var(--muted); text-align: center; background: rgba(255,255,255,.45); }
+    .empty strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 17px; }
+    .error { border-color: #e6b5a5; background: #fff9f7; color: #9c492e; }
+    .load-more-wrap { padding: 24px 0 4px; text-align: center; }
+    .load-more { min-width: 170px; height: 43px; padding: 0 22px; border: 1px solid var(--teal); border-radius: 9px; background: var(--paper); color: var(--teal); cursor: pointer; font-weight: 850; box-shadow: 0 5px 16px rgba(20,57,63,.08); }
+    .load-more:hover { background: var(--teal); color: #fff; }
+    .load-more:disabled { opacity: .6; cursor: wait; }
+    .back-to-top { position: fixed; right: 22px; bottom: 22px; z-index: 20; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 50%; background: var(--teal); color: #fff; cursor: pointer; font-size: 22px; font-weight: 900; box-shadow: 0 8px 24px rgba(8,76,86,.28); opacity: 0; visibility: hidden; transform: translateY(12px); transition: opacity .18s, visibility .18s, transform .18s, background .18s; }
+    .back-to-top.visible { opacity: 1; visibility: visible; transform: translateY(0); }
+    .back-to-top:hover { background: var(--teal-dark); }
+    dialog { border:0; border-radius:14px; box-shadow:0 24px 80px rgba(0,0,0,.4); }
+    dialog::backdrop { background: rgba(8, 28, 32, .76); backdrop-filter: blur(4px); }
+    #lightbox { width:min(920px,calc(100vw - 40px)); max-height:calc(100vh - 40px); padding:0; overflow:hidden; background:#182527; }
+    #lightbox img { width:100%; max-height:calc(100vh - 90px); display:block; object-fit:contain; }
+    #lightbox button { position:absolute; top:10px; right:10px; width:36px; height:36px; border:0; border-radius:50%; background:rgba(255,255,255,.9); color:#17373d; cursor:pointer; }
+    #lightbox button svg, .layer-options-close svg { width:15px; height:15px; display:block; margin:auto; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+    .layer-options-dialog { width:min(560px,calc(100vw - 32px)); max-height:min(720px,calc(100vh - 32px)); padding:0; overflow:hidden; background:#fff; color:var(--ink); }
+    .layer-options-head { padding:19px 20px 15px; display:flex; align-items:flex-start; justify-content:space-between; gap:15px; border-bottom:1px solid var(--line); }
+    .layer-options-head h2 { margin:0; font-size:20px; letter-spacing:-.03em; }
+    .layer-options-head p { margin:3px 0 0; color:var(--muted); font-size:12px; }
+    .layer-options-close { width:32px; height:32px; flex:none; padding:0; border:0; border-radius:50%; background:#edf3f1; color:var(--teal-dark); cursor:pointer; }
+    .layer-options-main { padding:16px 20px; }
+    .layer-options-filter { width:100%; height:39px; padding:0 10px; border:1px solid #cddad7; border-radius:8px; outline:none; color:var(--ink); }
+    .layer-options-filter:focus { border-color:var(--teal); box-shadow:0 0 0 3px rgba(11,102,114,.1); }
+    .layer-options-list { min-height:150px; max-height:390px; margin-top:12px; overflow-y:auto; border:1px solid var(--line); border-radius:9px; }
+    .layer-options-list.checking { opacity:.58; pointer-events:none; }
+    .layer-option { margin:0; padding:9px 11px; display:flex; align-items:center; gap:9px; border-bottom:1px solid #edf1f0; cursor:pointer; font-size:12px; font-weight:650; }
+    .layer-option:last-child { border-bottom:0; }
+    .layer-option:hover { background:#f3f8f6; }
+    .layer-option input { width:16px; height:16px; margin:0; accent-color:var(--teal); }
+    .layer-option.unavailable { opacity:.42; background:#f1f3f2; cursor:not-allowed; }
+    .layer-option.unavailable:hover { background:#f1f3f2; }
+    .layer-option.unavailable.selected { opacity:.65; cursor:pointer; }
+    .layer-options-empty { min-height:150px; display:grid; place-items:center; padding:25px; color:var(--muted); text-align:center; }
+    .layer-options-actions { padding:14px 20px; display:flex; justify-content:flex-end; gap:9px; border-top:1px solid var(--line); background:#fafcfb; }
+    .layer-options-actions button { height:38px; padding:0 15px; border-radius:8px; cursor:pointer; font-weight:800; }
+    .layer-options-cancel { border:1px solid #cddad7; background:#fff; color:var(--muted); }
+    .layer-options-apply { border:0; background:var(--teal); color:#fff; }
+    @media (max-width: 840px) { .shell { grid-template-columns: 1fr; } .filters { position: static; } }
+    @media (max-width: 680px) { .grid[data-columns="3"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 620px) { .results-head { align-items: flex-start; flex-direction: column; } .gallery-controls { justify-items: start; width: 100%; } }
+    @media (max-width: 520px) { .shell { width: min(100% - 24px, 1480px); } .grid, .grid[data-columns="1"], .grid[data-columns="2"], .grid[data-columns="3"] { grid-template-columns: 1fr; } .art, .grid[data-columns="1"] .art, .grid[data-columns="2"] .art { height: 320px; } }
+  
+    /* Demo Packaging app header - shared standard (see App Development/HEADER-STANDARD.md) */
+    :root{--xh-height:60px}
+    .xh{position:relative;z-index:20;background:#3b3f8f;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.18);font-family:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.2}
+    .xh-inner{height:var(--xh-height);padding:0 24px;display:flex;align-items:center;gap:16px}
+    .xh-logo{flex:none;display:block;width:auto;height:26px}
+    .xh-home{flex:none;display:flex;align-items:center;border-radius:6px;text-decoration:none;transition:opacity .15s}.xh-home:hover{opacity:.82}.xh-home:focus-visible{outline:2px solid #8fd6e1;outline-offset:5px}
+    .xh-symbol{flex:none;display:none;width:22px;height:22px}
+    .xh-divider{flex:none;width:1px;height:28px;background:rgba(255,255,255,.28)}
+    .xh-title{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .xh-title strong{overflow:hidden;color:#fff;font-size:16px;font-weight:700;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+    .xh-title span{overflow:hidden;color:#a3c9d1;font-size:11px;font-weight:700;letter-spacing:.1em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    .xh-badge{flex:none;padding:4px 7px;border:1px solid rgba(255,255,255,.3);border-radius:6px;color:#d9eef2;font:700 11px/1 ui-monospace,Consolas,monospace}
+    .xh-actions{flex:none;margin-left:auto;display:flex;align-items:center;gap:8px}
+    .xh-button{height:36px;min-height:0;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(255,255,255,.26);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;box-shadow:none;transform:none;cursor:pointer;font:inherit;font-size:13px;font-weight:700;line-height:1;list-style:none;text-decoration:none;white-space:nowrap}
+    .xh-button:hover{background:rgba(255,255,255,.16);box-shadow:none;transform:none}
+    .xh-button:focus-visible{outline:2px solid #8fd6e1;outline-offset:2px}
+    .xh-button:disabled{cursor:not-allowed;opacity:.45}
+    .xh-button[aria-pressed="true"],details[open]>summary.xh-button{border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.2)}
+    .xh-button.primary{border-color:#fff;background:#fff;color:#3b3f8f}.xh-button.primary:hover:not(:disabled){background:#dff0f3}
+    .xh-button::-webkit-details-marker{display:none}
+    .xh-button svg{flex:none;width:16px;height:16px}
+    @media(max-width:640px){:root{--xh-height:52px}.xh-inner{padding:0 14px;gap:11px}.xh-logo{height:21px}.xh-inner:has(.xh-actions) .xh-logo{display:none}.xh-inner:has(.xh-actions) .xh-symbol{display:block}.xh-divider{height:24px}.xh-title strong{font-size:15px}.xh-title span{display:none}.xh-button{height:34px;padding:0 10px;font-size:12px}}
+    @media print{.xh{display:none!important}}
+  </style>
+  <style id="demo-theme">
+    /* Demo Packaging app theme - shared tokens (see tools/README.md) */
+    :root{--x-brand:#3b3f8f;--x-brand-hover:#2d3070;--x-accent:#5257b8;--x-accent-soft:#e4f0f2;--x-ink:#132a35;--x-muted:#62757c;--x-line:#d6e0e3;--x-line-strong:#c3d2d6;--x-soft:#eef4f5;--x-paper:#fff;--x-canvas:#f3f6f7;--x-danger:#a73543;--x-success:#18705f;--x-warning:#8a5a00;--x-radius-card:14px;--x-radius-inner:11px;--x-radius-control:9px;--x-radius-small:7px;--x-shadow-card:0 1px 2px rgba(3,61,75,.05),0 6px 18px rgba(3,61,75,.06);--x-shadow-pop:0 14px 32px rgba(3,61,75,.16);--x-shadow-modal:0 24px 70px rgba(2,32,40,.3);--x-focus:0 0 0 3px rgba(13,99,114,.18);--x-font:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    body{font-family:var(--x-font)}
+    /* App mapping */
+    :root{--ink:var(--x-ink);--muted:var(--x-muted);--teal:var(--x-brand);--teal-dark:var(--x-brand-hover);--mint:var(--x-accent-soft);--paper:var(--x-paper);--canvas:var(--x-canvas);--line:var(--x-line);--shadow:var(--x-shadow-card)}
+    .filters,.card{border-radius:var(--x-radius-card);box-shadow:var(--x-shadow-card)}
+    .empty{border-color:var(--x-line-strong);border-radius:var(--x-radius-card)}
+    dialog{border-radius:var(--x-radius-card);box-shadow:var(--x-shadow-modal)}
+    .facet-suggestions,.layer-suggestions{border-color:var(--x-line);border-radius:var(--x-radius-inner);box-shadow:var(--x-shadow-pop)}
+    input[type="text"],input[type="number"],input[type="date"],select{border-color:var(--x-line-strong);border-radius:var(--x-radius-control)}
+    .eyebrow{color:var(--x-accent);font-weight:800;letter-spacing:.1em}
+  </style>
+  <style id="no-sideways-scroll">
+    /* Phones never scroll sideways. clip (unlike hidden) keeps sticky headers and inner scroll areas working. */
+    @media (max-width:760px){html,body{max-width:100%;overflow-x:clip}body{min-width:0!important}}
+  </style>
+  
+<!-- app-version:start (managed by demo_versions.py: change versions.json, not this copy) -->
+
+
+
+
+</head>
+<body data-artwork-build="2026-08-26-spec-v1">
+  <header class="xh">
+    <div class="xh-inner">
+      <a class="xh-home" href="#" title="All demo apps" aria-label="Demo Apps: all our tools"><img class="xh-logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27white%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging" width="89" height="26">
+      <img class="xh-symbol" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27white%27/%3E%3C/svg%3E" alt="Demo Packaging" width="22" height="22"></a>
+      <span class="xh-divider" aria-hidden="true"></span>
+      <div class="xh-title"><strong>Artwork Visual Search</strong><span>Quickbase Order Products</span></div>
+    </div>
+  </header>
+  <main class="shell">
+    <form class="filters" id="filters">
+      <h1>Find artwork</h1><p class="hint">Narrow the product records, then scan the results visually.</p>
+      <div class="field"><label>Date created</label><div class="date-stack"><div class="date-control"><input class="date-text" id="dateFrom" name="dateFrom" type="text" inputmode="numeric" placeholder="YYYY-MM-DD or MM/DD/YYYY" aria-label="Created from"><span class="date-picker-button" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M4 3.5h12a1.5 1.5 0 0 1 1.5 1.5v11A1.5 1.5 0 0 1 16 17.5H4A1.5 1.5 0 0 1 2.5 16V5A1.5 1.5 0 0 1 4 3.5ZM6 2v3M14 2v3M2.5 7.5h15"></path></svg></span><input class="date-picker-native" id="dateFromPicker" type="date" aria-label="Choose created from date"></div><div class="date-control"><input class="date-text" id="dateTo" name="dateTo" type="text" inputmode="numeric" placeholder="YYYY-MM-DD or MM/DD/YYYY" aria-label="Created through"><span class="date-picker-button" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M4 3.5h12a1.5 1.5 0 0 1 1.5 1.5v11A1.5 1.5 0 0 1 16 17.5H4A1.5 1.5 0 0 1 2.5 16V5A1.5 1.5 0 0 1 4 3.5ZM6 2v3M14 2v3M2.5 7.5h15"></path></svg></span><input class="date-picker-native" id="dateToPicker" type="date" aria-label="Choose created through date"></div></div></div>
+      <div class="field facet-field" data-facet-picker="purchasingCustomer"><div class="field-name">Purchasing customer</div><div class="facet-picker"><div class="facet-chips"></div><input id="purchasingCustomerInput" type="text" placeholder="Type or select customers" autocomplete="off" role="combobox" aria-label="Purchasing customer" aria-expanded="false"></div><div class="facet-suggestions" hidden></div></div>
+      <div class="field facet-field" data-facet-picker="customerBrand"><div class="field-name">Customer brand</div><div class="facet-picker"><div class="facet-chips"></div><input id="customerBrandInput" type="text" placeholder="Type or select brands" autocomplete="off" role="combobox" aria-label="Customer brand" aria-expanded="false"></div><div class="facet-suggestions" hidden></div></div>
+      <div class="field facet-field" data-facet-picker="itemFamily"><div class="field-name">Family</div><div class="facet-picker"><div class="facet-chips"></div><input id="itemFamilyInput" type="text" placeholder="Type or select families" autocomplete="off" role="combobox" aria-label="Family" aria-expanded="false"></div><div class="facet-suggestions" hidden></div></div>
+      <div class="field facet-field" data-facet-picker="customerPo"><div class="field-name">Customer PO</div><div class="facet-picker"><div class="facet-chips"></div><input id="customerPoInput" type="text" placeholder="Type or select a customer PO" autocomplete="off" role="combobox" aria-label="Customer PO" aria-expanded="false"></div><div class="facet-suggestions" hidden></div></div>
+      <div class="field"><label for="barcode">Barcode / UPC code</label><input id="barcode" name="barcode" type="text" placeholder="Enter a complete or partial UPC"></div>
+      <div class="field layers-field"><div class="field-name">Layers</div><div class="layers-picker" id="layersPicker"><div id="layerChips"></div><input id="layersInput" type="text" placeholder="Type a layer and press Enter" autocomplete="off" role="combobox" aria-label="Layers" aria-autocomplete="list" aria-expanded="false" aria-controls="layerSuggestions"></div><div class="layer-suggestions" id="layerSuggestions" role="listbox" hidden></div></div>
+      <div class="field facet-field" data-facet-picker="specFormat"><div class="field-name">Format</div><div class="facet-picker"><div class="facet-chips"></div><input id="specFormatInput" type="text" placeholder="Type or select formats" autocomplete="off" role="combobox" aria-label="Format" aria-expanded="false"></div><div class="facet-suggestions" hidden></div></div>
+      <div class="field facet-field" data-facet-picker="specStyle"><div class="field-name">Style</div><div class="facet-picker"><div class="facet-chips"></div><input id="specStyleInput" type="text" placeholder="Type or select styles" autocomplete="off" role="combobox" aria-label="Style" aria-expanded="false"></div><div class="facet-suggestions" hidden></div></div>
+      <div class="field facet-field" data-facet-picker="gussetStyle"><div class="field-name">Gusset style</div><div class="facet-picker"><div class="facet-chips"></div><input id="gussetStyleInput" type="text" placeholder="Type or select gusset styles" autocomplete="off" role="combobox" aria-label="Gusset style" aria-expanded="false"></div><div class="facet-suggestions" hidden></div></div>
+      <div class="field"><label>Family specification dimensions (in)</label><div class="dimension-ranges"><div><span class="dimension-range-name">Width</span><div class="pair"><input name="specWidthMin" type="number" min="0" step="0.001" placeholder="Min" aria-label="Minimum specification width in inches"><input name="specWidthMax" type="number" min="0" step="0.001" placeholder="Max" aria-label="Maximum specification width in inches"></div></div><div><span class="dimension-range-name">Length</span><div class="pair"><input name="specLengthMin" type="number" min="0" step="0.001" placeholder="Min" aria-label="Minimum specification length in inches"><input name="specLengthMax" type="number" min="0" step="0.001" placeholder="Max" aria-label="Maximum specification length in inches"></div></div><div><span class="dimension-range-name">Gusset</span><div class="pair"><input name="specGussetMin" type="number" min="0" step="0.001" placeholder="Min" aria-label="Minimum specification gusset in inches"><input name="specGussetMax" type="number" min="0" step="0.001" placeholder="Max" aria-label="Maximum specification gusset in inches"></div></div></div><div class="facet-help">Length uses the Quickbase Height (in) specification field.</div></div>
+      <div class="field"><div class="field-label-row"><span class="field-name" style="margin:0">Weight</span><div class="unit-toggle" role="radiogroup" aria-label="Weight unit"><label><input type="radio" name="weightUnit" value="oz" checked><span>oz</span></label><label><input type="radio" name="weightUnit" value="lb"><span>lb</span></label><label><input type="radio" name="weightUnit" value="kg"><span>kg</span></label></div></div><div class="pair"><input name="weightMin" type="number" min="0" step="any" placeholder="Low" aria-label="Minimum weight"><input name="weightMax" type="number" min="0" step="any" placeholder="High" aria-label="Maximum weight"></div><div class="facet-help">Reads the Wt field (FID 161) and converts oz, lb, g, and kg.</div></div>
+      <label class="check"><input name="hasArtwork" type="checkbox" checked> Has artwork</label>
+      <label class="check"><input name="groupByFamily" type="checkbox"> Group matching family specifications</label>
+      <button class="search" id="searchButton">Search artwork</button><button class="clear" type="reset">Clear filters</button>
+    </form>
+    <section>
+      <div class="results-head">
+        <div><h2>Artwork gallery</h2><div id="resultMeta">Ready to search</div></div>
+        <div class="gallery-controls">
+          <div class="view-options"><span>Columns</span><div class="column-switch" role="group" aria-label="Artwork gallery columns"><button type="button" data-columns="1" aria-label="One column" aria-pressed="false">1</button><button type="button" data-columns="2" aria-label="Two columns" aria-pressed="false">2</button><button type="button" data-columns="3" aria-label="Three columns" aria-pressed="true">3</button></div></div>
+        </div>
+      </div>
+      <div class="grid" id="grid" data-columns="3"><div class="empty"><div><strong>Choose filters and search</strong>Matching records will appear here as artwork cards.</div></div></div>
+      <div class="load-more-wrap" id="loadMoreWrap" hidden><button class="load-more" id="loadMore" type="button">Load 12 more</button></div>
+    </section>
+  </main>
+  <button class="back-to-top" id="backToTop" type="button" aria-label="Back to top" title="Back to top">↑</button>
+  <dialog id="lightbox"><button aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3L13 13M13 3L3 13"></path></svg></button><img alt="Large artwork preview"></dialog>
+  <dialog class="layer-options-dialog" id="layerOptionsDialog">
+    <div class="layer-options-head"><div><h2>Layer options</h2><p id="layerOptionsStatus">Select one or more saved Layer values.</p></div><button class="layer-options-close" type="button" aria-label="Close Layer options"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3L13 13M13 3L3 13"></path></svg></button></div>
+    <div class="layer-options-main"><input class="layer-options-filter" id="layerOptionsFilter" type="text" placeholder="Filter Layer options" autocomplete="off"><div class="layer-options-list" id="layerOptionsList"></div></div>
+    <div class="layer-options-actions"><button class="layer-options-cancel" type="button">Cancel</button><button class="layer-options-apply" type="button">Use selected layers</button></div>
+  </dialog>
+  <script>window.ARTWORK_EMBED_MODE = 'card'; window.ARTWORK_LOADING_GIF = ''; window.ARTWORK_PREVIEW_TIMEOUT = 15000; window.ARTWORK_EMBED_ZOOM = 1.8; window.ARTWORK_EMBED_FOCUS_X = .34; window.ARTWORK_EMBED_FOCUS_Y = .53; window.ARTWORK_EMBED_WIDE_FOCUS_Y = .46; window.ARTWORK_EMBED_OFFSETS = {1:{x:100,y:-20},2:{x:100,y:-14},3:{x:100,y:-12}};</script>
+  <script src="https://demo.quickbase.example/db/bdemoapp0?a=dbpage&amp;pageID=1&amp;v=20260825-9"></script>
+  <script>
+    const QB_REALM = 'demo.quickbase.example';
+    const QB_APP = 'bdemoapp0';
+    const QB_TABLE = 'bdemoitem';
+    const QB_SEARCH_LOG_TABLE = 'bdemolayr';
+    const QB_SEARCH_LOG_LAYERS_FID = 6;
+    const QB_SEARCH_LOG_FREQUENCY_FID = 7;
+    const QB_USER_VAR = 'usertoken';
+    const QB_APP_VAR = 'q_apptoken';
+    const PAGE_SIZE = 12;
+    const QB_FIELDS = [1,3,7,13,14,161,184,329,382,506,710,711,712,713,714,715,795,796,797,798,799,800,801,802,803,804,805,2122,2243,2331,2332,2333];
+    const QB_WEIGHT_FID = 161;
+    // Grams per unit. Wt (FID 161) is free text such as "5 oz", "2 lbs", "1 lb 4 oz", or "12 OZ (340g)".
+    const WEIGHT_UNITS = {oz: 28.349523125, lb: 453.59237, kg: 1000, g: 1};
+    const WEIGHT_SCAN_LIMIT = 10000;
+    let weightRidCache = {key: '', rids: []};
+    const FACET_DEFS = {
+      purchasingCustomer: {fid:7, label:'Purchasing customer', multi:true},
+      customerBrand: {fid:382, label:'Customer brand', multi:true},
+      itemFamily: {fid:506, label:'Family', multi:true, allowsCustom:true, trailingSpaceExact:true},
+      customerPo: {fid:184, label:'Customer PO', multi:true, contains:true, allowsCustom:true, hideUnavailable:true},
+      specFormat: {fid:2122, label:'Format', multi:true},
+      specStyle: {fid:2243, label:'Style', multi:true},
+      gussetStyle: {fid:712, label:'Gusset style', multi:true, extract:value => clean(value).split('/').slice(2).join('/').trim()}
+    };
+    const FACET_PARAM_NAMES = new Set(Object.keys(FACET_DEFS));
+    const qbState = {user: '', app: '', loading: null};
+    const pageState = {params: null, offset: 0, total: null, exhausted: true, loading: false, groupKeys:new Set()};
+    let layerTrackingQueue = Promise.resolve();
+    const form = document.querySelector('#filters');
+    const grid = document.querySelector('#grid');
+    const meta = document.querySelector('#resultMeta');
+    const searchButton = document.querySelector('#searchButton');
+    const loadMoreWrap = document.querySelector('#loadMoreWrap');
+    const loadMore = document.querySelector('#loadMore');
+    const backToTop = document.querySelector('#backToTop');
+    const lightbox = document.querySelector('#lightbox');
+    const columnButtons = [...document.querySelectorAll('.column-switch [data-columns]')];
+    const layersInput = document.querySelector('#layersInput');
+    const layerChips = document.querySelector('#layerChips');
+    const layerSuggestions = document.querySelector('#layerSuggestions');
+    const showLayerOptions = document.querySelector('#showLayerOptions');
+    const layerOptionsDialog = document.querySelector('#layerOptionsDialog');
+    const layerOptionsFilter = document.querySelector('#layerOptionsFilter');
+    const layerOptionsList = document.querySelector('#layerOptionsList');
+    const layerOptionsStatus = document.querySelector('#layerOptionsStatus');
+    const selectedLayers = [];
+    let layerOptionsSelection = new Set();
+    let layerCatalog = [];
+    let layerCatalogLoading = null;
+    let layerAvailability = null;
+    let layerAvailabilityRequest = 0;
+    let activeLayerSuggestion = -1;
+    let visibleLayerSuggestions = [];
+    let layerMenuRequest = 0;
+    let layerWasOpenOnPointerDown = false;
+    const facetSelections = {purchasingCustomer:[], customerBrand:[], itemFamily:[], customerPo:[], specFormat:[], specStyle:[], gussetStyle:[]};
+    const facetPickers = new Map();
+    let facetRows = [];
+    let facetRefreshTimer = 0;
+    let facetRefreshRequest = 0;
+    let observer;
+
+    const esc = value => String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+    const val = value => Array.isArray(value) ? value.join(', ') : (value ?? '—');
+
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      closeAllDropdowns();
+      if (!validateManualDates()) return;
+      commitLayerInput();
+      commitFacetInputs();
+      const params = currentSearchParams();
+      selectedLayers.forEach(queueLayerSearch);
+      pageState.params = params;
+      pageState.offset = 0;
+      pageState.total = null;
+      pageState.exhausted = false;
+      pageState.groupKeys.clear();
+      observer?.disconnect(); observer = null;
+      loadPage(false);
+    });
+
+    function currentSearchParams(layerValues = selectedLayers) {
+      const params = new URLSearchParams(new FormData(form));
+      ['dateFrom','dateTo'].forEach(name => {
+        const normalized = normalizeDateEntry(params.get(name));
+        if (normalized) params.set(name,normalized);
+      });
+      params.delete('layers');
+      layerValues.forEach(layer => params.append('layers', layer));
+      Object.entries(facetSelections).forEach(([name, values]) => values.forEach(value => params.append(name, value)));
+      params.set('hasArtwork', form.hasArtwork.checked ? 'true' : 'false');
+      params.set('limit', PAGE_SIZE);
+      return params;
+    }
+
+    loadMore.addEventListener('click', () => loadPage(true));
+
+    async function loadPage(append) {
+      if (pageState.loading || !pageState.params || (append && pageState.exhausted)) return;
+      pageState.loading = true;
+      const params = new URLSearchParams(pageState.params);
+      params.set('limit', PAGE_SIZE);
+      params.set('offset', pageState.offset);
+      if (append) {
+        loadMore.disabled = true; loadMore.textContent = 'Loading…';
+      } else {
+        searchButton.disabled = true; searchButton.textContent = 'Searching…';
+        loadMoreWrap.hidden = true;
+        meta.textContent = 'Querying Quickbase…';
+        grid.innerHTML = '<div class="empty"><div><strong>Finding matching products…</strong>Artwork previews load after the records arrive.</div></div>';
+      }
+      try {
+        let searchedRecords;
+        if (!append && isQuickbasePage()) {
+          [searchedRecords, pageState.total] = await Promise.all([
+            searchQuickbase(params),
+            countQuickbase(params).catch(error => { console.warn('Could not count matching records:', error); return null; })
+          ]);
+        } else {
+          searchedRecords = isQuickbasePage() ? await searchQuickbase(params) : await searchLocal(params);
+        }
+        const records = form.hasArtwork.checked
+          ? searchedRecords.filter(record => hasSupportedArtworkLink(record.artworkUrl))
+          : searchedRecords;
+        render(records, append);
+        pageState.offset += searchedRecords.length;
+        pageState.exhausted = searchedRecords.length < PAGE_SIZE || (Number.isFinite(pageState.total) && pageState.offset >= pageState.total);
+        loadMoreWrap.hidden = pageState.exhausted;
+        updateVisibleCount();
+      } catch (error) {
+        if (append) {
+          meta.textContent = `Could not load more: ${error.message}`;
+        } else {
+          meta.textContent = 'Search unavailable';
+          grid.innerHTML = `<div class="empty error"><div><strong>Could not search Quickbase</strong>${esc(error.message)}</div></div>`;
+        }
+      } finally {
+        pageState.loading = false;
+        searchButton.disabled = false; searchButton.textContent = 'Search artwork';
+        loadMore.disabled = false; loadMore.textContent = 'Load 12 more';
+      }
+    }
+
+    function isQuickbasePage() { return window.__DEMO_HOST.toLowerCase() === QB_REALM; }
+    function parseWeightNumber(text) {
+      const mixed = text.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+      if (mixed) return Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]);
+      const fraction = text.match(/^(\d+)\/(\d+)$/);
+      if (fraction) return Number(fraction[1]) / Number(fraction[2]);
+      return Number(text);
+    }
+    function weightUnitKey(unit) {
+      if (/^(oz|ounces?)$/.test(unit)) return 'oz';
+      if (/^(lbs?|pounds?|#)$/.test(unit)) return 'lb';
+      if (/^(kgs?|kilos?|kilograms?)$/.test(unit)) return 'kg';
+      if (/^(g|gr|grams?)$/.test(unit)) return 'g';
+      return '';
+    }
+    // Returns grams, or null when the text holds no recognizable weight. Fluid ounces are volume, so they are skipped.
+    function parseWeight(value) {
+      const text = String(value ?? '').toLowerCase().replace(/(\d),(\d)/g, '$1.$2').replace(/fl\.?\s*oz\.?/g, ' floz ');
+      const pattern = /(\d+\s+\d+\/\d+|\d+\/\d+|\d*\.\d+|\d+)\s*(floz|ounces?|oz|pounds?|lbs?|#|kilograms?|kilos?|kgs?|grams?|gr|g)(?![a-z])/g;
+      const found = [...text.matchAll(pattern)]
+        .map(match => ({amount: parseWeightNumber(match[1].trim()), unit: weightUnitKey(match[2]), start: match.index, end: match.index + match[0].length}))
+        .filter(entry => entry.unit && Number.isFinite(entry.amount));
+      if (!found.length) return null;
+      const [first, second] = found;
+      // "1 lb 4 oz" is one weight; "12 oz (340 g)" is the same weight labeled twice, so only the first counts.
+      if (second && first.unit === 'lb' && second.unit === 'oz' && /^\s*(and|&|,|\+)?\s*$/.test(text.slice(first.end, second.start))) {
+        return first.amount * WEIGHT_UNITS.lb + second.amount * WEIGHT_UNITS.oz;
+      }
+      return first.amount * WEIGHT_UNITS[first.unit];
+    }
+    function formatWeight(grams, unit) {
+      const amount = grams / WEIGHT_UNITS[unit];
+      return `${Number(amount.toFixed(amount >= 10 ? 1 : 2))} ${unit}`;
+    }
+    function weightRange(params) {
+      const unit = WEIGHT_UNITS[params.get('weightUnit')] ? params.get('weightUnit') : 'oz';
+      const read = name => { const text = clean(params.get(name)); const number = Number(text); return text && Number.isFinite(number) && number >= 0 ? number : null; };
+      let low = read('weightMin'), high = read('weightMax');
+      if (low === null && high === null) return null;
+      if (low !== null && high !== null && low > high) [low, high] = [high, low];
+      return {unit, min: low === null ? null : low * WEIGHT_UNITS[unit], max: high === null ? null : high * WEIGHT_UNITS[unit]};
+    }
+    function weightMatches(value, range) {
+      if (!range) return true;
+      const grams = parseWeight(value);
+      if (grams === null) return false;
+      const slack = 1e-6 * Math.max(1, grams);
+      return (range.min === null || grams >= range.min - slack) && (range.max === null || grams <= range.max + slack);
+    }
+    // Wt is text, so Quickbase can't range-filter it. With a weight range set, pull every matching record ID and
+    // Wt value once, filter here, then page through the surviving IDs in the normal sort order.
+    async function weightMatchedRids(params) {
+      const keyParams = new URLSearchParams(params); keyParams.delete('limit'); keyParams.delete('offset');
+      const key = keyParams.toString();
+      // Cache the request itself so the first page's search and count share one scan.
+      if (weightRidCache.key !== key) {
+        const range = weightRange(params);
+        const rids = quickbaseXmlCall(QB_TABLE, {
+          a: 'API_DoQuery', query: quickbaseWhere(params), clist: `3.${QB_WEIGHT_FID}`,
+          slist: '14.3', options: `sortorder-A.sortorder-A.num-${WEIGHT_SCAN_LIMIT}`, fmt: 'structured'
+        }).then(doc => {
+          const records = [...doc.querySelectorAll('record')];
+          if (records.length >= WEIGHT_SCAN_LIMIT) console.warn(`Weight filter scanned the first ${WEIGHT_SCAN_LIMIT} records only; narrow the other filters for complete results.`);
+          return records.filter(record => weightMatches(recordField(record, QB_WEIGHT_FID), range)).map(record => recordField(record, 3)).filter(Boolean);
+        });
+        rids.catch(() => { if (weightRidCache.key === key) weightRidCache = {key: '', rids: []}; });
+        weightRidCache = {key, rids};
+      }
+      return weightRidCache.rids;
+    }
+    function hasSupportedArtworkLink(value) {
+      try {
+        const url = new URL(String(value || '').trim());
+        return url.hostname.toLowerCase() === 'files.demo-packaging.example' && /^\/f\/[A-Za-z0-9_-]+(?:\/|$)/.test(url.pathname);
+      } catch { return false; }
+    }
+    function clean(value) { return String(value ?? '').replace(/\s+/g, ' ').trim(); }
+    function normalizeDateEntry(value) {
+      const text = clean(value);
+      if (!text) return '';
+      let year, month, day;
+      let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (match) [,year,month,day] = match;
+      else {
+        match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (!match) return '';
+        [,month,day,year] = match;
+      }
+      const candidate = new Date(Number(year),Number(month)-1,Number(day));
+      if (candidate.getFullYear() !== Number(year) || candidate.getMonth() !== Number(month)-1 || candidate.getDate() !== Number(day)) return '';
+      return `${String(year).padStart(4,'0')}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    }
+    function validateManualDates() {
+      let valid = true;
+      ['dateFrom','dateTo'].forEach(id => {
+        const input = document.querySelector(`#${id}`);
+        const normalized = normalizeDateEntry(input.value);
+        input.setCustomValidity(input.value && !normalized ? 'Enter a date as YYYY-MM-DD or MM/DD/YYYY.' : '');
+        if (normalized) input.value = normalized;
+        if (!input.checkValidity()) valid = false;
+      });
+      if (!valid) form.reportValidity();
+      return valid;
+    }
+    function xml(text) { return new DOMParser().parseFromString(text, 'text/xml'); }
+    function xmlError(doc) {
+      if (doc.querySelector('parsererror')) return 'Quickbase returned malformed XML.';
+      const code = clean(doc.querySelector('errcode')?.textContent);
+      const message = clean(doc.querySelector('errtext')?.textContent);
+      const detail = clean(doc.querySelector('errdetail')?.textContent);
+      return code && code !== '0' ? `Quickbase Error ${code}: ${message} ${detail}`.trim() : '';
+    }
+    function variableApp() {
+      const match = location.pathname.match(/^\/(?:db|up)\/([^/?#]+)/i);
+      return match ? match[1] : QB_APP;
+    }
+    async function dbVariable(name) {
+      const query = new URLSearchParams({a: 'API_GetDBVar', varname: name});
+      const response = await fetch(`https://${QB_REALM}/db/${encodeURIComponent(variableApp())}?${query}`, {credentials: 'include'});
+      if (!response.ok) throw new Error(`Variable request failed (${response.status}).`);
+      const doc = xml(await response.text());
+      const error = xmlError(doc); if (error) throw new Error(error);
+      const value = clean(doc.querySelector('value')?.textContent);
+      if (!value) throw new Error(`${name} is empty.`);
+      return value;
+    }
+    async function quickbaseCredentials() {
+      if (qbState.user && qbState.app) return;
+      if (!qbState.loading) qbState.loading = Promise.all([dbVariable(QB_USER_VAR), dbVariable(QB_APP_VAR)])
+        .then(([user, app]) => { qbState.user = user; qbState.app = app; })
+        .catch(error => { qbState.loading = null; throw new Error(`Could not load ${QB_USER_VAR} and ${QB_APP_VAR}: ${error.message}`); });
+      await qbState.loading;
+    }
+    function normalizeLayerSearch(value) {
+      return String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+    }
+    function queueLayerSearch(value) {
+      const layers = normalizeLayerSearch(value);
+      if (!layers || !isQuickbasePage()) return;
+      layerTrackingQueue = layerTrackingQueue
+        .catch(() => {})
+        .then(() => recordLayerSearch(layers))
+        .catch(error => console.warn('Could not record Layers search:', error));
+    }
+    async function quickbaseXmlCall(table, parameters) {
+      await quickbaseCredentials();
+      const query = new URLSearchParams({...parameters, usertoken: qbState.user, apptoken: qbState.app});
+      const response = await fetch(`https://${QB_REALM}/db/${table}?${query}`, {credentials: 'include'});
+      if (!response.ok) throw new Error(`Quickbase tracking request failed (${response.status}).`);
+      const doc = xml(await response.text());
+      const error = xmlError(doc); if (error) throw new Error(error);
+      return doc;
+    }
+    function recordField(record, fid) {
+      const field = [...record.querySelectorAll('f, field')].find(candidate =>
+        String(Number(candidate.getAttribute('id') || candidate.getAttribute('fid') || candidate.querySelector('fid')?.textContent) || '') === String(fid)
+      );
+      return clean(field?.querySelector(':scope > value')?.textContent ?? field?.textContent);
+    }
+    async function recordLayerSearch(layers) {
+      const found = await quickbaseXmlCall(QB_SEARCH_LOG_TABLE, {
+        a: 'API_DoQuery', query: `{${QB_SEARCH_LOG_LAYERS_FID}.EX.'${qbEscape(layers)}'}`,
+        clist: `3.${QB_SEARCH_LOG_LAYERS_FID}.${QB_SEARCH_LOG_FREQUENCY_FID}`,
+        options: 'num-1', fmt: 'structured'
+      });
+      const existing = found.querySelector('record');
+      if (existing) {
+        const rid = recordField(existing, 3);
+        const frequency = Number(recordField(existing, QB_SEARCH_LOG_FREQUENCY_FID)) || 0;
+        await quickbaseXmlCall(QB_SEARCH_LOG_TABLE, {
+          a: 'API_EditRecord', rid,
+          [`_fid_${QB_SEARCH_LOG_LAYERS_FID}`]: layers,
+          [`_fid_${QB_SEARCH_LOG_FREQUENCY_FID}`]: String(frequency + 1)
+        });
+      } else {
+        await quickbaseXmlCall(QB_SEARCH_LOG_TABLE, {
+          a: 'API_AddRecord',
+          [`_fid_${QB_SEARCH_LOG_LAYERS_FID}`]: layers,
+          [`_fid_${QB_SEARCH_LOG_FREQUENCY_FID}`]: '1'
+        });
+      }
+      const cached = layerCatalog.find(entry => entry.value === layers);
+      if (cached) cached.frequency += 1;
+      else layerCatalog.push({value: layers, frequency: 1});
+    }
+    async function loadLayerCatalog() {
+      if (!isQuickbasePage() || layerCatalogLoading) return layerCatalogLoading;
+      layerCatalogLoading = quickbaseXmlCall(QB_SEARCH_LOG_TABLE, {
+        a: 'API_DoQuery', query: '{3.GT.0}', clist: `6.${QB_SEARCH_LOG_FREQUENCY_FID}`,
+        slist: String(QB_SEARCH_LOG_FREQUENCY_FID), options: 'sortorder-D.num-10000', fmt: 'structured'
+      }).then(doc => {
+        const grouped = new Map();
+        doc.querySelectorAll('record').forEach(record => {
+          const value = normalizeLayerSearch(recordField(record, QB_SEARCH_LOG_LAYERS_FID));
+          if (!value) return;
+          grouped.set(value, (grouped.get(value) || 0) + (Number(recordField(record, QB_SEARCH_LOG_FREQUENCY_FID)) || 0));
+        });
+        layerCatalog = [...grouped].map(([value, frequency]) => ({value, frequency}));
+        return layerCatalog;
+      }).catch(error => {
+        console.warn('Could not load Layers suggestions:', error);
+        return layerCatalog;
+      });
+      return layerCatalogLoading;
+    }
+    function editSimilarity(left, right) {
+      if (left === right) return 1;
+      if (!left || !right) return 0;
+      const previous = Array.from({length: right.length + 1}, (_, index) => index);
+      for (let row = 1; row <= left.length; row++) {
+        let diagonal = previous[0]; previous[0] = row;
+        for (let column = 1; column <= right.length; column++) {
+          const above = previous[column];
+          previous[column] = Math.min(previous[column] + 1, previous[column - 1] + 1, diagonal + (left[row - 1] === right[column - 1] ? 0 : 1));
+          diagonal = above;
+        }
+      }
+      return 1 - (previous[right.length] / Math.max(left.length, right.length));
+    }
+    function rankedLayerSuggestions() {
+      const query = normalizeLayerSearch(layersInput.value);
+      const selected = new Set(selectedLayers);
+      const available = layerCatalog.filter(entry => !selected.has(entry.value));
+      const maxFrequency = Math.max(1, ...available.map(entry => entry.frequency));
+      return available.map(entry => {
+        if (!query) return {...entry, score: entry.frequency};
+        let relevance = editSimilarity(query, entry.value);
+        if (entry.value.includes(query)) relevance += .22;
+        if (entry.value.startsWith(query)) relevance += .22;
+        if (entry.value === query) relevance += .5;
+        const frequencyBoost = Math.log1p(entry.frequency) / Math.log1p(maxFrequency);
+        return {...entry, score: (relevance * .82) + (frequencyBoost * .18)};
+      }).sort((a, b) => b.score - a.score || b.frequency - a.frequency || a.value.localeCompare(b.value)).slice(0, 8);
+    }
+    function renderLayerSuggestions() {
+      visibleLayerSuggestions = rankedLayerSuggestions();
+      if (!visibleLayerSuggestions.length) return hideLayerSuggestions();
+      activeLayerSuggestion = Math.min(activeLayerSuggestion, visibleLayerSuggestions.length - 1);
+      layerSuggestions.innerHTML = visibleLayerSuggestions.map((entry, index) => `
+        <button class="layer-suggestion${index === activeLayerSuggestion ? ' active' : ''}" type="button" role="option" aria-selected="${index === activeLayerSuggestion}" data-layer-index="${index}"><strong>${esc(entry.value)}</strong></button>`).join('');
+      layerSuggestions.hidden = false;
+      layersInput.setAttribute('aria-expanded', 'true');
+    }
+    function hideLayerSuggestions() {
+      layerMenuRequest += 1;
+      layerSuggestions.hidden = true;
+      layersInput.setAttribute('aria-expanded', 'false');
+      activeLayerSuggestion = -1;
+    }
+    async function openLayerSuggestions() {
+      hideAllFacetSuggestions();
+      const request = ++layerMenuRequest;
+      await loadLayerCatalog();
+      if (request === layerMenuRequest && document.activeElement === layersInput) renderLayerSuggestions();
+    }
+    function renderLayerChips() {
+      layerChips.innerHTML = selectedLayers.map((layer, index) => `<span class="layer-chip"><span>${esc(layer)}</span><button type="button" data-remove-layer="${index}" aria-label="Remove ${esc(layer)}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3L13 13M13 3L3 13"></path></svg></button></span>`).join('');
+    }
+    function addLayer(value) {
+      const normalized = normalizeLayerSearch(value);
+      if (!normalized) return false;
+      if (!selectedLayers.includes(normalized)) selectedLayers.push(normalized);
+      layersInput.value = '';
+      activeLayerSuggestion = -1;
+      renderLayerChips();
+      scheduleFacetRefresh();
+      hideLayerSuggestions();
+      return true;
+    }
+    function commitLayerInput() {
+      return addLayer(layersInput.value);
+    }
+    function moveLayerSuggestion(direction) {
+      if (layerSuggestions.hidden) renderLayerSuggestions();
+      if (!visibleLayerSuggestions.length) return;
+      activeLayerSuggestion = activeLayerSuggestion < 0
+        ? (direction > 0 ? 0 : visibleLayerSuggestions.length - 1)
+        : (activeLayerSuggestion + direction + visibleLayerSuggestions.length) % visibleLayerSuggestions.length;
+      renderLayerSuggestions();
+      layerSuggestions.querySelector('.active')?.scrollIntoView({block: 'nearest'});
+    }
+    function renderLayerOptions() {
+      const query = normalizeLayerSearch(layerOptionsFilter.value);
+      const options = layerCatalog.map(entry => {
+        let relevance = query ? editSimilarity(query, entry.value) : 0;
+        if (query && entry.value.includes(query)) relevance += .25;
+        if (query && entry.value.startsWith(query)) relevance += .25;
+        return {
+          ...entry,
+          relevance,
+          inStock: layerAvailability === null || layerAvailability.has(entry.value)
+        };
+      }).filter(entry => !query || entry.value.includes(query) || entry.relevance > .34)
+        .sort((a,b) =>
+          Number(b.inStock) - Number(a.inStock) ||
+          (query ? b.relevance - a.relevance : 0) ||
+          b.frequency - a.frequency ||
+          a.value.localeCompare(b.value)
+        );
+      if (!options.length) {
+        layerOptionsList.innerHTML = '<div class="layer-options-empty">No saved Layer options matched.</div>';
+        return;
+      }
+      layerOptionsList.innerHTML = options.map((entry,index) => {
+        const selected = layerOptionsSelection.has(entry.value);
+        const selectable = selected || entry.inStock;
+        return `<label class="layer-option${entry.inStock ? '' : ' unavailable'}${selected ? ' selected' : ''}"${entry.inStock ? '' : ' title="No matches with the current filters and selected Layers"'}><input type="checkbox" data-layer-option="${index}" data-layer-value="${esc(entry.value)}"${selected ? ' checked' : ''}${selectable ? '' : ' disabled'}><span>${esc(entry.value)}</span></label>`;
+      }).join('');
+    }
+    async function matchingLayerTexts(layerValues = selectedLayers) {
+      if (!isQuickbasePage()) return null;
+      const params = currentSearchParams(layerValues);
+      const doc = await quickbaseXmlCall(QB_TABLE, {
+        a:'API_DoQuery', query:quickbaseWhere(params), clist:`710.${QB_WEIGHT_FID}`, options:'num-10000', fmt:'structured'
+      });
+      const range = weightRange(params);
+      return [...doc.querySelectorAll('record')].filter(record => weightMatches(recordField(record,QB_WEIGHT_FID),range)).map(record => normalizeLayerSearch(recordField(record,710))).filter(Boolean);
+    }
+    async function refreshLayerAvailability(layerValues = [...layerOptionsSelection]) {
+      const request = ++layerAvailabilityRequest;
+      const scrollTop = layerOptionsList.scrollTop;
+      layerOptionsList.classList.add('checking');
+      layerOptionsDialog.setAttribute('aria-busy','true');
+      layerOptionsStatus.textContent = layerValues.length
+        ? `Checking compatibility with: ${layerValues.join(', ')}`
+        : 'Checking availability for the current filters...';
+      try {
+        const matchingTexts = await matchingLayerTexts(layerValues);
+        if (request !== layerAvailabilityRequest) return;
+        layerAvailability = matchingTexts === null ? null : new Set(
+          layerCatalog.filter(entry => matchingTexts.some(text => text.includes(entry.value))).map(entry => entry.value)
+        );
+        renderLayerOptions();
+        layerOptionsList.scrollTop = scrollTop;
+        const availableCount = layerAvailability === null ? layerCatalog.length : layerAvailability.size;
+        layerOptionsStatus.textContent = layerValues.length
+          ? `${availableCount} compatible options for: ${layerValues.join(', ')}`
+          : `${availableCount} options available for the current filters`;
+      } catch (error) {
+        if (request !== layerAvailabilityRequest) return;
+        console.warn('Could not refresh Layer availability:', error);
+        layerOptionsStatus.textContent = `Availability check failed: ${error.message}`;
+      } finally {
+        if (request === layerAvailabilityRequest) {
+          layerOptionsList.classList.remove('checking');
+          layerOptionsDialog.removeAttribute('aria-busy');
+        }
+      }
+    }
+    async function openLayerOptions() {
+      commitLayerInput();
+      hideLayerSuggestions();
+      layerOptionsSelection = new Set(selectedLayers);
+      layerAvailability = null;
+      layerOptionsFilter.value = '';
+      layerOptionsList.innerHTML = '<div class="layer-options-empty">Checking matching Layer options...</div>';
+      layerOptionsDialog.showModal();
+      const [catalog, matchingTexts] = await Promise.all([
+        loadLayerCatalog(),
+        matchingLayerTexts().catch(error => { console.warn('Could not check Layer availability:', error); return null; })
+      ]);
+      if (matchingTexts) {
+        layerAvailability = new Set(catalog.filter(entry => matchingTexts.some(text => text.includes(entry.value))).map(entry => entry.value));
+      }
+      const availableCount = layerAvailability === null ? layerCatalog.length : layerAvailability.size;
+      layerOptionsStatus.textContent = selectedLayers.length
+        ? `${availableCount} compatible options for: ${selectedLayers.join(', ')}`
+        : `${availableCount} options available for the current filters`;
+      if (layerOptionsDialog.open) { renderLayerOptions(); layerOptionsFilter.focus(); }
+    }
+
+    function facetValue(row, name) {
+      const definition = FACET_DEFS[name];
+      const raw = row[name] ?? '';
+      return clean(definition.extract ? definition.extract(raw) : raw);
+    }
+    function selectedFacetValues(name) {
+      const definition = FACET_DEFS[name];
+      return definition.multi ? facetSelections[name] : [clean(document.querySelector(`#${definition.select}`)?.value)].filter(Boolean);
+    }
+    function rowMatchesFacetSelections(row, excludedName = '') {
+      return Object.keys(FACET_DEFS).every(name => {
+        if (name === excludedName) return true;
+        const selected = selectedFacetValues(name);
+        const value = facetValue(row, name);
+        return !selected.length || (FACET_DEFS[name].contains
+          ? selected.some(entry => value.toLocaleLowerCase().includes(entry.toLocaleLowerCase()))
+          : selected.includes(value));
+      });
+    }
+    function baseFacetCatalog(name) {
+      return [...new Set(facetRows.map(row => facetValue(row, name)).filter(Boolean))]
+        .sort((left, right) => left.localeCompare(right, undefined, {numeric:true, sensitivity:'base'}));
+    }
+    function availableFacetValues(name) {
+      return new Set(facetRows.filter(row => rowMatchesFacetSelections(row, name)).map(row => facetValue(row, name)).filter(Boolean));
+    }
+    function populateFacetSelect(name) {
+      const definition = FACET_DEFS[name];
+      const select = document.querySelector(`#${definition.select}`);
+      if (!select) return;
+      const current = clean(select.value);
+      const catalog = baseFacetCatalog(name);
+      const available = availableFacetValues(name);
+      if (current && !catalog.includes(current)) catalog.push(current);
+      catalog.sort((left,right) => left.localeCompare(right, undefined, {numeric:true, sensitivity:'base'}));
+      select.innerHTML = `<option value="">All ${esc(definition.label.toLowerCase())}s</option>` + catalog.map(value => {
+        const inStock = available.has(value);
+        const status = inStock ? '' : (value === current ? ' (Selected - no matches)' : ' (Unavailable)');
+        return `<option value="${esc(value)}"${value === current ? ' selected' : ''}${inStock || value === current ? '' : ' disabled'}>${esc(value + status)}</option>`;
+      }).join('');
+    }
+    function renderFacetPicker(name) {
+      const state = facetPickers.get(name);
+      if (!state) return;
+      const selected = facetSelections[name];
+      state.chips.innerHTML = selected.map((value,index) => `<span class="facet-chip"><span>${esc(value)}</span><button type="button" data-remove-facet="${index}" aria-label="Remove ${esc(value)}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3L13 13M13 3L3 13"></path></svg></button></span>`).join('');
+      const query = clean(state.input.value).toLocaleLowerCase();
+      const available = availableFacetValues(name);
+      const options = baseFacetCatalog(name).filter(value =>
+        !selected.includes(value) &&
+        (!FACET_DEFS[name].hideUnavailable || available.has(value)) &&
+        (!query || value.toLocaleLowerCase().includes(query))
+      )
+        .sort((left,right) => Number(available.has(right))-Number(available.has(left)) || left.localeCompare(right,undefined,{numeric:true,sensitivity:'base'}));
+      state.visible = options;
+      state.suggestions.innerHTML = options.length ? options.map((value,index) => `<button class="facet-suggestion${available.has(value) ? '' : ' unavailable'}" type="button" data-facet-index="${index}"${available.has(value) ? '' : ' disabled'}>${esc(value)}</button>`).join('') : '<div class="layer-options-empty">No matching options.</div>';
+      if (!state.suggestions.hidden) state.input.setAttribute('aria-expanded','true');
+    }
+    function renderFacetControls() {
+      Object.keys(FACET_DEFS).forEach(name => FACET_DEFS[name].multi ? renderFacetPicker(name) : populateFacetSelect(name));
+    }
+    function hideFacetSuggestions(state) {
+      state.suggestions.hidden = true;
+      state.input.setAttribute('aria-expanded','false');
+    }
+    function hideAllFacetSuggestions(exceptState = null) {
+      facetPickers.forEach(state => { if (state !== exceptState) hideFacetSuggestions(state); });
+    }
+    function openFacetSuggestions(name, state) {
+      hideLayerSuggestions();
+      hideAllFacetSuggestions(state);
+      renderFacetPicker(name);
+      state.suggestions.hidden = false;
+      state.input.setAttribute('aria-expanded','true');
+    }
+    function closeAllDropdowns() {
+      hideLayerSuggestions();
+      hideAllFacetSuggestions();
+    }
+    function addFacetSelection(name, value) {
+      const normalized = clean(value);
+      const available = availableFacetValues(name);
+      if (!normalized) return false;
+      if (!FACET_DEFS[name].allowsCustom && (!baseFacetCatalog(name).includes(normalized) || !available.has(normalized))) return false;
+      if (!facetSelections[name].includes(normalized)) facetSelections[name].push(normalized);
+      const state = facetPickers.get(name);
+      state.input.value = '';
+      renderFacetControls();
+      hideFacetSuggestions(state);
+      return true;
+    }
+    function initializeFacetPickers() {
+      document.querySelectorAll('[data-facet-picker]').forEach(field => {
+        const name = field.dataset.facetPicker;
+        const state = {field, input:field.querySelector('input'), chips:field.querySelector('.facet-chips'), suggestions:field.querySelector('.facet-suggestions'), visible:[], wasOpenOnPointerDown:false};
+        facetPickers.set(name,state);
+        state.input.addEventListener('pointerdown', () => {
+          state.wasOpenOnPointerDown = document.activeElement === state.input && !state.suggestions.hidden;
+        });
+        state.input.addEventListener('focus', () => openFacetSuggestions(name,state));
+        state.input.addEventListener('click', () => {
+          if (state.wasOpenOnPointerDown) hideFacetSuggestions(state);
+          else if (state.suggestions.hidden) openFacetSuggestions(name,state);
+          state.wasOpenOnPointerDown = false;
+        });
+        state.input.addEventListener('input', () => openFacetSuggestions(name,state));
+        state.field.addEventListener('focusout', () => setTimeout(() => {
+          if (!state.field.matches(':focus-within')) hideFacetSuggestions(state);
+        },0));
+        state.input.addEventListener('keydown', event => {
+          if (event.key === 'Escape') hideFacetSuggestions(state);
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            const typed = clean(state.input.value);
+            const exact = state.visible.find(value => value.toLocaleLowerCase() === typed.toLocaleLowerCase());
+            const selection = exact || (FACET_DEFS[name].allowsCustom || FACET_DEFS[name].contains ? typed : state.visible.find(value => availableFacetValues(name).has(value)));
+            if (selection) addFacetSelection(name,selection);
+          }
+        });
+        state.suggestions.addEventListener('mousedown', event => {
+          const option = event.target.closest('[data-facet-index]');
+          if (!option) return;
+          event.preventDefault();
+          addFacetSelection(name,state.visible[Number(option.dataset.facetIndex)]);
+        });
+        state.chips.addEventListener('click', event => {
+          const remove = event.target.closest('[data-remove-facet]');
+          if (!remove) return;
+          facetSelections[name].splice(Number(remove.dataset.removeFacet),1);
+          renderFacetControls();
+          state.input.focus();
+        });
+      });
+    }
+    function commitFacetInputs() {
+      facetPickers.forEach((state,name) => {
+        const typed = clean(state.input.value);
+        if (!typed) return;
+        const exact = baseFacetCatalog(name).find(value => value.toLocaleLowerCase() === typed.toLocaleLowerCase());
+        if (exact || FACET_DEFS[name].allowsCustom || FACET_DEFS[name].contains) addFacetSelection(name,exact || typed);
+      });
+    }
+    async function refreshFacetRows() {
+      if (!isQuickbasePage()) return;
+      const request = ++facetRefreshRequest;
+      const params = currentSearchParams();
+      try {
+        const doc = await quickbaseXmlCall(QB_TABLE,{a:'API_DoQuery',query:quickbaseWhere(params,FACET_PARAM_NAMES),clist:`7.382.506.184.2122.2243.712.${QB_WEIGHT_FID}`,options:'num-10000',fmt:'structured'});
+        if (request !== facetRefreshRequest) return;
+        const range = weightRange(params);
+        facetRows = [...doc.querySelectorAll('record')].filter(record => weightMatches(recordField(record,QB_WEIGHT_FID),range)).map(record => ({
+          purchasingCustomer:recordField(record,7), customerBrand:recordField(record,382), itemFamily:recordField(record,506), customerPo:recordField(record,184),
+          specFormat:recordField(record,2122), specStyle:recordField(record,2243), gussetStyle:recordField(record,712)
+        }));
+        renderFacetControls();
+      } catch (error) { console.warn('Could not refresh cascading filter options:',error); }
+    }
+    function scheduleFacetRefresh() {
+      clearTimeout(facetRefreshTimer);
+      facetRefreshTimer = setTimeout(refreshFacetRows,220);
+    }
+    function qbEscape(value) { return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+    function quickbaseWhere(params, excluded = new Set()) {
+      const clauses = [];
+      for (const [name, definition] of Object.entries(FACET_DEFS)) {
+        if (excluded.has(name)) continue;
+        const values = params.getAll(name).map(clean).filter(Boolean);
+        if (!values.length) continue;
+        const comparisons = values.flatMap(value => definition.trailingSpaceExact
+          ? [value,`${value} `,`${value}  `].map(candidate => `{${definition.fid}.EX.'${qbEscape(candidate)}'}`)
+          : [`{${definition.fid}.${definition.contains || name === 'gussetStyle' ? 'CT' : 'EX'}.'${qbEscape(value)}'}`]
+        );
+        clauses.push(comparisons.length === 1 ? comparisons[0] : `(${comparisons.join('OR')})`);
+      }
+      params.getAll('layers').map(clean).filter(Boolean).forEach(value => clauses.push(`{710.CT.'${qbEscape(value)}'}`));
+      const barcode = clean(params.get('barcode'));
+      if (barcode) clauses.push(`{13.CT.'${qbEscape(barcode)}'}`);
+      const numericMappings = {specWidth:2331, specLength:2332, specGusset:2333};
+      for (const [name, fid] of Object.entries(numericMappings)) {
+        const minimum = clean(params.get(`${name}Min`));
+        const maximum = clean(params.get(`${name}Max`));
+        if (/^\d+(?:\.\d+)?$/.test(minimum)) clauses.push(`{${fid}.GTE.${Number(minimum)}}`);
+        if (/^\d+(?:\.\d+)?$/.test(maximum)) clauses.push(`{${fid}.LTE.${Number(maximum)}}`);
+      }
+      if (params.get('hasArtwork') !== 'false') clauses.push("{329.CT.'files.demo-packaging.example/f/'}");
+      const dateFrom = clean(params.get('dateFrom')), dateTo = clean(params.get('dateTo'));
+      const qbDate = value => { const [year, month, day] = value.split('-'); return `${month}-${day}-${year}`; };
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) clauses.push(`{1.OAF.'${qbDate(dateFrom)}'}`);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) clauses.push(`{1.OBF.'${qbDate(dateTo)}'}`);
+      return clauses.length ? clauses.join('AND') : "{3.GT.0}";
+    }
+    async function searchQuickbase(params) {
+      await quickbaseCredentials();
+      const offset = Math.max(0, Number(params.get('offset')) || 0);
+      if (weightRange(params)) {
+        const pageRids = (await weightMatchedRids(params)).slice(offset, offset + PAGE_SIZE);
+        if (!pageRids.length) return [];
+        const doc = await quickbaseXmlCall(QB_TABLE, {
+          a: 'API_DoQuery', query: pageRids.map(rid => `{3.EX.${Number(rid)}}`).join('OR'),
+          clist: QB_FIELDS.join('.'), options: `num-${PAGE_SIZE}`, fmt: 'structured'
+        });
+        const byRid = new Map([...doc.querySelectorAll('record')].map(normalizeXmlRecord).map(record => [String(record.recordId), record]));
+        return pageRids.map(rid => byRid.get(String(rid))).filter(Boolean);
+      }
+      const query = new URLSearchParams({
+        a: 'API_DoQuery', query: quickbaseWhere(params), clist: QB_FIELDS.join('.'),
+        slist: '14.3', options: `sortorder-A.sortorder-A.skp-${offset}.num-${PAGE_SIZE}`, fmt: 'structured',
+        usertoken: qbState.user, apptoken: qbState.app
+      });
+      const response = await fetch(`https://${QB_REALM}/db/${QB_TABLE}?${query}`, {credentials: 'include'});
+      if (!response.ok) throw new Error(`Quickbase search failed (${response.status}).`);
+      const doc = xml(await response.text());
+      const error = xmlError(doc); if (error) throw new Error(error);
+      return [...doc.querySelectorAll('record')].map(normalizeXmlRecord);
+    }
+    async function countQuickbase(params) {
+      if (weightRange(params)) return (await weightMatchedRids(params)).length;
+      const doc = await quickbaseXmlCall(QB_TABLE, {a:'API_DoQueryCount',query:quickbaseWhere(params)});
+      const count = Number(clean(doc.querySelector('numMatches')?.textContent));
+      return Number.isFinite(count) ? count : null;
+    }
+    function normalizeXmlRecord(record) {
+      const values = new Map();
+      record.querySelectorAll('f, field').forEach(field => {
+        const fid = field.getAttribute('id') || field.getAttribute('fid') || field.querySelector('fid')?.textContent;
+        const valueNode = field.querySelector(':scope > value');
+        if (fid) values.set(String(Number(fid) || fid), clean(valueNode?.textContent ?? field.textContent));
+      });
+      const get = (fid, fallback = '') => values.get(String(fid)) ?? fallback;
+      const recordId = get(3), artworkUrl = get(329);
+      return {
+        recordId, dateCreated: get(1), itemName: get(14) || `Record ${recordId}`, artworkUrl,
+        purchasingCustomer: get(7), barcode: get(13), weight: get(QB_WEIGHT_FID), customerPo: get(184), customerBrand: get(382), family: get(506), layers: get(710), dimensions: get(711),
+        format: get(712), productionOptions: get(713), purchaseOptions: get(714), corners: get(715),
+        specFormat: get(2122), specStyle: get(2243), specWidth: get(2331), specLength: get(2332), specGusset: get(2333),
+        numberOfColors: get(795, null), colors: [796,797,798,799,800,801,802,803,804,805].map(get).filter(Boolean),
+        previewUrl: '', previewsUrl: '',
+        quickbaseUrl: `https://${QB_REALM}/db/${QB_TABLE}?a=dr&rid=${encodeURIComponent(recordId)}`
+      };
+    }
+    async function searchLocal(params) {
+      if (!['127.0.0.1', 'localhost'].includes(window.__DEMO_HOST)) {
+        throw new Error('Open this page from its Quickbase code page or through the local server at http://127.0.0.1:8765.');
+      }
+      const response = await fetch('/api/search?' + params, {headers: {'Accept': 'application/json'}});
+      const contentType = response.headers.get('content-type') || '';
+      const responseText = await response.text();
+      if (!contentType.includes('application/json')) {
+        const looksLikeHtml = /^\s*<!doctype|^\s*<html/i.test(responseText);
+        throw new Error(looksLikeHtml ? 'The local API returned an HTML page instead of search data.' : `Unexpected API response type: ${contentType || 'unknown'}.`);
+      }
+      let payload; try { payload = JSON.parse(responseText); }
+      catch { throw new Error('The local search API returned malformed JSON.'); }
+      if (!response.ok) throw new Error(payload.error || 'Search failed');
+      return payload.records;
+    }
+
+    form.addEventListener('reset', () => setTimeout(() => {
+      form.hasArtwork.checked = true;
+      selectedLayers.splice(0);
+      Object.values(facetSelections).forEach(values => values.splice(0));
+      facetPickers.forEach(state => { state.input.value=''; hideFacetSuggestions(state); });
+      layersInput.value = '';
+      renderLayerChips();
+      hideLayerSuggestions();
+      setDefaultDates();
+      scheduleFacetRefresh();
+    }, 0));
+
+    layersInput.addEventListener('pointerdown', () => {
+      layerWasOpenOnPointerDown = document.activeElement === layersInput && !layerSuggestions.hidden;
+    });
+    layersInput.addEventListener('focus', openLayerSuggestions);
+    layersInput.addEventListener('click', () => {
+      if (layerWasOpenOnPointerDown) hideLayerSuggestions();
+      else if (layerSuggestions.hidden) openLayerSuggestions();
+      layerWasOpenOnPointerDown = false;
+    });
+    layersInput.addEventListener('input', () => { hideAllFacetSuggestions(); activeLayerSuggestion = -1; renderLayerSuggestions(); });
+    const layerFieldElement = layersInput.closest('.layers-field');
+    layerFieldElement.addEventListener('focusout', () => setTimeout(() => {
+      if (!layerFieldElement.matches(':focus-within')) hideLayerSuggestions();
+    },0));
+    layersInput.addEventListener('keydown', event => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault(); moveLayerSuggestion(event.key === 'ArrowDown' ? 1 : -1); return;
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (activeLayerSuggestion >= 0 && visibleLayerSuggestions[activeLayerSuggestion]) addLayer(visibleLayerSuggestions[activeLayerSuggestion].value);
+        else commitLayerInput();
+        return;
+      }
+      if (event.key === 'Backspace' && !layersInput.value && selectedLayers.length) {
+        selectedLayers.pop(); renderLayerChips(); renderLayerSuggestions(); scheduleFacetRefresh(); return;
+      }
+      if (event.key === 'Escape') hideLayerSuggestions();
+    });
+    layerSuggestions.addEventListener('mousedown', event => {
+      const option = event.target.closest('[data-layer-index]');
+      if (!option) return;
+      event.preventDefault();
+      const entry = visibleLayerSuggestions[Number(option.dataset.layerIndex)];
+      if (entry) { addLayer(entry.value); layersInput.focus(); }
+    });
+    layerChips.addEventListener('click', event => {
+      const remove = event.target.closest('[data-remove-layer]');
+      if (!remove) return;
+      selectedLayers.splice(Number(remove.dataset.removeLayer), 1);
+      renderLayerChips(); renderLayerSuggestions(); scheduleFacetRefresh(); layersInput.focus();
+    });
+    document.addEventListener('pointerdown', event => {
+      const facetField = event.target.closest?.('[data-facet-picker]');
+      const layerField = event.target.closest?.('.layers-field');
+      if (facetField) {
+        facetPickers.forEach(state => { if (state.field !== facetField) hideFacetSuggestions(state); });
+        hideLayerSuggestions();
+      } else if (layerField) {
+        hideAllFacetSuggestions();
+      } else {
+        closeAllDropdowns();
+      }
+    }, true);
+    document.addEventListener('focusin', event => {
+      if (event.target === layersInput) { hideAllFacetSuggestions(); return; }
+      const facetField = event.target.closest?.('[data-facet-picker]');
+      if (facetField) {
+        facetPickers.forEach(state => { if (state.field !== facetField) hideFacetSuggestions(state); });
+        hideLayerSuggestions();
+      } else if (!event.target.closest?.('dialog')) closeAllDropdowns();
+    }, true);
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') closeAllDropdowns(); });
+    window.addEventListener('blur', closeAllDropdowns);
+    showLayerOptions?.addEventListener('click', openLayerOptions);
+    layerOptionsFilter.addEventListener('input', renderLayerOptions);
+    layerOptionsList.addEventListener('change', event => {
+      const checkbox = event.target.closest('[data-layer-value]');
+      if (!checkbox) return;
+      const value = normalizeLayerSearch(checkbox.dataset.layerValue);
+      if (checkbox.checked) layerOptionsSelection.add(value);
+      else layerOptionsSelection.delete(value);
+      refreshLayerAvailability([...layerOptionsSelection]);
+    });
+    layerOptionsDialog.querySelector('.layer-options-close').addEventListener('click', () => layerOptionsDialog.close());
+    layerOptionsDialog.querySelector('.layer-options-cancel').addEventListener('click', () => layerOptionsDialog.close());
+    layerOptionsDialog.querySelector('.layer-options-apply').addEventListener('click', () => {
+      selectedLayers.splice(0, selectedLayers.length, ...layerOptionsSelection);
+      renderLayerChips();
+      scheduleFacetRefresh();
+      layerOptionsDialog.close();
+      hideLayerSuggestions();
+    });
+    layerOptionsDialog.addEventListener('click', event => { if (event.target === layerOptionsDialog) layerOptionsDialog.close(); });
+
+    function render(records, append = false) {
+      if (!append) pageState.groupKeys.clear();
+      if (form.groupByFamily.checked) {
+        records = records.filter(record => {
+          const key = familyGroupKey(record);
+          if (pageState.groupKeys.has(key)) return false;
+          pageState.groupKeys.add(key);
+          return true;
+        });
+      }
+      if (!records.length) {
+        if (!append) grid.innerHTML = '<div class="empty"><div><strong>No records matched</strong>Try broadening one or more filters.</div></div>';
+        return;
+      }
+      const range = weightRange(pageState.params || new URLSearchParams());
+      const weightFact = r => {
+        const grams = range ? parseWeight(r.weight) : null;
+        return esc(val(r.weight)) + (grams !== null && !new RegExp(`\\b${range.unit}`, 'i').test(r.weight) ? ` <span class="weight-converted">(${esc(formatWeight(grams, range.unit))})</span>` : '');
+      };
+      const cards = records.map(r => `
+        <article class="card" data-record-id="${esc(r.recordId || '')}">
+          <div class="art" data-manifest="${esc(r.previewsUrl || '')}" data-artwork-url="${esc(r.artworkUrl || '')}" tabindex="0" role="button" aria-label="Open larger preview for ${esc(r.itemName)}">
+            <div class="placeholder"><span class="artwork-loading"><span class="artwork-loading-spinner" aria-hidden="true"></span><small>${r.previewsUrl ? 'Loading artwork previews…' : 'Loading Files.com artwork…'}</small></span></div>
+            ${r.previewsUrl ? `<img class="artwork-preview-image" alt="Artwork for ${esc(r.itemName)}"><button class="carousel prev" type="button" aria-label="Previous artwork" hidden>‹</button><button class="carousel next" type="button" aria-label="Next artwork" hidden>›</button><span class="carousel-count" hidden></span>` : ''}
+          </div>
+          <div class="body">
+            <div class="eyebrow">${esc(val(r.customerBrand))}</div><h3 class="title">${esc(r.itemName)}</h3>
+            <div class="facts"><div><b>Purchasing customer:</b> ${esc(val(r.purchasingCustomer))}</div><div><b>Customer PO:</b> ${esc(val(r.customerPo))}</div><div><b>Barcode / UPC:</b> ${esc(val(r.barcode))}</div><div><b>Family:</b> ${esc(val(r.family))}</div><div><b>Dimensions:</b> ${esc(val(r.dimensions))}</div><div><b>Weight:</b> ${weightFact(r)}</div><div><b>Format:</b> ${esc(val(r.specFormat || r.format))}</div><div><b>Style:</b> ${esc(val(r.specStyle))}</div><div><b>Layers:</b> ${esc(val(r.layers))}</div></div>
+            <div class="actions"><a href="${esc(r.artworkUrl)}" target="_blank" rel="noopener">Open artwork ↗</a><a href="${esc(r.quickbaseUrl)}" target="_blank" rel="noopener">Quickbase ↗</a></div>
+            <div class="raw" title="FID 329 — Vendor Artwork Link">FID 329: ${esc(r.artworkUrl || 'Empty')}</div>
+          </div>
+        </article>`).join('');
+      if (append) {
+        grid.querySelector('.empty')?.remove();
+        grid.insertAdjacentHTML('beforeend', cards);
+      } else {
+        grid.innerHTML = cards;
+      }
+      watchImages();
+    }
+
+    function familyGroupKey(record) {
+      if (!clean(record.family)) return `RID:${record.recordId}`;
+      return [record.purchasingCustomer,record.customerBrand,record.barcode,record.family,record.dimensions,record.specWidth,record.specLength,record.specGusset,record.specFormat || record.format,record.specStyle,record.layers]
+        .map(value => clean(value).toLocaleUpperCase()).join('\u001f');
+    }
+
+    function updateVisibleCount() {
+      const count = grid.querySelectorAll('.card:not(.preview-rejected)').length;
+      const loadedLabel = form.groupByFamily.checked ? `family ${count === 1 ? 'group' : 'groups'}` : `artwork ${count === 1 ? 'record' : 'records'}`;
+      meta.textContent = Number.isFinite(pageState.total)
+        ? `${pageState.total} matching artwork ${pageState.total === 1 ? 'record' : 'records'} found - ${count} ${loadedLabel} loaded`
+        : `${count} artwork ${count === 1 ? 'record' : 'records'} loaded`;
+      if (!count && !grid.querySelector('.empty')) {
+        grid.innerHTML = '<div class="empty"><div><strong>No usable artwork previews loaded</strong>Try Load more, broaden the filters, or uncheck Has artwork.</div></div>';
+      }
+    }
+
+    grid.addEventListener('artwork-preview-unavailable', event => {
+      if (!form.hasArtwork.checked) return;
+      const card = event.target.closest('.card');
+      if (!card || card.classList.contains('preview-rejected')) return;
+      card.classList.add('preview-rejected');
+      observer?.unobserve(card.querySelector('.art'));
+      updateVisibleCount();
+      setTimeout(() => {
+        card.remove();
+        if (!grid.querySelector('.card')) updateVisibleCount();
+      }, 190);
+    });
+
+    function watchImages() {
+      if (!observer) observer = new IntersectionObserver(entries => entries.forEach(async entry => {
+          if (!entry.isIntersecting) return;
+          const art = entry.target; observer.unobserve(art);
+          try {
+            await ArtworkPreviews.loadCard(art);
+          } catch (error) {
+            art.querySelector('.placeholder').innerHTML = `<span>Preview unavailable<br><small>${esc(error?.message || 'Use Open artwork below')}</small></span>`;
+            art.dispatchEvent(new CustomEvent('artwork-preview-unavailable', {bubbles: true, detail: {message: error?.message || 'Preview script unavailable'}}));
+          }
+        }), {rootMargin: '350px'});
+      document.querySelectorAll('.art[data-artwork-url]:not([data-artwork-url=""]):not([data-preview-started])').forEach(art => {
+        art.dataset.previewStarted = 'true';
+        observer.observe(art);
+      });
+    }
+
+    grid.addEventListener('click', event => {
+      const art = event.target.closest('.art'); if (!art) return;
+      if (event.target.closest('.prev')) { event.stopPropagation(); ArtworkPreviews.previous(art); return; }
+      if (event.target.closest('.next')) { event.stopPropagation(); ArtworkPreviews.next(art); return; }
+      if (ArtworkPreviews.open?.(art)) return;
+      const current = ArtworkPreviews.current(art);
+      if (art.querySelector('img.ready') && current) openLightbox(current.url);
+    });
+    grid.addEventListener('keydown', event => { if ((event.key !== 'Enter' && event.key !== ' ') || !event.target.matches('.art')) return; if (ArtworkPreviews.open?.(event.target)) return; const current=ArtworkPreviews.current(event.target); if (current) openLightbox(current.url); });
+    function openLightbox(src) { lightbox.querySelector('img').src = src; lightbox.showModal(); }
+    lightbox.querySelector('button').addEventListener('click', () => lightbox.close());
+    lightbox.addEventListener('click', event => { if (event.target === lightbox) lightbox.close(); });
+    function setColumns(value, persist = true) {
+      const columns = ['1', '2', '3'].includes(String(value)) ? String(value) : '3';
+      grid.dataset.columns = columns;
+      columnButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.columns === columns)));
+      if (persist) { try { localStorage.setItem('artwork-gallery-columns', columns); } catch {} }
+      window.dispatchEvent(new Event('resize'));
+    }
+    columnButtons.forEach(button => button.addEventListener('click', () => setColumns(button.dataset.columns)));
+    let savedColumns = '3'; try { savedColumns = localStorage.getItem('artwork-gallery-columns') || '3'; } catch {}
+    setColumns(savedColumns, false);
+    window.addEventListener('scroll', () => backToTop.classList.toggle('visible', window.scrollY > 500), {passive: true});
+    backToTop.addEventListener('click', () => window.scrollTo({top: 0, behavior: 'smooth'}));
+    function localDate(date) { const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; }
+    function setDefaultDates() {
+      const end=new Date(),start=new Date(end); start.setMonth(start.getMonth()-6);
+      const from=localDate(start),to=localDate(end);
+      form.dateFrom.value=from; form.dateTo.value=to;
+      document.querySelector('#dateFromPicker').value=from;
+      document.querySelector('#dateToPicker').value=to;
+    }
+    function initializeDateControls() {
+      [['dateFrom','dateFromPicker'],['dateTo','dateToPicker']].forEach(([textId,pickerId]) => {
+        const textInput=document.querySelector(`#${textId}`), picker=document.querySelector(`#${pickerId}`);
+        picker.addEventListener('change', () => {
+          if (!picker.value) return;
+          textInput.value=picker.value;
+          textInput.setCustomValidity('');
+          textInput.dispatchEvent(new Event('change',{bubbles:true}));
+        });
+        textInput.addEventListener('input', () => textInput.setCustomValidity(''));
+        textInput.addEventListener('blur', () => {
+          const normalized=normalizeDateEntry(textInput.value);
+          if (normalized) { textInput.value=normalized; picker.value=normalized; }
+        });
+      });
+    }
+    initializeFacetPickers();
+    initializeDateControls();
+    form.addEventListener('change', event => {
+      const name = event.target.name;
+      if (name === 'groupByFamily' && pageState.params) form.requestSubmit();
+      else if (FACET_PARAM_NAMES.has(name)) renderFacetControls();
+      else if (['dateFrom','dateTo','barcode','specWidthMin','specWidthMax','specLengthMin','specLengthMax','specGussetMin','specGussetMax','weightMin','weightMax','weightUnit','hasArtwork'].includes(name)) scheduleFacetRefresh();
+      if (name === 'weightUnit') { try { localStorage.setItem('artwork-weight-unit', event.target.value); } catch {} }
+    });
+    form.addEventListener('input', event => {
+      if (['barcode','specWidthMin','specWidthMax','specLengthMin','specLengthMax','specGussetMin','specGussetMax','weightMin','weightMax'].includes(event.target.name)) scheduleFacetRefresh();
+    });
+    try { const savedUnit = localStorage.getItem('artwork-weight-unit'); const radio = form.querySelector(`input[name="weightUnit"][value="${savedUnit}"]`); if (radio) radio.checked = true; } catch {}
+    setDefaultDates();
+    refreshFacetRows();
+  </script>
+<!-- demo-launcher:start (managed by demo_launcher.py: edit demo_launcher_snippet.html, not this copy) -->
+
+
+
+</body>
+</html>

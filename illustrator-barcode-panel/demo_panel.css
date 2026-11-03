@@ -1,0 +1,71 @@
+/*
+  Demo panel look: the one stylesheet every Demo Packaging Illustrator panel shares, so they read as one family.
+  The values are the Annotation panel's (its screen carries the same numbers in its own panel-mode styles):
+  Illustrator's dark greys, 12px text, 24px controls, a 28px lookup row at the top, sections that fold, and a
+  footer with the status line and the buttons, Reset on the left and the blue action on the right.
+
+  This file is the same in every panel. Edit the copy in account_illustrator_panel and run build_plugins.py.
+*/
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;overflow:hidden;background:#535353;color:#dedede;font:12px/1.35 "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif}
+[hidden]{display:none!important}
+main{flex:1 1 auto;min-height:0;overflow:hidden auto}
+
+/* Top bar: who is signed in, and the panel's version (demo_gate.js draws the same bar in gated panels). */
+.xg-bar{flex:none;display:flex;align-items:center;gap:6px;padding:4px 10px;border-bottom:1px solid #3a3a3a;background:#484848;color:#c8c8c8;font-size:11px;line-height:1.3}
+.xg-bar b{overflow:hidden;color:#f0f0f0;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.xg-bar i{flex:none;width:7px;height:7px;border-radius:50%;background:#86dcae}
+.xg-bar i.off{background:#e0b25c}
+.xg-bar span{margin-left:auto;flex:none;color:#b4b4b4;font-size:10.5px}
+.xg-bar a{margin-left:auto;flex:none;padding:1px 6px;border-radius:3px;background:#ffd166;color:#132a35;font-size:10.5px;font-weight:600;text-decoration:none;cursor:pointer}
+
+/* Sections */
+section,details{margin:0;padding:0;border-bottom:1px solid #434343}
+section{padding:10px}
+details summary{padding:8px 10px;color:#dedede;font-weight:600;font-size:12px;list-style:none;cursor:pointer}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:'+';float:right;color:#b9b9b9}
+details[open] summary::after{content:'-'}
+.detail-body{padding:0 10px 10px}
+h2{margin:0 0 7px;color:#dedede;font-size:12px;font-weight:600}
+p{margin:0 0 8px}
+ol{margin:0 0 9px;padding-left:18px}
+li{margin-bottom:3px}
+a{color:#8ab4f8}
+small{color:#b9b9b9}
+
+/* Controls */
+input[type=text],input[type=password],select{width:100%;height:24px;padding:0 7px;border:1px solid #2f2f2f;border-radius:3px;background:#454545;color:#f2f2f2;font:12px "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif;outline:none;box-shadow:none}
+select{padding:0 4px}
+input[type=text]:focus,input[type=password]:focus,select:focus{border-color:#1473e6;box-shadow:0 0 0 1px #1473e6}
+input:disabled,input[readonly]{opacity:.55}
+input[type=checkbox]{width:14px;height:14px;margin:0;accent-color:#1473e6}
+button{height:24px;padding:0 10px;border:1px solid #8c8c8c;border-radius:3px;background:#4a4a4a;color:#f0f0f0;font:600 11.5px "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif;white-space:nowrap;cursor:pointer}
+button:hover:not(:disabled){background:#5e5e5e}
+button:disabled{opacity:.5;cursor:default}
+
+/* Lookup row: the box you type in, with its button on the right */
+.lookup{display:grid;grid-template-columns:minmax(0,1fr) 64px;gap:6px}
+.lookup input{height:28px;font-size:13px;letter-spacing:.08em}
+.lookup button{height:28px;width:64px;padding:0}
+
+/* Rows: label on the left, control on the right */
+.fields{display:grid;gap:5px}
+.field{display:grid;grid-template-columns:112px minmax(0,1fr);align-items:center;gap:8px}
+.field>span:first-child{color:#dedede;font-size:11.5px}
+.field .text{min-width:0;color:#f2f2f2;overflow-wrap:anywhere}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) 58px;gap:5px}
+.options{display:grid;gap:5px}
+.option{display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer}
+.note{margin-top:8px;color:#b9b9b9;font-size:11px}
+
+/* Footer: status, then Reset (or other grey buttons) and the blue action */
+.panel-foot{flex:none;display:grid;gap:7px;padding:8px 10px 10px;border-top:1px solid #434343;background:#535353}
+#status{min-height:15px;color:#c4c4c4;font-size:11px;line-height:1.35}
+#status.good{color:#86dcae}
+#status.bad{color:#ffa294}
+.panel-actions{display:flex;gap:6px}
+.panel-actions button{height:28px}
+.panel-actions button.primary{flex:1;border-color:#1473e6;background:#1473e6;color:#fff;font-size:12.5px}
+.panel-actions button.primary:hover:not(:disabled){background:#0d66d0}
