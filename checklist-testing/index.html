@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script id="demo-backend">
+/* Demo backend. Answers this page's Quickbase calls in the browser from made-up records, so the tool runs with no
+   server and no account. Every company, product, person and address here is fictional. Changes last until reload. */
+(function () {
+  var HOST = 'demo.quickbase.example';
+  window.__DEMO_HOST = HOST;
+
+  var BRANDS = [
+    {customer: 'Trailhead Pet Co', code: 'TH', prefix: '00011'},
+    {customer: 'Northfield Pet Foods', code: 'NF', prefix: '00012'},
+    {customer: 'Sunny Paws Kitchen', code: 'SP', prefix: '00013'},
+    {customer: 'Bramble & Bone', code: 'BB', prefix: '00014'},
+    {customer: 'Copper Creek Provisions', code: 'CC', prefix: '00015'},
+    {customer: 'Little Harbor Treats', code: 'LH', prefix: '00016'},
+    {customer: 'Meadowlark Mills', code: 'MM', prefix: '00017'},
+    {customer: 'Oak & Ember Foods', code: 'OE', prefix: '00018'},
+    {customer: 'Tidewater Snacks', code: 'TW', prefix: '00019'},
+    {customer: 'Pine Ridge Grains', code: 'PR', prefix: '00020'}
+  ];
+  // Every shape here has a template in the mockup tool.
+  var SHAPES = [
+    {format: 'Quad Seal Bag', style: 'Flat Bottom', gusset: 'Terminated Gusset', sizes: [[7, 11.5, 3.5, '12 oz'], [8.5, 14, 4, '2 lb'], [10, 16, 4.5, '4 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Non-Terminated Gusset', sizes: [[11.5, 18.25, 4.125, '10 lb'], [13, 22, 5, '15 lb'], [15.75, 26.5, 4.5, '25 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Terminated Gusset', sizes: [[8, 13, 4, '3.5 lb'], [9.5, 15, 4, '5 lb'], [12, 20, 4.5, '12 lb']]},
+    {format: 'Stand-Up Pouch', style: 'Angle Plow', gusset: '', sizes: [[5, 7.75, 2.5, '5 oz'], [6, 9, 3, '8 oz'], [7.25, 11, 3.5, '1 lb']]},
+    {format: 'Stand-Up Pouch', style: 'K-Seal', gusset: '', sizes: [[7, 10, 3.25, '10 oz'], [6, 8.5, 2.75, '6 oz'], [8, 12, 3.5, '1.5 lb']]}
+  ];
+  var RECIPES = ['Grain-Free Salmon Kibble', 'Turkey Training Bites', 'Pumpkin Berry Minis', 'Chicken Recipe Kibble', 'Freeze-Dried Beef Morsels', 'Duck & Sweet Potato Bites', 'Lamb & Rice Dinner', 'Peanut Butter Crunch', 'Ancient Grain Granola', 'Sea Salt Veggie Crisps', 'Dark Roast Coffee', 'Honey Oat Clusters'];
+  var LAYERS = ['MATTE / PET / FOIL / LLDPE', 'MATTE / PET / MET PET / LLDPE', 'GLOSS / PET / MET PET / LLDPE', 'SOFT TOUCH / PET / FOIL / LLDPE', 'SOFT TOUCH / PET / MET PET / LLDPE', 'MATTE / PET / PET / LLDPE', 'GLOSS / PET / EVOH / LLDPE', 'MATTE / PE / EVOH / PE', 'GLOSS / KRAFT / MET PET / LLDPE', 'SOFT TOUCH / PET / ALOX / LLDPE'];
+  var COLORS = ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'PMS 186 C', 'PMS 2728 C', 'PMS 349 C', 'PMS 7406 C', 'PMS 485 C', 'PMS 2607 C', 'PMS 7421 C'];
+  var PEOPLE = ['Demo Designer', 'Alex Morgan', 'Jordan Lee', 'Priya Nair', 'Casey Tran', 'Riley Brooks'];
+  var ZIPPERS = ['Small Zipper', 'No Zipper', 'Small Zipper', 'Pocket Zipper'];
+  var PRODUCTS = [];
+  BRANDS.forEach(function (brand, b) {
+    for (var i = 0; i < 6; i++) {
+      var shape = SHAPES[(b + i) % SHAPES.length], size = shape.sizes[(b + i * 2) % 3];
+      PRODUCTS.push({b: b, name: RECIPES[(b * 2 + i) % RECIPES.length], weight: size[3], format: shape.format, style: shape.style, gusset: shape.gusset, w: size[0], h: size[1], g: size[2], layers: LAYERS[(b + i * 3) % LAYERS.length]});
+    }
+  });
+  var ADDRESSES = [
+    ['100 Example Way', 'Dock 2', 'Springfield', 'IL', '62704'],
+    ['250 Sample Road', '', 'Riverton', 'WY', '82501'],
+    ['17 Placeholder Ave', 'Suite 300', 'Fairview', 'TN', '37062'],
+    ['900 Demo Parkway', '', 'Madison', 'WI', '53703'],
+    ['44 Mockup Lane', 'Building B', 'Georgetown', 'TX', '78626'],
+    ['312 Fictional Blvd', '', 'Salem', 'OR', '97301'],
+    ['8 Test Harbor Rd', 'Unit 12', 'Clinton', 'IA', '52732'],
+    ['1200 Sample Mill Dr', '', 'Franklin', 'KY', '42134'],
+    ['75 Placeholder Pier', 'Dock 9', 'Bristol', 'RI', '02809'],
+    ['560 Example Ridge', '', 'Greenville', 'SC', '29601']
+  ];
+  function day(offset) { var d = new Date(Date.UTC(2026, 8, 20) - offset * 864e5); return d.toISOString().slice(0, 10); }
+  function pick(list, i) { return list[i % list.length]; }
+  function colorBank(row, start, n) { for (var c = 0; c < 10; c++) row[start + c] = c < 4 ? COLORS[c] : c < 4 + (n % 4) ? COLORS[4 + (n + c) % 8] : ''; }
+  function ms(offset) { return String(Date.UTC(2026, 8, 20) - offset * 864e5); }
+
+  var tables = {
+    bdemocust: [], bdemoopps: [], bdemofami: [], bdemospec: [], bdemostyl: [], bdemoaddr: [], bdemoship: [],
+    bdemoprod: [], bdemoordr: [], bdemoitem: [], bdemoartv: [], bdemomock: [], bdemorevw: [], bdemodens: [],
+    bdemofont: [], bdemolayr: [], bdemofill: [], bdemolist: [], bdemotask: [], bdemotime: [], bdemosrvc: []
+  };
+  var labels = {
+    bdemoprod: {name: 'Products', 2209: 'Filing #', 3: 'Record ID#', 12: 'Item Name', 13: 'Legacy Item Name', 14: 'Legacy UPC', 128: 'Art Versions', 132: 'UPC', 136: 'Art Version Count', 141: 'Brand', 353: 'Current Vendor Proof', 604: 'Approved Color Standard', 662: 'Current Customer Proof'},
+    bdemoitem: {name: 'Order Items', 1: 'Date Created', 3: 'Record ID#', 7: 'Customer', 13: 'UPC', 14: 'Item', 161: 'Weight', 184: 'PO', 329: 'Artwork Link', 382: 'Brand', 506: 'Family', 710: 'Layers', 711: 'Dimensions', 2122: 'Format', 2243: 'Style'},
+    bdemoartv: {name: 'Art Versions', 3: 'Record ID#', 11: 'Version Date', 12: 'Art Type', 37: 'Related Item', 61: 'Art REV', 152: 'Version', 361: 'Vendor Proof', 583: 'Inactive Art', 588: 'Customer Proof'},
+    bdemocust: {name: 'Customers', 3: 'Record ID#', 6: 'Customer Name', 125: 'Inactive'},
+    bdemoordr: {name: 'Orders', 3: 'Record ID#', 18: 'Customer PO'},
+    bdemofami: {name: 'Families', 3: 'Record ID#', 6: 'Family', 31: 'Current Spec'},
+    bdemospec: {name: 'Family Specifications', 3: 'Record ID#', 15: 'Format', 14: 'Style', 151: 'Layers'},
+    bdemomock: {name: 'Mock-Ups', 3: 'Record ID#', 9: 'Format', 10: 'Style', 39: 'Product Name'},
+    bdemolist: {name: 'Art Checklists', 3: 'Record ID#', 13: 'Description', 18: 'Brand'},
+    bdemotask: {name: 'Checklist Tasks', 3: 'Record ID#', 27: 'Department', 28: 'Description'},
+    bdemofill: {name: 'Fill Recordings', 3: 'Record ID#', 12: 'Format', 13: 'Style'},
+    bdemodens: {name: 'Product Densities', 3: 'Record ID#', 6: 'Brand', 7: 'Product', 14: 'Average'},
+    bdemofont: {name: 'System Fonts', 3: 'Record ID#', 6: 'Font Name', 7: 'Font File'}
+  };
+
+  BRANDS.forEach(function (b, i) {
+    var rid = String(i + 1), a = ADDRESSES[i];
+    tables.bdemocust.push({3: rid, 6: b.customer, 125: '0'});
+    ['new pouch line', 'holiday pack', 'club size relaunch'].forEach(function (name, k) {
+      tables.bdemoopps.push({3: String(100 + i * 3 + k), 6: rid, 8: b.customer + ' ' + name, 23: k === 2 ? '1' : '0', 24: k === 2 ? 'Closed' : 'Open'});
+    });
+    tables.bdemoaddr.push({3: String(200 + i), 6: 'Main warehouse', 7: a[0], 8: a[1], 13: rid, 18: '1', 23: a[2], 24: a[3], 25: a[4]});
+    tables.bdemoaddr.push({3: String(250 + i), 6: 'Co-packer', 7: pick(ADDRESSES, i + 3)[0], 8: '', 13: rid, 18: '0', 23: pick(ADDRESSES, i + 3)[2], 24: pick(ADDRESSES, i + 3)[3], 25: pick(ADDRESSES, i + 3)[4]});
+    tables.bdemoship.push({3: String(300 + i), 8: a[0], 9: a[1], 10: a[2], 11: a[3], 12: a[4], 13: 'United States', 16: b.customer});
+  });
+  SHAPES.forEach(function (shape, s) {
+    shape.sizes.forEach(function (size, k) {
+      for (var r = 0; r < 4; r++) {
+        var area = size[0] * size[1], fill = 68 + (s * 3 + k * 5 + r * 4) % 24;
+        tables.bdemofill.push({3: String(400 + s * 12 + k * 4 + r), 1: ms(s * 30 + k * 11 + r * 17), 6: String(+(2 + r * 1.5 + k).toFixed(1)), 7: String(+(0.5 + k * 2 + r).toFixed(1)), 8: String(size[1]), 9: String(size[0]), 10: String(size[2]), 11: pick(BRANDS, s + r).prefix + '00' + (101 + s + r), 12: shape.format, 13: shape.style, 14: shape.gusset, 15: pick(ZIPPERS, k + r), 16: String(+area.toFixed(1)), 17: String(fill), 18: String(Math.round(area * size[2] * fill / 100))});
+      }
+    });
+  });
+  [['Quad Seal Bag', 'Flat Bottom'], ['Quad Seal Bag', 'Pinched Bottom'], ['Stand-Up Pouch', 'K-Seal'], ['Stand-Up Pouch', 'Doyen'], ['Three Side Seal', 'Flat Pouch']].forEach(function (s, i) {
+    tables.bdemostyl.push({3: String(i + 1), 6: s[1], 7: s[0]});
+  });
+
+  PRODUCTS.forEach(function (p, i) {
+    var b = BRANDS[p.b], n = i + 1, upc = b.prefix + '00' + (100 + n), rid = String(100 + n), title = b.customer + ' ' + p.name + ' ' + p.weight;
+    var dims = p.w + ' x ' + p.h + ' x ' + p.g, combo = [p.format, p.style, p.gusset].join(' / '), family = b.code + '-' + String(p.w * 100) + '-' + n;
+    var po = String(21000 + n), order = String(500 + n), art = 'https://files.demo-packaging.example/f/' + b.code + n;
+    var spec = String(300 + n), fam = String(200 + n);
+    tables.bdemospec.push({3: spec, 6: fam, 12: 'v1', 14: p.style, 15: p.format, 43: p.gusset, 53: String(p.w), 54: String(p.h), 55: String(p.g), 56: String(p.w * 25.4), 57: String(p.h * 25.4), 58: String(p.g * 25.4), 65: 'in', 146: 'Zipper', 149: '1.5', 151: p.layers, 154: dims, 155: p.format + ' / ' + p.style, 428: '1.5', 1543: 'Current'});
+    tables.bdemofami.push({3: fam, 6: family, 9: String(p.b + 1), 31: spec, 76: b.customer + ' ' + family, 144: '0'});
+    tables.bdemoprod.push({3: rid, 12: title, 13: title, 14: upc, 128: '2', 132: upc, 136: '2', 141: b.customer, 225: '', 2209: 'Shelf ' + n, 353: 'Rev ' + n, 539: 'Match the approved pantone swatch.', 604: 'On file', 662: 'Rev ' + n});
+    // The first order of each product keeps PO 21000 + n; some products reorder under later POs.
+    for (var o = 0; o < 1 + i % 3; o++) {
+      var line = String(1000 + n * 10 + o), orderId = String(+order + o * 100), thisPo = String(+po + o * 1000), age = i * 8 + o * 120, approved = (i + o) % 3 > 0;
+      tables.bdemoordr.push({3: orderId, 18: thisPo});
+      tables.bdemoitem.push({1: ms(age), 2: ms(age / 2), 3: line, 6: orderId, 7: b.customer, 8: orderId, 13: upc, 14: title, 151: rid, 161: p.weight, 162: title, 163: o ? 'Reorder' : 'New', 184: thisPo, 262: day(age), 265: '0' + (o + 1) + '.26', 329: art, 382: b.customer, 417: approved ? '1' : '0', 419: approved ? day(age / 2) : '', 420: 'Press sheet ' + thisPo, 506: family, 573: o ? 'Revised' : 'New', 710: p.layers, 711: dims, 712: combo, 794: 'Zipper at 1.5"', 2122: p.format, 2209: 'Shelf ' + n, 2243: p.style, 2331: String(p.w), 2332: String(p.h), 2333: String(p.g), 2412: '0', 2519: '0', 2693: '', 2694: '', 2695: '0', 2696: ''});
+      tables.bdemorevw.push({3: String(5000 + n * 10 + o), 7: '', 8: '', 10: '', 16: '', 17: '', 19: '', 31: '', 34: '', 35: line, 41: p.format, 42: p.style, 44: dims, 54: '0', 63: '0', 67: combo});
+    }
+    [0, 1, 2].slice(0, 2 + i % 2).forEach(function (v, index, all) {
+      var artRow = {3: String(2000 + n * 4 + v), 10: title, 11: day(i * 8 + v * 95), 12: v === all.length - 1 ? 'New' : 'Revised', 18: 'Art REV', 37: rid, 40: title, 58: upc, 59: title, 61: '0' + (all.length - v) + '.26', 84: b.customer, 127: fam, 152: String(all.length - v), 205: v ? '0' : '1', 330: b.customer, 361: art + '-vendor.pdf', 376: p.weight, 481: String(parseFloat(p.weight)), 522: dims, 523: combo, 524: 'Tear notch', 525: p.layers, 526: 'Zipper, tear notch', 583: v ? '1' : '0', 588: art + '-customer.pdf', 624: upc};
+      colorBank(artRow, 191, n); colorBank(artRow, 571, n + 1); colorBank(artRow, 589, n + 2);
+      tables.bdemoartv.push(artRow);
+    });
+    tables.bdemomock.push({1: ms(i * 7), 3: String(1500 + n), 6: 'Opportunity ' + n, 7: p.format, 9: p.format, 10: p.style, 11: p.style, 12: String(p.w), 13: String(p.h), 14: String(p.g), 15: p.weight, 16: '1', 18: '3', 19: 'Demo mockup request.', 22: day(-7), 26: pick(ZIPPERS, i), 27: 'PET12/LLDPE100', 33: p.gusset, 35: String(p.b + 1), 36: b.customer, 39: p.name, 40: '1.5', 49: 'Mockup', 51: 'Opportunity ' + n, 53: p.format, 54: p.style, 56: p.gusset, 57: String(p.w), 58: String(p.h), 59: String(p.g), 62: pick(ZIPPERS, i), 63: '1.5', 74: ADDRESSES[p.b][0], 75: ADDRESSES[p.b][1], 76: ADDRESSES[p.b][2], 77: ADDRESSES[p.b][3], 78: ADDRESSES[p.b][4], 79: 'United States'});
+    var cups = [0, 1, 2, 3, 4].map(function (c) { return (2.1 + (n % 7) * 0.12 + ((n + c * 3) % 5) * 0.02).toFixed(2); });
+    tables.bdemodens.push({3: String(i + 1), 1: ms(i * 5), 6: b.customer, 7: p.name, 8: '', 9: cups[0], 10: cups[1], 11: cups[2], 12: cups[3], 13: cups[4], 14: (cups.reduce(function (s, v) { return s + +v; }, 0) / 5).toFixed(2)});
+  });
+
+  ['Demo Sans Regular', 'Demo Sans Medium', 'Demo Sans Bold', 'Demo Serif Regular', 'Demo Serif Italic', 'Demo Mono', 'Demo Condensed'].forEach(function (name, i) { tables.bdemofont.push({3: String(i + 1), 6: name, 7: ''}); });
+  LAYERS.forEach(function (name, i) { tables.bdemolayr.push({3: String(i + 1), 6: name, 7: String(40 - i * 3)}); });
+  PRODUCTS.slice(0, 12).forEach(function (p, i) {
+    var lid = String(3000 + i), b = BRANDS[p.b], done = i % 5;
+    tables.bdemolist.push({3: lid, 10: String(501 + i), 13: 'Art checklist: ' + p.name, 14: '0', 16: '0', 17: String(p.b + 1), 18: b.customer, 19: String(21001 + i), 21: '4', 25: pick(PEOPLE, i), 29: String(1 + i % 4 * 0.5), 30: String(4 - Math.min(done, 4))});
+    ['Prepress', 'Proofreading', 'PC', 'Engineering'].forEach(function (dept, t) {
+      tables.bdemotask.push({3: String(3100 + i * 10 + t), 12: lid, 14: '0', 15: '', 16: t < done ? '1' : '0', 18: String(t + 1), 26: 'General', 27: dept, 28: dept + ' review of ' + p.name, 29: '', 32: String(t + 1), 34: '0'});
+    });
+  });
+  [['Prepress', 'Production Art'], ['Prepress', 'Proof Review'], ['Project Coordination', 'Scheduling'], ['Engineering', 'Dieline Review']].forEach(function (s, i) { tables.bdemosrvc.push({3: String(i + 1), 6: s[0], 7: s[1]}); });
+
+  var ids = {};
+  function nextRid(table) { ids[table] = ids[table] || Object.keys(tables[table] || {}).length + 90000; return String(++ids[table]); }
+  function rows(table) { return tables[table] || (tables[table] = []); }
+  function xmlEsc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+
+  // Quickbase query language: {fid.OP.'value'} joined by AND / OR, with parentheses.
+  function when(value) { return /^\d{10,}$/.test(value) ? +value : Date.parse(value) || 0; }
+  function test(row, fid, op, want) {
+    var have = String(row[fid] == null ? '' : row[fid]), h = have.toLowerCase(), w = String(want).toLowerCase(), n = parseFloat(have), m = parseFloat(want);
+    switch (op) {
+      case 'EX': case 'TV': return h === w;
+      case 'XEX': case 'XTV': return h !== w;
+      case 'CT': case 'HAS': return h.indexOf(w) >= 0;
+      case 'XCT': return h.indexOf(w) < 0;
+      case 'SW': return h.indexOf(w) === 0;
+      case 'XSW': return h.indexOf(w) !== 0;
+      case 'OAF': case 'AF': return when(have) >= when(want);
+      case 'OBF': case 'BF': return when(have) <= when(want);
+      case 'GT': return isNaN(n) ? have > want : n > m;
+      case 'GTE': return n >= m;
+      case 'LT': return isNaN(n) ? have < want : n < m;
+      case 'LTE': return n <= m;
+      default: return true;
+    }
+  }
+  function tokenize(q) {
+    var out = [], re = /\{\s*'?(\d+)'?\s*\.\s*([A-Z]+)\s*\.\s*'((?:\\.|[^'])*)'\s*\}|\(|\)|AND|OR/gi, m;
+    while ((m = re.exec(q))) out.push(m[1] ? {fid: m[1], op: m[2].toUpperCase(), value: m[3].replace(/\\(.)/g, '$1')} : m[0].toUpperCase());
+    return out;
+  }
+  function matcher(q) {
+    var t = tokenize(q || ''), i = 0;
+    if (!t.length) return function () { return true; };
+    function atom(row) {
+      var k = t[i++];
+      if (k === '(') { var v = or(row); i++; return v; }
+      return !k || !k.fid || test(row, k.fid, k.op, k.value);
+    }
+    function and(row) { var v = atom(row); while (t[i] === 'AND') { i++; var r = atom(row); v = v && r; } return v; }
+    function or(row) { var v = and(row); while (t[i] === 'OR') { i++; var r = and(row); v = v || r; } return v; }
+    return function (row) { i = 0; return or(row); };
+  }
+  function select(table, q, slist, options) {
+    var list = rows(table).filter(matcher(q)), opt = String(options || ''), sort = String(slist || '').split('.').filter(Boolean)[0];
+    if (sort) {
+      var desc = /sortorder-D/.test(opt);
+      list = list.slice().sort(function (a, b) { var x = a[sort], y = b[sort], nx = parseFloat(x), ny = parseFloat(y), c = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x || '').localeCompare(String(y || '')); return desc ? -c : c; });
+    }
+    var skip = /skp-(\d+)/.exec(opt), num = /num-(\d+)/.exec(opt);
+    if (skip) list = list.slice(+skip[1]);
+    if (num) list = list.slice(0, +num[1]);
+    return list;
+  }
+  function ok(body) { return '<?xml version="1.0"?><qdbapi><action>demo</action><errcode>0</errcode><errtext>No error</errtext>' + (body || '') + '</qdbapi>'; }
+  function labelOf(table, fid) { return (labels[table] && labels[table][fid]) || 'Field ' + fid; }
+  function fidsOf(table) { var seen = {}; rows(table).forEach(function (r) { Object.keys(r).forEach(function (k) { seen[k] = 1; }); }); Object.keys(labels[table] || {}).forEach(function (k) { if (k !== 'name') seen[k] = 1; }); return Object.keys(seen).sort(function (a, b) { return a - b; }); }
+  function doQuery(table, p) {
+    var list = select(table, p.query, p.slist, p.options), clist = String(p.clist || '').split('.').filter(function (x) { return /^\d+$/.test(x); });
+    if (!clist.length) clist = fidsOf(table);
+    var fields = clist.map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    var body = list.map(function (r) {
+      return '<record rid="' + xmlEsc(r[3]) + '">' + clist.map(function (f) { return '<f id="' + f + '">' + xmlEsc(r[f]) + '</f>'; }).join('') + '<update_id>1</update_id></record>';
+    }).join('');
+    return ok('<table><fields>' + fields + '</fields><records>' + body + '</records></table>');
+  }
+  function schema(table) {
+    if (!tables[table]) {
+      var kids = Object.keys(labels).map(function (t) { return '<chdbid name="_dbid_' + xmlEsc(labels[t].name.toLowerCase().replace(/\W+/g, '_')) + '">' + t + '</chdbid>'; }).join('');
+      return ok('<table><name>Demo Packaging</name><original><app_id>' + table + '</app_id></original><chdbids>' + kids + '</chdbids><fields></fields></table>');
+    }
+    var fields = fidsOf(table).map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    return ok('<table><name>' + xmlEsc((labels[table] || {}).name || table) + '</name><original><table_id>' + table + '</table_id></original><fields>' + fields + '</fields></table>');
+  }
+  function writeFields(p, body) {
+    var out = {}, k;
+    for (k in p) { var m = /^_fid_(\d+)$/.exec(k); if (m) out[m[1]] = p[k]; }
+    if (body && /<field/.test(body)) {
+      var doc = new DOMParser().parseFromString(body, 'text/xml');
+      [].forEach.call(doc.querySelectorAll('field'), function (n) { if (n.getAttribute('fid')) out[n.getAttribute('fid')] = n.textContent; });
+      var rid = doc.querySelector('rid'); if (rid) p.rid = rid.textContent;
+      ['query', 'clist', 'slist', 'options', 'varname'].forEach(function (name) { var e = doc.querySelector(name); if (e && !p[name]) p[name] = e.textContent; });
+    }
+    return out;
+  }
+  // The real page stores a generated script on the record. There is no record to open here, so hand it over as a download.
+  function saveUpload(body) {
+    var file = new DOMParser().parseFromString(body, 'text/xml').querySelector('field[filename]');
+    if (file) {
+      var bytes = Uint8Array.from(atob(file.textContent), function (c) { return c.charCodeAt(0); });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([bytes], {type: 'application/javascript'}));
+      link.download = file.getAttribute('filename');
+      window.__demoLastFile = {name: link.download, text: new TextDecoder().decode(bytes)};
+      link.click();
+    }
+    return ok('<rid>1</rid>');
+  }
+  function xmlApi(table, p, body) {
+    var fields = writeFields(p, body), row;
+    switch (p.a) {
+      case 'API_DoQuery': return doQuery(table, p);
+      case 'API_DoQueryCount': return ok('<numMatches>' + select(table, p.query).length + '</numMatches>');
+      case 'API_GetDBVar': return ok('<value>demo-value</value>');
+      case 'API_SetDBVar': return ok();
+      case 'API_GetUserInfo': return ok('<user id="1.demo"><firstName>Demo</firstName><lastName>User</lastName><login>demo.user</login><email>demo.user@demo-packaging.example</email><screenName>Demo User</screenName></user>');
+      case 'API_GetSchema': return schema(table);
+      case 'API_GetDBPage': return '';
+      case 'dbpage': return (window.__DEMO_PAGES || {})[p.pageID || p.pageid] || '';
+      case 'API_UploadFile': return saveUpload(body);
+      case 'API_AddRecord':
+        row = fields; row[3] = nextRid(table); row[1] = String(Date.now()); row[2] = row[1]; rows(table).unshift(row);
+        return ok('<rid>' + row[3] + '</rid><update_id>1</update_id>');
+      case 'API_EditRecord':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid || p.key); })[0];
+        if (row) Object.keys(fields).forEach(function (f) { row[f] = fields[f]; });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid><num_fields_changed>1</num_fields_changed><update_id>2</update_id>');
+      case 'API_DeleteRecord':
+        tables[table] = rows(table).filter(function (r) { return String(r[3]) !== String(p.rid); });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>');
+      case 'API_GetRecordInfo':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid); })[0] || {};
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>' + Object.keys(row).map(function (f) { return '<field><fid>' + f + '</fid><name>' + xmlEsc(labelOf(table, f)) + '</name><type>Text</type><value>' + xmlEsc(row[f]) + '</value></field>'; }).join(''));
+      default: return ok();
+    }
+  }
+  function restWhere(where) { return where || ''; }
+  function restApi(url, init) {
+    var path = url.pathname, body = {};
+    try { body = JSON.parse(init.body || '{}'); } catch (e) {}
+    if (/\/v1\/auth\/temporary\//.test(path)) return {temporaryAuthorization: 'demo-token'};
+    if (/\/v1\/records\/query/.test(path)) {
+      var select_ = body.select || [], sort = (body.sortBy || [])[0], list = select(body.from, restWhere(body.where), sort && sort.fieldId, sort && sort.order === 'DESC' ? 'sortorder-D' : '');
+      return {data: list.map(function (r) { var o = {}; select_.forEach(function (f) { o[f] = {value: r[f] == null ? '' : r[f]}; }); return o; }),
+        fields: select_.map(function (f) { return {id: f, label: labelOf(body.from, f), type: 'text'}; }),
+        metadata: {numRecords: list.length, numFields: select_.length, totalRecords: list.length, skip: 0}};
+    }
+    if (/\/v1\/records/.test(path)) {
+      var created = (body.data || []).map(function (src) { var row = {}; Object.keys(src).forEach(function (f) { row[f] = src[f] && src[f].value; }); row[3] = row[3] || nextRid(body.to); rows(body.to).unshift(row); return +row[3]; });
+      return {data: [], metadata: {createdRecordIds: created, updatedRecordIds: [], unchangedRecordIds: [], totalNumberOfRecordsProcessed: created.length}};
+    }
+    if (/\/v1\/fields/.test(path)) { var t = url.searchParams.get('tableId'); return fidsOf(t).map(function (f) { return {id: +f, label: labelOf(t, f), fieldType: 'text'}; }); }
+    if (/\/v1\/tables/.test(path)) return Object.keys(labels).map(function (t) { return {id: t, name: labels[t].name}; });
+    return {};
+  }
+  function params(url, init) {
+    var p = {};
+    url.searchParams.forEach(function (v, k) { p[k] = v; });
+    var b = init && init.body;
+    if (b && typeof b === 'string' && !/^\s*</.test(b)) new URLSearchParams(b).forEach(function (v, k) { p[k] = v; });
+    else if (b && b.forEach && !(b instanceof Blob)) b.forEach(function (v, k) { if (typeof v === 'string') p[k] = v; });
+    var h = init && init.headers, action = h && (h['QUICKBASE-ACTION'] || (h.get && h.get('QUICKBASE-ACTION')));
+    if (action) p.a = action;
+    return p;
+  }
+  function respond(url, init) {
+    var host = url.hostname;
+    if (host === 'api.quickbase.com') return new Response(JSON.stringify(restApi(url, init || {})), {status: 200, headers: {'Content-Type': 'application/json'}});
+    var m = /^\/db\/([^/?#]+)/.exec(url.pathname), p = params(url, init), text = m ? xmlApi(m[1], p, typeof (init || {}).body === 'string' ? init.body : '') : '';
+    return new Response(text, {status: 200, headers: {'Content-Type': 'text/xml'}});
+  }
+  var realFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var raw = input && input.url ? input.url : String(input), url = new URL(raw, location.href);
+    if (url.hostname === HOST || url.hostname === 'api.quickbase.com' || (url.origin === location.origin && /^\/db\//.test(url.pathname))) return Promise.resolve(respond(url, init || {}));
+    if (url.hostname.indexOf('.example') > 0) return Promise.resolve(new Response('', {status: 404}));
+    return realFetch.apply(this, arguments);
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var tag = document.createElement('div');
+    tag.textContent = 'Demo: fictional company and data';
+    tag.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 10px;border-radius:999px;background:#1f2937;color:#fff;font:600 12px/1 system-ui,sans-serif;opacity:.85;pointer-events:none';
+    document.body.appendChild(tag);
+  });
+})();
+
+</script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Checklist Testing</title>
+  <link rel="icon" type="image/png" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27%233b3f8f%27/%3E%3C/svg%3E">
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0}
+    body{background:var(--x-canvas);color:var(--x-ink);font:15px/1.45 var(--x-font);-webkit-font-smoothing:antialiased}
+    :root{--xh-height:60px}
+    .xh{position:relative;z-index:20;background:#3b3f8f;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.18);font-family:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.2}
+    .xh-inner{height:var(--xh-height);padding:0 24px;display:flex;align-items:center;gap:16px}
+    .xh-logo{flex:none;display:block;width:auto;height:26px}
+    .xh-home{flex:none;display:flex;align-items:center;border-radius:6px;text-decoration:none;transition:opacity .15s}.xh-home:hover{opacity:.82}.xh-home:focus-visible{outline:2px solid #8fd6e1;outline-offset:5px}
+    .xh-symbol{flex:none;display:none;width:22px;height:22px}
+    .xh-divider{flex:none;width:1px;height:28px;background:rgba(255,255,255,.28)}
+    .xh-title{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .xh-title strong{overflow:hidden;color:#fff;font-size:16px;font-weight:700;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+    .xh-title span{overflow:hidden;color:#a3c9d1;font-size:11px;font-weight:700;letter-spacing:.1em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    .xh-badge{flex:none;padding:4px 7px;border:1px solid rgba(255,255,255,.3);border-radius:6px;color:#d9eef2;font:700 11px/1 ui-monospace,Consolas,monospace}
+    .xh-actions{flex:none;margin-left:auto;display:flex;align-items:center;gap:8px}
+    .xh-button{height:36px;min-height:0;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(255,255,255,.26);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;box-shadow:none;transform:none;cursor:pointer;font:inherit;font-size:13px;font-weight:700;line-height:1;list-style:none;text-decoration:none;white-space:nowrap}
+    .xh-button:hover{background:rgba(255,255,255,.16);box-shadow:none;transform:none}
+    .xh-button:focus-visible{outline:2px solid #8fd6e1;outline-offset:2px}
+    .xh-button:disabled{cursor:not-allowed;opacity:.45}
+    .xh-button[aria-pressed="true"],details[open]>summary.xh-button{border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.2)}
+    .xh-button.primary{border-color:#fff;background:#fff;color:#3b3f8f}.xh-button.primary:hover:not(:disabled){background:#dff0f3}
+    .xh-button::-webkit-details-marker{display:none}
+    .xh-button svg{flex:none;width:16px;height:16px}
+    @media(max-width:640px){:root{--xh-height:52px}.xh-inner{padding:0 14px;gap:11px}.xh-logo{height:21px}.xh-inner:has(.xh-actions) .xh-logo{display:none}.xh-inner:has(.xh-actions) .xh-symbol{display:block}.xh-divider{height:24px}.xh-title strong{font-size:15px}.xh-title span{display:none}.xh-button{height:34px;padding:0 10px;font-size:12px}}
+    :root{--x-brand:#3b3f8f;--x-brand-hover:#2d3070;--x-accent:#5257b8;--x-accent-soft:#e4f0f2;--x-ink:#132a35;--x-muted:#62757c;--x-line:#d6e0e3;--x-line-strong:#c3d2d6;--x-soft:#eef4f5;--x-paper:#fff;--x-canvas:#f3f6f7;--x-danger:#a73543;--x-success:#18705f;--x-warning:#8a5a00;--x-radius-card:14px;--x-radius-inner:11px;--x-radius-control:9px;--x-radius-small:7px;--x-shadow-card:0 1px 2px rgba(3,61,75,.05),0 6px 18px rgba(3,61,75,.06);--x-shadow-pop:0 14px 32px rgba(3,61,75,.16);--x-shadow-modal:0 24px 70px rgba(2,32,40,.3);--x-focus:0 0 0 3px rgba(13,99,114,.18);--x-font:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    button,input,select,textarea{font:inherit;color:inherit}
+    [hidden]{display:none!important}
+    .shell{max-width:1320px;margin:0 auto;padding:22px 24px 60px;display:grid;grid-template-columns:340px minmax(0,1fr);gap:20px;align-items:start}
+    .card{border:1px solid var(--x-line);border-radius:var(--x-radius-card);background:var(--x-paper);box-shadow:var(--x-shadow-card)}
+    .eyebrow{margin:0 0 6px;color:var(--x-accent);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    .muted{color:var(--x-muted)}
+    .button{height:38px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--x-brand);border-radius:var(--x-radius-control);background:var(--x-brand);color:#fff;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer}
+    .button:hover:not(:disabled){border-color:var(--x-brand-hover);background:var(--x-brand-hover)}
+    .button.secondary{border-color:var(--x-line-strong);background:#fff;color:var(--x-ink)}
+    .button.secondary:hover:not(:disabled){border-color:#9fb4ba;background:var(--x-soft)}
+    .button.stop{border-color:var(--x-danger);background:var(--x-danger)}
+    .button.stop:hover:not(:disabled){border-color:#8d2c38;background:#8d2c38}
+    .button.small{height:30px;padding:0 10px;font-size:13px}
+    .button:disabled{opacity:.5;cursor:default}
+    .input,select.input{width:100%;height:40px;padding:0 11px;border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:#fff}
+    .input:focus,textarea:focus{outline:none;border-color:var(--x-accent);box-shadow:var(--x-focus)}
+
+    /* Left: search */
+    .rail{position:sticky;top:calc(var(--xh-height) + 16px);padding:16px;display:grid;gap:12px;max-height:calc(100vh - var(--xh-height) - 32px)}
+    .rail p{margin:0;font-size:13px}
+    .results{min-height:0;overflow:auto;margin:0 -6px;padding:0 6px;display:grid;gap:6px;align-content:start}
+    .result{width:100%;padding:10px 11px;display:grid;gap:2px;border:1px solid var(--x-line);border-radius:var(--x-radius-inner);background:#fff;text-align:left;cursor:pointer}
+    .result:hover{border-color:#9fb4ba;background:var(--x-soft)}
+    .result[aria-current="true"]{border-color:var(--x-brand);box-shadow:inset 3px 0 0 var(--x-brand)}
+    .result b{font-weight:700;overflow-wrap:anywhere}
+    .result span{color:var(--x-muted);font-size:13px}
+    .result .hit{color:var(--x-accent);font-weight:700}
+
+    /* Right: the checklist */
+    .main{display:grid;gap:16px;min-width:0}
+    .head{padding:18px 20px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-start}
+    .head h1{margin:0;font-size:24px;font-weight:750;letter-spacing:-.02em;line-height:1.15;overflow-wrap:anywhere}
+    .facts{margin:8px 0 0;display:flex;flex-wrap:wrap;gap:4px 18px;color:var(--x-muted);font-size:14px}
+    .facts b{color:var(--x-ink);font-weight:700}
+    .head-side{margin-left:auto;display:grid;gap:8px;justify-items:end}
+    .progress{width:220px;max-width:100%}
+    .progress-bar{height:8px;border-radius:99px;background:var(--x-soft);overflow:hidden}
+    .progress-bar i{display:block;height:100%;border-radius:99px;background:var(--x-success)}
+    .progress small{display:block;margin-top:4px;color:var(--x-muted);font-size:13px;text-align:right}
+    .head a{color:var(--x-accent);font-size:13px;font-weight:700}
+
+    /* Timers */
+    .timers{padding:16px 20px}
+    .timers h2,.tasks h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.015em}
+    .timer-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:12px}
+    .start{display:grid;grid-template-columns:190px minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:end}
+    .start label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--x-muted)}
+    .entries{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+    .entry{padding:9px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;border:1px solid var(--x-line);border-radius:var(--x-radius-inner)}
+    .entry.running{border-color:#9ccfc3;background:#f1faf7}
+    .entry .what{flex:1 1 220px;min-width:0}
+    .entry .what b{display:block;font-weight:700;overflow-wrap:anywhere}
+    .entry .what span{color:var(--x-muted);font-size:13px}
+    .clock{font:700 17px ui-monospace,SFMono-Regular,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .dot{width:9px;height:9px;border-radius:50%;background:var(--x-success);animation:pulse 1.4s infinite}
+    @keyframes pulse{50%{opacity:.25}}
+    @media (prefers-reduced-motion:reduce){.dot{animation:none}}
+
+    /* Tasks */
+    .tasks{padding:16px 20px 20px}
+    .task-top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:12px}
+    .tabs,.seg{display:flex;flex-wrap:wrap;gap:6px}
+    .tab{height:36px;padding:0 13px;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--x-line-strong);border-radius:99px;background:#fff;font-size:14px;font-weight:700;cursor:pointer}
+    .tab small{color:var(--x-muted);font-weight:700}
+    .tab[aria-pressed="true"]{border-color:var(--x-brand);background:var(--x-brand);color:#fff}
+    .tab[aria-pressed="true"] small{color:#b9dbe2}
+    .tab.all-done small{color:var(--x-success)}
+    .seg{margin-left:auto;padding:3px;border-radius:99px;background:var(--x-soft)}
+    .seg button{height:30px;padding:0 12px;border:0;border-radius:99px;background:none;font-size:13px;font-weight:700;color:var(--x-muted);cursor:pointer}
+    .seg button[aria-pressed="true"]{background:#fff;color:var(--x-ink);box-shadow:0 1px 2px rgba(3,61,75,.15)}
+    .section{margin:16px 0 6px;color:var(--x-muted);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+    .task{padding:10px 0;display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:4px 12px;align-items:start;border-top:1px solid var(--x-line)}
+    .task.done .text b{color:var(--x-muted);font-weight:500}
+    .task .num{color:var(--x-muted);font:700 13px ui-monospace,Consolas,monospace;padding-top:2px}
+    .task .text b{display:block;font-weight:700;overflow-wrap:anywhere}
+    .task .text small{display:block;color:var(--x-muted);font-size:13px;overflow-wrap:anywhere}
+    .review{display:flex;gap:4px}
+    .review button{min-width:44px;height:32px;padding:0 9px;border:1px solid var(--x-line-strong);border-radius:var(--x-radius-small);background:#fff;font-size:13px;font-weight:700;cursor:pointer}
+    .review button:hover:not(:disabled){background:var(--x-soft)}
+    .review button[aria-pressed="true"][data-value="Yes"]{border-color:var(--x-success);background:var(--x-success);color:#fff}
+    .review button[aria-pressed="true"][data-value="No"]{border-color:var(--x-danger);background:var(--x-danger);color:#fff}
+    .review button[aria-pressed="true"][data-value="N/A"]{border-color:var(--x-muted);background:var(--x-muted);color:#fff}
+    .task textarea{grid-column:2 / -1;width:100%;min-height:34px;height:34px;padding:6px 9px;border:1px solid var(--x-line);border-radius:var(--x-radius-small);background:#fff;font-size:13px;resize:vertical}
+    .task textarea::placeholder{color:#9aa9ae}
+    .empty{padding:26px 10px;text-align:center;color:var(--x-muted)}
+    .status{position:sticky;bottom:12px;z-index:5;justify-self:start;max-width:100%;padding:9px 13px;border-radius:var(--x-radius-control);background:var(--x-ink);color:#fff;font-size:14px;box-shadow:var(--x-shadow-pop)}
+    .status.bad{background:var(--x-danger)}
+    .status.good{background:var(--x-success)}
+    .mine{padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;border-color:#9ccfc3;background:#f1faf7}
+    .mine b{font-weight:700}
+    .mine button.link{border:0;background:none;padding:0;color:var(--x-accent);font-weight:700;text-decoration:underline;cursor:pointer}
+
+    @media(max-width:980px){.shell{grid-template-columns:1fr;padding:16px}.rail{position:static;max-height:none}.results{max-height:300px}.start{grid-template-columns:1fr 1fr}.start .button{grid-column:1 / -1}.head-side{margin-left:0;justify-items:start}.progress small{text-align:left}}
+    @media(max-width:560px){.start{grid-template-columns:1fr}.task{grid-template-columns:28px minmax(0,1fr)}.review{grid-column:2}.seg{margin-left:0}}
+  </style>
+  <style id="no-sideways-scroll">
+    @media (max-width:760px){html,body{max-width:100%;overflow-x:clip}body{min-width:0!important}}
+  </style>
+  
+<!-- app-version:start (managed by demo_versions.py: change versions.json, not this copy) -->
+
+
+
+
+</head>
+<body>
+  <header class="xh">
+    <div class="xh-inner">
+      <a class="xh-home" href="#" title="All demo apps" aria-label="Demo Apps: all our tools"><img class="xh-logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27white%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging" width="89" height="26">
+      <img class="xh-symbol" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27white%27/%3E%3C/svg%3E" alt="Demo Packaging" width="22" height="22"></a>
+      <span class="xh-divider" aria-hidden="true"></span>
+      <div class="xh-title"><strong>Checklist Testing</strong><span>Art checklists, tasks and timers</span></div>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="rail card">
+      <div>
+        <p class="eyebrow">Find a checklist</p>
+        <input class="input" id="search" type="search" autocomplete="off" placeholder="Description, order # or checklist #" aria-label="Search checklists">
+      </div>
+      <p class="muted" id="searchNote">Type part of a description, an order number, or a checklist number.</p>
+      <div class="results" id="results"></div>
+    </aside>
+
+    <main class="main">
+      <section class="mine card" id="mine" hidden></section>
+      <section class="head card" id="head" hidden></section>
+      <section class="timers card" id="timers" hidden>
+        <div class="timer-top"><h2>Timers</h2><span class="muted" id="timerTotal"></span></div>
+        <div class="start">
+          <label>Category<select class="input" id="category"></select></label>
+          <label>Service<select class="input" id="service"></select></label>
+          <label>Notes (optional)<input class="input" id="timerNotes" type="text" autocomplete="off"></label>
+          <button class="button" id="startTimer" type="button">Start timer</button>
+        </div>
+        <ul class="entries" id="entries"></ul>
+      </section>
+      <section class="tasks card" id="tasks" hidden>
+        <div class="task-top">
+          <h2>Tasks</h2>
+          <div class="tabs" id="tabs" role="group" aria-label="Department"></div>
+          <div class="seg" id="statusFilter" role="group" aria-label="Completion">
+            <button type="button" data-status="todo" aria-pressed="true">To do</button>
+            <button type="button" data-status="done" aria-pressed="false">Done</button>
+            <button type="button" data-status="all" aria-pressed="false">All</button>
+          </div>
+        </div>
+        <div id="taskList"></div>
+      </section>
+      <div class="empty card" id="blank">Search for a checklist on the left to open it.</div>
+      <div class="status" id="status" hidden></div>
+    </main>
+  </div>
+
+  <script>
+    /*
+      Checklist Testing (page 172): a test bench for working with Art Checklists outside the Quickbase forms.
+        Find    a checklist by part of its description, its related order number, or its own number.
+        Tasks   shown by department and by done / not done. A task is done when its Review is Yes, No or N/A,
+                which is the same rule Quickbase uses (the Complete field).
+        Timers  start one (adds a Time Entry on the checklist), stop it (ticks Closed on that entry, as Quickbase's
+                Stop button does), and Re-Start it (presses Quickbase's own Re-Start button; the clock carries
+                on from the time already logged rather than starting again at zero).
+      Everything runs as the signed-in person; nothing is stored here.
+    */
+    const REALM = 'demo.quickbase.example', APP = 'bdemoapp0';
+    const LISTS = {table: 'bdemolist', description: 13, order: 10, po: 19, brandId: 17, brand: 18, template: 14, assigned: 25, total: 21, open: 30, times: 29, isTemplate: 16};
+    const TASKS = {table: 'bdemotask', list: 12, number: 18, sort: 32, department: 27, section: 26, description: 28, info: 29, review: 14, notes: 15, complete: 16, inactive: 34};
+    const TIMES = {table: 'bdemotime', start: 1, end: 2, customer: 6, serviceId: 8, service: 9, category: 10, order: 11, override: 13, hours: 14, closed: 15, button: 16, employee: 17, employeeName: 18, notes: 19, recent: 20, list: 21};
+    const SERVICES = {table: 'bdemosrvc', category: 6, name: 7};
+    const DEPARTMENTS = ['Prepress', 'Proofreading', 'PC', 'Engineering'];
+    // The timer category that goes with each task department, and the service picked first for it.
+    const TIMER_FOR = {Prepress: ['Prepress', 'Production Art - New Art'], Proofreading: ['Prepress', 'Routing & Proof-reading art'], PC: ['Project Coordinator', 'Internal Routing & Review'], Engineering: ['Engineering', '']};
+    const TEST_CHECKLIST = '1019';
+
+    const $ = selector => document.querySelector(selector);
+    const esc = text => String(text == null ? '' : text).replace(/[&<>"]/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[ch]));
+    const rid = value => String(value || '').replace(/\.0+$/, '');
+    const state = {list: null, tasks: [], times: [], services: [], me: {id: '', name: ''}, department: '', status: 'todo', mine: []};
+
+    // ---------- Quickbase, as the signed-in person ----------
+    const xml = text => new DOMParser().parseFromString(text, 'text/xml');
+    let appToken = null;
+    async function variable(name) {
+      const doc = xml(await (await fetch(`https://${REALM}/db/${APP}?${new URLSearchParams({a: 'API_GetDBVar', varname: name})}`, {credentials: 'include'})).text());
+      return (doc.querySelector('value')?.textContent || '').trim();
+    }
+    // Sends one API call. If the app asks for its application token, that is read from the app's own variables and
+    // the call is sent again; the person's own sign-in still decides what they are allowed to do.
+    async function qb(table, params) {
+      const send = async extra => {
+        const response = await fetch(`https://${REALM}/db/${table}?${new URLSearchParams({...params, ...extra})}`, {credentials: 'include'});
+        if (!response.ok) throw new Error(`Quickbase request failed (${response.status}).`);
+        return xml(await response.text());
+      };
+      let doc = await send(appToken ? {apptoken: appToken} : {});
+      let code = (doc.querySelector('errcode')?.textContent || '').trim();
+      if (code && code !== '0' && !appToken) {
+        try { appToken = await variable('q_apptoken'); } catch (ignored) {}
+        if (appToken) { doc = await send({apptoken: appToken}); code = (doc.querySelector('errcode')?.textContent || '').trim(); }
+      }
+      if (code && code !== '0') {
+        const text = `${(doc.querySelector('errtext')?.textContent || 'Quickbase error').trim()} ${(doc.querySelector('errdetail')?.textContent || '').trim()}`.trim();
+        throw new Error(code === '4' || code === '22' ? 'Open this page from Quickbase while signed in.' : text);
+      }
+      return doc;
+    }
+    const decoder = document.createElement('textarea');
+    function clean(value) { const text = String(value || '').trim(); if (!/[<&]/.test(text)) return text; decoder.innerHTML = text.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, ''); return decoder.value.replace(/\s+/g, ' ').trim(); }
+    async function query(table, where, fids, options) {
+      const doc = await qb(table, {a: 'API_DoQuery', query: where, clist: fids.join('.'), fmt: 'structured', ...(options ? {options} : {})});
+      return [...doc.querySelectorAll('record')].map(record => { const row = {}; record.querySelectorAll('f').forEach(f => { row[f.getAttribute('id')] = clean(f.textContent); }); return row; });
+    }
+    const quote = value => String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+    let statusTimer = 0;
+    function say(text, kind) {
+      const status = $('#status');
+      clearTimeout(statusTimer);
+      status.textContent = text; status.className = 'status' + (kind ? ' ' + kind : ''); status.hidden = !text;
+      if (text && kind !== 'bad') statusTimer = setTimeout(() => { status.hidden = true; }, kind === 'good' ? 2600 : 8000);
+    }
+
+    // ---------- Find a checklist ----------
+    const LIST_FIELDS = [3, LISTS.description, LISTS.order, LISTS.po, LISTS.brandId, LISTS.brand, LISTS.template, LISTS.assigned, LISTS.total, LISTS.open, LISTS.times];
+    let searchSeq = 0, searchDelay = 0;
+    async function search() {
+      const text = $('#search').value.trim(), seq = ++searchSeq, note = $('#searchNote');
+      if (!text) { $('#results').innerHTML = ''; note.textContent = 'Type part of a description, an order number, or a checklist number.'; return; }
+      note.textContent = 'Searching…';
+      const number = /^\d+$/.test(text) ? text : '';
+      // A number can be the checklist itself or its order; any text is looked for inside the description.
+      const where = `(${[number && `{3.EX.'${number}'}`, number && `{${LISTS.order}.EX.'${number}'}`, `{${LISTS.description}.CT.'${quote(text)}'}`].filter(Boolean).join('OR')})AND{${LISTS.description}.XCT.'[TEMPLATE]'}`;
+      try {
+        const rows = await query(LISTS.table, where, LIST_FIELDS, 'num-60.sortorder-D');
+        if (seq !== searchSeq) return;
+        const why = row => number && rid(row[3]) === number ? 'checklist #' : number && rid(row[LISTS.order]) === number ? 'order #' : 'description';
+        rows.sort((a, b) => (why(a) === 'checklist #' ? 0 : why(a) === 'order #' ? 1 : 2) - (why(b) === 'checklist #' ? 0 : why(b) === 'order #' ? 1 : 2) || Number(b[3]) - Number(a[3]));
+        note.textContent = rows.length ? `${rows.length}${rows.length === 60 ? '+' : ''} checklist${rows.length === 1 ? '' : 's'}` : 'No checklist matches that.';
+        $('#results').innerHTML = rows.map(row => `<button type="button" class="result" data-rid="${esc(rid(row[3]))}" aria-current="${state.list && rid(state.list[3]) === rid(row[3])}">
+          <b>${esc(row[LISTS.description] || '(no description)')}</b>
+          <span>#${esc(rid(row[3]))}${row[LISTS.brand] ? ' · ' + esc(row[LISTS.brand]) : ''}${rid(row[LISTS.order]) ? ' · Order ' + esc(rid(row[LISTS.order])) : ''}</span>
+          <span><span class="hit">Matched ${why(row)}</span> · ${Number(row[LISTS.total] || 0) - Number(row[LISTS.open] || 0)}/${Number(row[LISTS.total] || 0)} done</span></button>`).join('');
+      } catch (error) { if (seq === searchSeq) { note.textContent = error.message; $('#results').innerHTML = ''; } }
+    }
+    $('#search').addEventListener('input', () => { clearTimeout(searchDelay); searchDelay = setTimeout(search, 250); });
+    $('#results').addEventListener('click', event => { const button = event.target.closest('[data-rid]'); if (button) openChecklist(button.dataset.rid); });
+
+    // ---------- Open a checklist ----------
+    async function openChecklist(id) {
+      say(`Opening checklist ${id}…`);
+      try {
+        const [lists, tasks] = await Promise.all([
+          query(LISTS.table, `{3.EX.'${quote(id)}'}`, LIST_FIELDS),
+          query(TASKS.table, `{${TASKS.list}.EX.'${quote(id)}'}`, [3, TASKS.number, TASKS.sort, TASKS.department, TASKS.section, TASKS.description, TASKS.info, TASKS.review, TASKS.notes, TASKS.inactive], 'num-500')
+        ]);
+        if (!lists.length) { say(`There is no checklist ${id}.`, 'bad'); return; }
+        state.list = lists[0];
+        state.tasks = tasks.sort((a, b) => Number(a[TASKS.sort] || 0) - Number(b[TASKS.sort] || 0) || Number(a[3]) - Number(b[3]));
+        const live = state.tasks.filter(task => task[TASKS.inactive] !== '1');
+        if (!live.some(task => task[TASKS.department] === state.department)) state.department = DEPARTMENTS.find(name => live.some(task => task[TASKS.department] === name && !task[TASKS.review])) || DEPARTMENTS.find(name => live.some(task => task[TASKS.department] === name)) || '';
+        try { localStorage.setItem('cl-testing-last', id); } catch (ignored) {}
+        const here = new URL(location.href); here.searchParams.set('checklist', id); history.replaceState(null, '', here);
+        document.querySelectorAll('.result').forEach(button => button.setAttribute('aria-current', String(button.dataset.rid === id)));
+        $('#blank').hidden = true;
+        renderHead(); renderTasks(); pickTimerDefaults();
+        await loadTimes();
+        say('');
+      } catch (error) { say(error.message, 'bad'); }
+    }
+    function renderHead() {
+      const list = state.list, live = state.tasks.filter(task => task[TASKS.inactive] !== '1'), done = live.filter(task => task[TASKS.review]).length;
+      const percent = live.length ? Math.round(done / live.length * 100) : 0;
+      $('#head').innerHTML = `<div><p class="eyebrow">Art checklist #${esc(rid(list[3]))}</p><h1>${esc(list[LISTS.description] || '(no description)')}</h1>
+        <div class="facts">${list[LISTS.brand] ? `<span>Brand <b>${esc(list[LISTS.brand])}</b></span>` : ''}<span>Order <b>${esc(rid(list[LISTS.order]) || 'none')}</b></span>${list[LISTS.po] ? `<span>PO <b>${esc(list[LISTS.po])}</b></span>` : ''}${list[LISTS.template] ? `<span>Template <b>${esc(list[LISTS.template])}</b></span>` : ''}<span>Assigned to <b>${esc(list[LISTS.assigned] || 'nobody')}</b></span></div></div>
+        <div class="head-side"><div class="progress"><div class="progress-bar"><i style="width:${percent}%"></i></div><small>${done} of ${live.length} tasks done</small></div>
+        <a href="https://${REALM}/db/${LISTS.table}?a=dr&rid=${esc(rid(list[3]))}" target="_blank" rel="noopener">Open in Quickbase</a></div>`;
+      $('#head').hidden = false;
+    }
+
+    // ---------- Tasks, by department and by done / not done ----------
+    function renderTasks() {
+      const live = state.tasks.filter(task => task[TASKS.inactive] !== '1'), hidden = state.tasks.length - live.length;
+      const names = [...DEPARTMENTS.filter(name => live.some(task => task[TASKS.department] === name)), ...new Set(live.map(task => task[TASKS.department]).filter(name => !DEPARTMENTS.includes(name)))];
+      $('#tabs').innerHTML = names.map(name => {
+        const mine = live.filter(task => task[TASKS.department] === name), done = mine.filter(task => task[TASKS.review]).length;
+        return `<button type="button" class="tab${done === mine.length ? ' all-done' : ''}" data-department="${esc(name)}" aria-pressed="${name === state.department}">${esc(name || 'No department')} <small>${done}/${mine.length}</small></button>`;
+      }).join('');
+      document.querySelectorAll('#statusFilter button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.status === state.status)));
+      const shown = live.filter(task => task[TASKS.department] === state.department && (state.status === 'all' || (state.status === 'done') === Boolean(task[TASKS.review])));
+      let section = null, html = '';
+      for (const task of shown) {
+        if (task[TASKS.section] !== section) { section = task[TASKS.section]; html += `<div class="section">${esc(section || 'Other')}</div>`; }
+        html += `<div class="task${task[TASKS.review] ? ' done' : ''}" data-task="${esc(rid(task[3]))}">
+          <span class="num">${esc(rid(task[TASKS.number]) || rid(task[TASKS.sort]))}</span>
+          <div class="text"><b>${esc(task[TASKS.description])}</b>${task[TASKS.info] ? `<small>${esc(task[TASKS.info])}</small>` : ''}</div>
+          <div class="review" role="group" aria-label="Review">${['Yes', 'No', 'N/A'].map(value => `<button type="button" data-value="${value}" aria-pressed="${task[TASKS.review] === value}">${value}</button>`).join('')}</div>
+          <textarea placeholder="Notes" aria-label="Notes">${esc(task[TASKS.notes])}</textarea></div>`;
+      }
+      const all = live.filter(task => task[TASKS.department] === state.department).length;
+      $('#taskList').innerHTML = (html || `<div class="empty">${!all ? 'No tasks in this department.' : state.status === 'todo' ? 'Everything in this department is done.' : 'Nothing is done in this department yet.'}</div>`) +
+        (hidden ? `<p class="muted" style="margin:14px 0 0;font-size:13px">${hidden} Engineering task${hidden === 1 ? ' is' : 's are'} hidden because this checklist is marked Engineering N/A.</p>` : '');
+      $('#tasks').hidden = false;
+    }
+    $('#tabs').addEventListener('click', event => { const tab = event.target.closest('[data-department]'); if (!tab) return; state.department = tab.dataset.department; renderTasks(); pickTimerDefaults(); });
+    $('#statusFilter').addEventListener('click', event => { const button = event.target.closest('[data-status]'); if (!button) return; state.status = button.dataset.status; renderTasks(); });
+
+    // Clicking Yes / No / N/A saves the Review; clicking the chosen one again clears it (back to not done).
+    $('#taskList').addEventListener('click', async event => {
+      const button = event.target.closest('.review button'); if (!button) return;
+      const row = button.closest('[data-task]'), task = state.tasks.find(item => rid(item[3]) === row.dataset.task), value = task[TASKS.review] === button.dataset.value ? '' : button.dataset.value;
+      row.querySelectorAll('.review button').forEach(other => { other.disabled = true; });
+      try {
+        await qb(TASKS.table, {a: 'API_EditRecord', rid: row.dataset.task, [`_fid_${TASKS.review}`]: value});
+        task[TASKS.review] = value;
+        renderHead(); renderTasks();
+        say(value ? `Task ${rid(task[TASKS.number]) || ''} marked ${value}.` : 'Review cleared.', 'good');
+      } catch (error) { say(`That did not save: ${error.message}`, 'bad'); row.querySelectorAll('.review button').forEach(other => { other.disabled = false; }); }
+    });
+    $('#taskList').addEventListener('change', async event => {
+      if (event.target.tagName !== 'TEXTAREA') return;
+      const row = event.target.closest('[data-task]'), task = state.tasks.find(item => rid(item[3]) === row.dataset.task);
+      try { await qb(TASKS.table, {a: 'API_EditRecord', rid: row.dataset.task, [`_fid_${TASKS.notes}`]: event.target.value}); task[TASKS.notes] = event.target.value; say('Note saved.', 'good'); }
+      catch (error) { say(`The note did not save: ${error.message}`, 'bad'); }
+    });
+
+    // ---------- Timers ----------
+    const TIME_FIELDS = [3, TIMES.start, TIMES.end, TIMES.category, TIMES.service, TIMES.serviceId, TIMES.override, TIMES.hours, TIMES.closed, TIMES.employee, TIMES.employeeName, TIMES.notes, TIMES.list, TIMES.order];
+    const clock = milliseconds => { const s = Math.max(0, Math.floor(milliseconds / 1000)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+    const hoursText = hours => `${(Math.round(Number(hours || 0) * 100) / 100).toFixed(2)} h`;
+    const isMine = entry => state.me.id && entry[TIMES.employee] === state.me.id;
+
+    async function loadServices() {
+      state.services = (await query(SERVICES.table, '{3.GT.0}', [3, SERVICES.category, SERVICES.name], 'num-500')).filter(row => row[SERVICES.name]);
+      const used = ['Prepress', 'Project Coordinator', 'Engineering', 'Logistics'];
+      const categories = [...used.filter(name => state.services.some(row => row[SERVICES.category] === name)), ...new Set(state.services.map(row => row[SERVICES.category]).filter(name => name && !used.includes(name)))];
+      $('#category').innerHTML = categories.map(name => `<option>${esc(name)}</option>`).join('');
+    }
+    function fillServices(preferred) {
+      const category = $('#category').value, options = state.services.filter(row => row[SERVICES.category] === category).sort((a, b) => a[SERVICES.name].localeCompare(b[SERVICES.name]));
+      let remembered = ''; try { remembered = localStorage.getItem('cl-testing-service-' + category) || ''; } catch (ignored) {}
+      const pick = options.find(row => row[SERVICES.name] === preferred) || options.find(row => rid(row[3]) === remembered) || options[0];
+      $('#service').innerHTML = options.map(row => `<option value="${esc(rid(row[3]))}"${row === pick ? ' selected' : ''}>${esc(row[SERVICES.name])}</option>`).join('');
+    }
+    // The timer starts out matching the department tab being looked at.
+    function pickTimerDefaults() {
+      const [category, service] = TIMER_FOR[state.department] || [];
+      if (category && [...$('#category').options].some(option => option.value === category)) $('#category').value = category;
+      fillServices(service);
+    }
+    $('#category').addEventListener('change', () => fillServices(''));
+
+    async function loadTimes() {
+      state.times = (await query(TIMES.table, `{${TIMES.list}.EX.'${quote(rid(state.list[3]))}'}`, TIME_FIELDS, 'num-500')).sort((a, b) => Number(b[TIMES.start]) - Number(a[TIMES.start]));
+      renderTimes();
+      loadMine();
+    }
+    // One timer on screen = every time entry by the same person for the same service (and notes) on this checklist.
+    // Quickbase keeps each start-to-stop stretch as its own entry; Re-Start adds another stretch. Shown together,
+    // the clock carries on from the time already logged instead of starting again at zero.
+    function timerGroups() {
+      const groups = new Map();
+      for (const entry of state.times) {
+        const key = [entry[TIMES.employee], rid(entry[TIMES.serviceId]), entry[TIMES.category], entry[TIMES.notes]].join('|');
+        if (!groups.has(key)) groups.set(key, {key, entries: []});
+        groups.get(key).entries.push(entry);       // newest first, as state.times is
+      }
+      return [...groups.values()].map(group => {
+        const open = group.entries.filter(entry => entry[TIMES.closed] !== '1' && !(Number(entry[TIMES.override]) > 0));
+        const logged = group.entries.filter(entry => !open.includes(entry)).reduce((sum, entry) => sum + Number(entry[TIMES.hours] || 0), 0);
+        return {...group, open, logged, latest: group.entries[0], first: group.entries[group.entries.length - 1]};
+      });
+    }
+    const runningMs = group => group.logged * 3600000 + group.open.reduce((sum, entry) => sum + (Date.now() - Number(entry[TIMES.start])), 0);
+    function renderTimes() {
+      const groups = timerGroups(), total = groups.reduce((sum, group) => sum + runningMs(group), 0) / 3600000;
+      $('#timerTotal').textContent = state.times.length ? `${hoursText(total)} logged on this checklist` : 'No time logged on this checklist yet.';
+      $('#entries').innerHTML = groups.map(group => {
+        const entry = group.latest, running = group.open.length > 0, mine = isMine(entry), stretches = group.entries.length;
+        const when = stamp => new Date(Number(stamp)).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
+        const detail = [entry[TIMES.employeeName] || 'Unknown', entry[TIMES.category], stretches > 1 ? `${stretches} sessions since ${when(group.first[TIMES.start])}` : `started ${when(entry[TIMES.start])}`,
+                        running ? (stretches > 1 ? `this one since ${when(group.open[0][TIMES.start])}` : '') : `stopped ${when(entry[TIMES.end])}`, entry[TIMES.notes]].filter(Boolean);
+        return `<li class="entry${running ? ' running' : ''}" data-group="${esc(group.key)}">
+          ${running ? '<span class="dot" aria-hidden="true"></span>' : ''}
+          <div class="what"><b>${esc(entry[TIMES.service] || entry[TIMES.category])}</b><span>${detail.map(esc).join(' \u00b7 ')}</span></div>
+          <span class="clock"${running ? ` data-since="${esc(group.open.map(item => item[TIMES.start]).join(','))}" data-base="${Math.round(group.logged * 3600000)}"` : ''}>${clock(runningMs(group))}</span>
+          ${running ? (mine ? '<button type="button" class="button stop small" data-stop>Stop</button>' : '<span class="muted" style="font-size:13px">running</span>') : (mine ? '<button type="button" class="button secondary small" data-again>Re-Start</button>' : '')}</li>`;
+      }).join('');
+      $('#timers').hidden = false;
+    }
+    // Running clocks: time already logged, plus the time since each open stretch began.
+    setInterval(() => document.querySelectorAll('.clock[data-since]').forEach(node => {
+      node.textContent = clock(Number(node.dataset.base || 0) + node.dataset.since.split(',').reduce((sum, start) => sum + (Date.now() - Number(start)), 0));
+    }), 1000);
+
+    async function startTimer(categoryName, serviceId, notes) {
+      const list = state.list;
+      if (!rid(list[LISTS.brandId])) { say('This checklist has no customer brand, and a time entry needs one. Set it in Quickbase first.', 'bad'); return; }
+      if (!serviceId) { say('Pick a service first.', 'bad'); return; }
+      // Starting the same service with the same notes again carries on that timer; anything else is a second timer.
+      const same = timerGroups().find(group => isMine(group.latest) && rid(group.latest[TIMES.serviceId]) === String(serviceId) && group.latest[TIMES.category] === categoryName && (group.latest[TIMES.notes] || '') === (notes || ''));
+      if (same && same.open.length) { say('That timer is already running.', ''); return; }
+      if (!same && timerGroups().some(group => group.open.length && isMine(group.latest)) && !confirm('You already have a timer running on this checklist. Start another one as well?')) return;
+      $('#startTimer').disabled = true;
+      try {
+        const fields = {[TIMES.list]: rid(list[3]), [TIMES.customer]: rid(list[LISTS.brandId]), [TIMES.category]: categoryName, [TIMES.serviceId]: serviceId, [TIMES.employee]: state.me.id, [TIMES.notes]: notes || ''};
+        if (rid(list[LISTS.order])) fields[TIMES.order] = rid(list[LISTS.order]);
+        await qb(TIMES.table, {a: 'API_AddRecord', ...Object.fromEntries(Object.entries(fields).map(([fid, value]) => [`_fid_${fid}`, value]))});
+        try { localStorage.setItem('cl-testing-service-' + categoryName, serviceId); } catch (ignored) {}
+        $('#timerNotes').value = '';
+        await loadTimes();
+        say('Timer started.', 'good');
+      } catch (error) { say(`The timer did not start: ${error.message}`, 'bad'); }
+      finally { $('#startTimer').disabled = false; }
+    }
+    async function stopTimer(entryId, button) {
+      if (button) button.disabled = true;
+      try {
+        await qb(TIMES.table, {a: 'API_EditRecord', rid: entryId, [`_fid_${TIMES.closed}`]: '1'});
+        if (state.list) await loadTimes(); else await loadMine();
+        say('Timer stopped.', 'good');
+      } catch (error) { say(`The timer did not stop: ${error.message}`, 'bad'); if (button) button.disabled = false; }
+    }
+    // Re-Start carries a stopped timer on. In Quickbase a time entry's start is the moment it was created and cannot
+    // be moved, so reopening the old entry would also count the time it sat stopped. Instead this presses the
+    // entry's own Re-Start button from Quickbase (the Stop/Restart field): a new entry with the same customer,
+    // order, category, service and notes. On screen the two are one timer, and its clock carries on.
+    // That button does not carry the checklist over, so the new entry is then tied to this checklist as well;
+    // otherwise it would not appear here or on the checklist's own list of time entries.
+    async function restartTimer(entry, button) {
+      if (button) button.disabled = true;
+      try {
+        const found = await qb(TIMES.table, {a: 'API_DoQuery', query: `{3.EX.'${quote(rid(entry[3]))}'}`, clist: String(TIMES.button), fmt: 'structured'});
+        const link = ((found.querySelector('record f')?.textContent || '').match(/href='([^']+)'/) || [])[1];
+        if (!link || !/a=API_AddRecord/.test(link)) throw new Error('Quickbase is not showing a Re-Start button for that entry.');
+        const url = new URL(link.replace(/&amp;/g, '&'));
+        url.searchParams.delete('rdr');      // the button's redirect back to the table is not wanted here
+        const answer = xml(await (await fetch(url, {credentials: 'include'})).text()), code = (answer.querySelector('errcode')?.textContent || '').trim();
+        if (code !== '0') throw new Error(`${(answer.querySelector('errtext')?.textContent || 'Quickbase error').trim()} ${(answer.querySelector('errdetail')?.textContent || '').trim()}`.trim());
+        const created = rid(answer.querySelector('rid')?.textContent);
+        if (created && state.list) await qb(TIMES.table, {a: 'API_EditRecord', rid: created, [`_fid_${TIMES.list}`]: rid(state.list[3])});
+        await loadTimes();
+        say('Timer running again. It carries on from the time already logged.', 'good');
+      } catch (error) { say(`The timer did not restart: ${error.message}`, 'bad'); if (button) button.disabled = false; }
+    }
+    $('#startTimer').addEventListener('click', () => startTimer($('#category').value, $('#service').value, $('#timerNotes').value.trim()));
+    $('#entries').addEventListener('click', event => {
+      const row = event.target.closest('[data-group]'); if (!row) return;
+      const group = timerGroups().find(item => item.key === row.dataset.group); if (!group) return;
+      const stop = event.target.closest('[data-stop]'), again = event.target.closest('[data-again]');
+      if (stop) group.open.forEach(entry => stopTimer(rid(entry[3]), stop));
+      else if (again) restartTimer(group.latest, again);
+    });
+
+    // Your own timers that are still running, on any checklist, so one is never left on by accident.
+    async function loadMine() {
+      if (!state.me.id) return;
+      try {
+        const open = (await query(TIMES.table, `{${TIMES.closed}.EX.'0'}AND{${TIMES.recent}.EX.'1'}`, TIME_FIELDS, 'num-300')).filter(isMine);
+        state.mine = open;
+        const here = state.list ? rid(state.list[3]) : '';
+        const elsewhere = open.filter(entry => rid(entry[TIMES.list]) !== here);
+        $('#mine').hidden = !elsewhere.length;
+        $('#mine').innerHTML = elsewhere.length ? `<span class="dot" aria-hidden="true"></span><b>You have ${elsewhere.length} timer${elsewhere.length === 1 ? '' : 's'} running elsewhere:</b>` + elsewhere.map(entry =>
+          `<span>${rid(entry[TIMES.list]) ? `<button type="button" class="link" data-open="${esc(rid(entry[TIMES.list]))}">Checklist ${esc(rid(entry[TIMES.list]))}</button>` : 'No checklist'} · ${esc(entry[TIMES.service] || entry[TIMES.category])} · <span class="clock" data-since="${esc(entry[TIMES.start])}" style="font-size:14px">${clock(Date.now() - Number(entry[TIMES.start]))}</span> <button type="button" class="button stop small" data-stop-mine="${esc(rid(entry[3]))}">Stop</button></span>`).join('') : '';
+      } catch (ignored) {}
+    }
+    $('#mine').addEventListener('click', event => {
+      const open = event.target.closest('[data-open]'), stop = event.target.closest('[data-stop-mine]');
+      if (open) openChecklist(open.dataset.open); else if (stop) stopTimer(stop.dataset.stopMine, stop);
+    });
+
+    // ---------- Start ----------
+    (async () => {
+      if (window.__DEMO_HOST.toLowerCase() !== REALM) { $('#blank').textContent = 'This page reads live Quickbase data. Open it from its Quickbase code page (172) while signed in.'; return; }
+      try {
+        const doc = await qb('main', {a: 'API_GetUserInfo'}), user = doc.querySelector('user');
+        state.me = {id: user?.getAttribute('id') || '', name: `${user?.querySelector('firstName')?.textContent || ''} ${user?.querySelector('lastName')?.textContent || ''}`.trim()};
+        await loadServices();
+        let wanted = new URLSearchParams(location.search).get('checklist') || '';
+        if (!wanted) { try { wanted = localStorage.getItem('cl-testing-last') || ''; } catch (ignored) {} }
+        await openChecklist(/^\d+$/.test(wanted) ? wanted : TEST_CHECKLIST);
+        if (!state.list) loadMine();
+      } catch (error) { say(error.message, 'bad'); }
+    })();
+  </script>
+<!-- demo-launcher:start (managed by demo_launcher.py: edit demo_launcher_snippet.html, not this copy) -->
+
+
+
+</body>
+</html>

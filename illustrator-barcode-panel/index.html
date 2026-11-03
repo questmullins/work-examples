@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en" class="panel-mode">
+<head>
+  <meta charset="utf-8">
+  <meta name="app-version" content="1.1" data-tool="barcode">
+  <title>Demo Barcode</title>
+  <link rel="stylesheet" href="demo_panel.css">
+  <style>
+    /* Only what is particular to the Barcode panel; the shared look is demo_panel.css. */
+    .readout{margin-top:7px;min-height:16px;color:#c4c4c4;font-size:11.5px}
+    .readout b{color:#f2f2f2;font-weight:600;letter-spacing:.06em}
+    .readout.bad{color:#ffa294}
+    .ends{margin-top:7px;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px}
+    .ends label{display:flex;align-items:center;gap:6px}
+    .ends input{width:30px;padding:0;text-align:center;font-size:13px;font-weight:600}
+    .ends input::placeholder{color:#a9a9a9;font-weight:400}
+    #found{margin-top:6px;color:#c4c4c4;font-size:11px;overflow-wrap:anywhere}
+    #found:empty{display:none}
+    .messy{margin-top:8px;padding:8px;border:1px solid #6b5a2e;border-radius:3px;background:#4d4a40}
+    .messy-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#e3d7b5;font-size:11px}
+    .messy-text{margin-top:6px;padding:6px 7px;border-radius:3px;background:#3d3d3d;color:#f2f2f2;font:13px ui-monospace,Consolas,monospace;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text;cursor:text}
+    #preview{margin-top:8px;padding:8px;border-radius:3px;background:#fff;line-height:0}
+    #preview svg{display:block;width:100%;max-width:300px;height:auto;margin:0 auto}
+    #preview:empty{display:none}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="lookup-section">
+      <div class="lookup">
+        <input id="number" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="UPC, or last 5 to find" aria-label="Barcode number">
+        <button id="find" type="button" title="Find this barcode in Quickbase" disabled>Find</button>
+      </div>
+      <div class="readout" id="readout">Type the number. Spaces and dashes are fine.</div>
+      <div class="ends" id="ends" hidden>
+        <label>First digit <input id="firstDigit" type="text" inputmode="numeric" maxlength="2" value="0" autocomplete="off" aria-label="First digit of the barcode"></label>
+        <label>Last digit <input id="lastDigit" type="text" inputmode="numeric" maxlength="2" autocomplete="off" aria-label="Last digit of the barcode"></label>
+      </div>
+      <div id="found"></div>
+      <div class="messy" id="messy" hidden>
+        <div class="messy-head"><span>Quickbase has this barcode as:</span><button id="messyCopy" type="button">Copy</button></div>
+        <div class="messy-text" id="messyText"></div>
+      </div>
+      <div id="preview"></div>
+    </section>
+    <details open>
+      <summary>Size</summary>
+      <div class="detail-body">
+        <div class="fields">
+          <label class="field"><span>Magnification <small>%</small></span><input id="mag" type="text" inputmode="decimal" value="100"></label>
+          <label class="field"><span>Bar height <small>%</small></span><input id="height" type="text" inputmode="decimal" value="100"></label>
+          <div class="field"><span>Bar width reduction</span><span class="pair"><input id="bwr" type="text" inputmode="decimal" value="0" aria-label="Bar width reduction"><select id="bwrUnit" aria-label="Unit"><option value="um" selected>&micro;m</option><option value="in">in</option><option value="mm">mm</option></select></span></div>
+        </div>
+        <div class="note" id="sizeNote"></div>
+      </div>
+    </details>
+    <details open>
+      <summary>Options</summary>
+      <div class="detail-body">
+        <div class="options">
+          <label class="option"><input id="digits" type="checkbox" checked><span>Digits under the bars</span></label>
+          <label class="option"><input id="outline" type="checkbox" checked><span>Convert digits to outlines</span></label>
+          <label class="option"><input id="white" type="checkbox"><span>White box behind (with quiet zones)</span></label>
+        </div>
+      </div>
+    </details>
+  </main>
+  <footer class="panel-foot">
+    <div id="status">Type a UPC, or the last five digits and Find.</div>
+    <div class="panel-actions">
+      <button id="reset" type="button">Reset</button>
+      <button id="create" type="button" class="primary" disabled>Create</button>
+    </div>
+  </footer>
+  <script src="demo_gate.js"></script>
+  <script src="barcode.js"></script>
+<!-- demo-choice:start (managed by demo_choice.py: edit demo_choice_snippet.html, not this copy) -->
+<style id="demo-choice-style">
+  /* "Which barcode did you mean?" When several different UPCs end in the same five digits, the person picks one. */
+  dialog.exc{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 32px);margin:auto;padding:0;border:1px solid #d6e0e3;border-radius:14px;background:#fff;color:#132a35;box-shadow:0 24px 70px rgba(2,32,40,.3);font:14px/1.45 "Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;text-align:left;overflow:hidden}
+  dialog.exc::backdrop{background:rgba(2,32,40,.45)}
+  dialog.exc[open]{display:flex;flex-direction:column}
+  dialog.exc *{box-sizing:border-box}
+  /* Reset whatever the page does to these tags; :where() keeps the reset weaker than the rules below. */
+  :where(dialog.exc) :where(button,a,h2,p,ul,li,div,span,b,code){all:unset;box-sizing:border-box}
+  :where(dialog.exc) :where(div,p,h2,ul,li){display:block}
+  .exc-head{padding:18px 20px 12px;border-bottom:1px solid #e3eaec}
+  .exc-head h2{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .exc-head p{margin-top:5px;color:#62757c}
+  .exc-list{flex:1 1 auto;min-height:0;overflow:auto;padding:6px 12px}
+  .exc-item{display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid #eef2f3}
+  .exc-item:last-child{border-bottom:0}
+  .exc-text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .exc-text b{font-size:15px;font-weight:700;overflow-wrap:anywhere}
+  .exc-text code{font:600 14px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.03em}
+  .exc-text code mark{all:unset;border-radius:3px;background:#ffe9a8;color:#132a35}
+  .exc-text span{color:#62757c;font-size:13px;overflow-wrap:anywhere}
+  .exc-text a{width:max-content;max-width:100%;margin-top:2px;color:#5257b8;font-size:13px;font-weight:700;text-decoration:underline;cursor:pointer}
+  .exc-text a:focus-visible,.exc-use:focus-visible,.exc-cancel:focus-visible{outline:2px solid #5257b8;outline-offset:2px}
+  .exc-use{flex:none;height:38px;padding:0 14px;display:inline-flex;align-items:center;border-radius:9px;background:#3b3f8f;color:#fff;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer}
+  .exc-use:hover{background:#2d3070}
+  .exc-foot{display:flex;justify-content:flex-end;padding:12px 20px;border-top:1px solid #e3eaec}
+  .exc-cancel{height:36px;padding:0 14px;display:inline-flex;align-items:center;border:1px solid #c3d2d6;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer}
+  .exc-cancel:hover{background:#eef4f5}
+  @media(max-width:480px){.exc-item{flex-wrap:wrap}.exc-use{width:100%;justify-content:center}}
+  /* Inside the Illustrator panel the dialog takes the panel's dark greys. */
+  html.panel-mode dialog.exc{border-color:#2f2f2f;border-radius:4px;background:#535353;color:#dedede;font:12px/1.4 "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif}
+  html.panel-mode .exc-head,html.panel-mode .exc-foot,html.panel-mode .exc-item{border-color:#434343}
+  html.panel-mode .exc-head{padding:12px 12px 9px}html.panel-mode .exc-head h2{font-size:13px;color:#f2f2f2}
+  html.panel-mode .exc-head p,html.panel-mode .exc-text span{color:#b9b9b9;font-size:11.5px}
+  html.panel-mode .exc-list{padding:2px 8px}html.panel-mode .exc-item{gap:10px;padding:9px 4px}
+  html.panel-mode .exc-text b{font-size:12.5px;color:#f2f2f2}html.panel-mode .exc-text code{font-size:12px}
+  html.panel-mode .exc-text a{color:#8ab4f8;font-size:11.5px}
+  /* Buttons look the same in every panel, whatever the panel's own button styles are: grey, compact, on the right. */
+  html.panel-mode dialog.exc .exc-use,html.panel-mode dialog.exc .exc-cancel{flex:none;width:auto!important;height:24px!important;padding:0 10px!important;display:inline-flex;align-items:center;justify-content:center;border:1px solid #8c8c8c!important;border-radius:3px!important;background:#4a4a4a!important;color:#f0f0f0!important;font:600 11.5px "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif!important;white-space:nowrap;box-shadow:none!important;cursor:pointer}
+  html.panel-mode dialog.exc .exc-use:hover,html.panel-mode dialog.exc .exc-cancel:hover{background:#5e5e5e!important}
+  html.panel-mode .exc-foot{padding:8px 12px}
+  @media(max-width:330px){html.panel-mode .exc-item{flex-wrap:wrap}}
+</style>
+<script id="demo-choice-script">
+/*
+  DemoChoice: one shared answer to "several barcodes end in these five digits".
+
+    const rows = await DemoChoice.resolve({
+      code,                         // the digits that were typed
+      rows,                         // every record that matched
+      upc:    row => '...',         // full barcode of a record
+      brand:  row => '...',         // brand (or item name) shown in bold
+      detail: row => '...',         // optional second line
+      link:   row => 'https://...', // the record in Quickbase, so the person can check it
+      remember: false,              // true = ask once per code until the page reloads or DemoChoice.forget()
+      memo: ''                      // optional name for that memory (default: the code), e.g. one per slot
+    });
+
+  One distinct barcode among the rows: they come straight back, nothing is shown. Several: a dialog lists each
+  barcode once and resolves to that barcode's rows, or to null when the person cancels.
+*/
+(function () {
+  'use strict';
+  const digits = value => String(value == null ? '' : value).replace(/\D/g, '');
+  const esc = text => String(text == null ? '' : text).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const remembered = new Map();
+  let queue = Promise.resolve();
+
+  function ask(code, groups) {
+    return new Promise(resolve => {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'exc';
+      const tail = digits(code).slice(-5);
+      const shown = upc => { const text = esc(upc), at = tail ? text.lastIndexOf(tail) : -1; return at < 0 ? text : `${text.slice(0, at)}<mark>${tail}</mark>${text.slice(at + tail.length)}`; };
+      dialog.innerHTML = `<div class="exc-head"><h2>${groups.length} barcodes end in ${esc(tail || code)}</h2><p>Choose the one you mean. Open it in Quickbase first if you want to check.</p></div>` +
+        `<ul class="exc-list">${groups.map((group, index) => `<li class="exc-item"><div class="exc-text"><b>${esc(group.brand || 'No brand on record')}</b><code>${shown(group.upc)}</code>` +
+          `${group.detail ? `<span>${esc(group.detail)}</span>` : ''}${group.link ? `<a href="${esc(group.link)}" target="_blank" rel="noopener">Open in Quickbase</a>` : ''}</div>` +
+          `<button type="button" class="exc-use" data-index="${index}">Use this one</button></li>`).join('')}</ul>` +
+        '<div class="exc-foot"><button type="button" class="exc-cancel">Cancel</button></div>';
+      let answer = null, done = false;
+      // Finishes straight away on a click; the close event alone can arrive late (or not at all in a hidden tab).
+      const finish = () => { if (done) return; done = true; if (dialog.open) dialog.close(); dialog.remove(); resolve(answer); };
+      dialog.addEventListener('click', event => {
+        const use = event.target.closest('.exc-use');
+        if (use) { answer = groups[Number(use.dataset.index)]; finish(); }
+        else if (event.target.closest('.exc-cancel')) finish();
+      });
+      dialog.addEventListener('close', finish);     // Esc
+      document.body.append(dialog);
+      dialog.showModal();
+    });
+  }
+
+  function resolve(options) {
+    const rows = options.rows || [], groups = [], byKey = new Map();
+    for (const row of rows) {
+      // The same barcode written with or without its leading zeros is still one barcode.
+      const upc = String(options.upc(row) || '').trim(), key = digits(upc).replace(/^0+/, '') || upc.toLowerCase();
+      if (!byKey.has(key)) {
+        const group = { key, upc, rows: [], brand: options.brand ? String(options.brand(row) || '').trim() : '',
+                        detail: options.detail ? String(options.detail(row) || '').trim() : '', link: options.link ? String(options.link(row) || '') : '' };
+        byKey.set(key, group);
+        groups.push(group);
+      }
+      byKey.get(key).rows.push(row);
+    }
+    if (groups.length <= 1) return Promise.resolve(rows);
+    groups.sort((a, b) => a.brand.localeCompare(b.brand, undefined, { sensitivity: 'base' }) || a.key.localeCompare(b.key));
+    const memo = options.memo || digits(options.code) || String(options.code);
+    if (options.remember && byKey.has(remembered.get(memo))) return Promise.resolve(byKey.get(remembered.get(memo)).rows);
+    // One dialog at a time, even when several lookups run together.
+    const turn = queue.then(async () => {
+      if (options.remember && byKey.has(remembered.get(memo))) return byKey.get(remembered.get(memo)).rows;
+      const picked = await ask(options.code, groups);
+      if (picked && options.remember) remembered.set(memo, picked.key);
+      return picked ? picked.rows : null;
+    });
+    queue = turn.catch(() => {});
+    return turn;
+  }
+
+  window.DemoChoice = { resolve, forget(code) { if (code === undefined) remembered.clear(); else remembered.delete(digits(code) || String(code)); },
+                         record: (table, rid) => `https://demo.quickbase.example/db/${encodeURIComponent(table)}?a=dr&rid=${encodeURIComponent(String(rid).replace(/\.0+$/, ''))}` };
+})();
+</script>
+<!-- demo-choice:end -->
+</body>
+</html>

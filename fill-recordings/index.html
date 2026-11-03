@@ -1,0 +1,1643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script id="demo-backend">
+/* Demo backend. Answers this page's Quickbase calls in the browser from made-up records, so the tool runs with no
+   server and no account. Every company, product, person and address here is fictional. Changes last until reload. */
+(function () {
+  var HOST = 'demo.quickbase.example';
+  window.__DEMO_HOST = HOST;
+
+  var BRANDS = [
+    {customer: 'Trailhead Pet Co', code: 'TH', prefix: '00011'},
+    {customer: 'Northfield Pet Foods', code: 'NF', prefix: '00012'},
+    {customer: 'Sunny Paws Kitchen', code: 'SP', prefix: '00013'},
+    {customer: 'Bramble & Bone', code: 'BB', prefix: '00014'},
+    {customer: 'Copper Creek Provisions', code: 'CC', prefix: '00015'},
+    {customer: 'Little Harbor Treats', code: 'LH', prefix: '00016'},
+    {customer: 'Meadowlark Mills', code: 'MM', prefix: '00017'},
+    {customer: 'Oak & Ember Foods', code: 'OE', prefix: '00018'},
+    {customer: 'Tidewater Snacks', code: 'TW', prefix: '00019'},
+    {customer: 'Pine Ridge Grains', code: 'PR', prefix: '00020'}
+  ];
+  // Every shape here has a template in the mockup tool.
+  var SHAPES = [
+    {format: 'Quad Seal Bag', style: 'Flat Bottom', gusset: 'Terminated Gusset', sizes: [[7, 11.5, 3.5, '12 oz'], [8.5, 14, 4, '2 lb'], [10, 16, 4.5, '4 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Non-Terminated Gusset', sizes: [[11.5, 18.25, 4.125, '10 lb'], [13, 22, 5, '15 lb'], [15.75, 26.5, 4.5, '25 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Terminated Gusset', sizes: [[8, 13, 4, '3.5 lb'], [9.5, 15, 4, '5 lb'], [12, 20, 4.5, '12 lb']]},
+    {format: 'Stand-Up Pouch', style: 'Angle Plow', gusset: '', sizes: [[5, 7.75, 2.5, '5 oz'], [6, 9, 3, '8 oz'], [7.25, 11, 3.5, '1 lb']]},
+    {format: 'Stand-Up Pouch', style: 'K-Seal', gusset: '', sizes: [[7, 10, 3.25, '10 oz'], [6, 8.5, 2.75, '6 oz'], [8, 12, 3.5, '1.5 lb']]}
+  ];
+  var RECIPES = ['Grain-Free Salmon Kibble', 'Turkey Training Bites', 'Pumpkin Berry Minis', 'Chicken Recipe Kibble', 'Freeze-Dried Beef Morsels', 'Duck & Sweet Potato Bites', 'Lamb & Rice Dinner', 'Peanut Butter Crunch', 'Ancient Grain Granola', 'Sea Salt Veggie Crisps', 'Dark Roast Coffee', 'Honey Oat Clusters'];
+  var LAYERS = ['MATTE / PET / FOIL / LLDPE', 'MATTE / PET / MET PET / LLDPE', 'GLOSS / PET / MET PET / LLDPE', 'SOFT TOUCH / PET / FOIL / LLDPE', 'SOFT TOUCH / PET / MET PET / LLDPE', 'MATTE / PET / PET / LLDPE', 'GLOSS / PET / EVOH / LLDPE', 'MATTE / PE / EVOH / PE', 'GLOSS / KRAFT / MET PET / LLDPE', 'SOFT TOUCH / PET / ALOX / LLDPE'];
+  var COLORS = ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'PMS 186 C', 'PMS 2728 C', 'PMS 349 C', 'PMS 7406 C', 'PMS 485 C', 'PMS 2607 C', 'PMS 7421 C'];
+  var PEOPLE = ['Demo Designer', 'Alex Morgan', 'Jordan Lee', 'Priya Nair', 'Casey Tran', 'Riley Brooks'];
+  var ZIPPERS = ['Small Zipper', 'No Zipper', 'Small Zipper', 'Pocket Zipper'];
+  var PRODUCTS = [];
+  BRANDS.forEach(function (brand, b) {
+    for (var i = 0; i < 6; i++) {
+      var shape = SHAPES[(b + i) % SHAPES.length], size = shape.sizes[(b + i * 2) % 3];
+      PRODUCTS.push({b: b, name: RECIPES[(b * 2 + i) % RECIPES.length], weight: size[3], format: shape.format, style: shape.style, gusset: shape.gusset, w: size[0], h: size[1], g: size[2], layers: LAYERS[(b + i * 3) % LAYERS.length]});
+    }
+  });
+  var ADDRESSES = [
+    ['100 Example Way', 'Dock 2', 'Springfield', 'IL', '62704'],
+    ['250 Sample Road', '', 'Riverton', 'WY', '82501'],
+    ['17 Placeholder Ave', 'Suite 300', 'Fairview', 'TN', '37062'],
+    ['900 Demo Parkway', '', 'Madison', 'WI', '53703'],
+    ['44 Mockup Lane', 'Building B', 'Georgetown', 'TX', '78626'],
+    ['312 Fictional Blvd', '', 'Salem', 'OR', '97301'],
+    ['8 Test Harbor Rd', 'Unit 12', 'Clinton', 'IA', '52732'],
+    ['1200 Sample Mill Dr', '', 'Franklin', 'KY', '42134'],
+    ['75 Placeholder Pier', 'Dock 9', 'Bristol', 'RI', '02809'],
+    ['560 Example Ridge', '', 'Greenville', 'SC', '29601']
+  ];
+  function day(offset) { var d = new Date(Date.UTC(2026, 8, 20) - offset * 864e5); return d.toISOString().slice(0, 10); }
+  function pick(list, i) { return list[i % list.length]; }
+  function colorBank(row, start, n) { for (var c = 0; c < 10; c++) row[start + c] = c < 4 ? COLORS[c] : c < 4 + (n % 4) ? COLORS[4 + (n + c) % 8] : ''; }
+  function ms(offset) { return String(Date.UTC(2026, 8, 20) - offset * 864e5); }
+
+  var tables = {
+    bdemocust: [], bdemoopps: [], bdemofami: [], bdemospec: [], bdemostyl: [], bdemoaddr: [], bdemoship: [],
+    bdemoprod: [], bdemoordr: [], bdemoitem: [], bdemoartv: [], bdemomock: [], bdemorevw: [], bdemodens: [],
+    bdemofont: [], bdemolayr: [], bdemofill: [], bdemolist: [], bdemotask: [], bdemotime: [], bdemosrvc: []
+  };
+  var labels = {
+    bdemoprod: {name: 'Products', 2209: 'Filing #', 3: 'Record ID#', 12: 'Item Name', 13: 'Legacy Item Name', 14: 'Legacy UPC', 128: 'Art Versions', 132: 'UPC', 136: 'Art Version Count', 141: 'Brand', 353: 'Current Vendor Proof', 604: 'Approved Color Standard', 662: 'Current Customer Proof'},
+    bdemoitem: {name: 'Order Items', 1: 'Date Created', 3: 'Record ID#', 7: 'Customer', 13: 'UPC', 14: 'Item', 161: 'Weight', 184: 'PO', 329: 'Artwork Link', 382: 'Brand', 506: 'Family', 710: 'Layers', 711: 'Dimensions', 2122: 'Format', 2243: 'Style'},
+    bdemoartv: {name: 'Art Versions', 3: 'Record ID#', 11: 'Version Date', 12: 'Art Type', 37: 'Related Item', 61: 'Art REV', 152: 'Version', 361: 'Vendor Proof', 583: 'Inactive Art', 588: 'Customer Proof'},
+    bdemocust: {name: 'Customers', 3: 'Record ID#', 6: 'Customer Name', 125: 'Inactive'},
+    bdemoordr: {name: 'Orders', 3: 'Record ID#', 18: 'Customer PO'},
+    bdemofami: {name: 'Families', 3: 'Record ID#', 6: 'Family', 31: 'Current Spec'},
+    bdemospec: {name: 'Family Specifications', 3: 'Record ID#', 15: 'Format', 14: 'Style', 151: 'Layers'},
+    bdemomock: {name: 'Mock-Ups', 3: 'Record ID#', 9: 'Format', 10: 'Style', 39: 'Product Name'},
+    bdemolist: {name: 'Art Checklists', 3: 'Record ID#', 13: 'Description', 18: 'Brand'},
+    bdemotask: {name: 'Checklist Tasks', 3: 'Record ID#', 27: 'Department', 28: 'Description'},
+    bdemofill: {name: 'Fill Recordings', 3: 'Record ID#', 12: 'Format', 13: 'Style'},
+    bdemodens: {name: 'Product Densities', 3: 'Record ID#', 6: 'Brand', 7: 'Product', 14: 'Average'},
+    bdemofont: {name: 'System Fonts', 3: 'Record ID#', 6: 'Font Name', 7: 'Font File'}
+  };
+
+  BRANDS.forEach(function (b, i) {
+    var rid = String(i + 1), a = ADDRESSES[i];
+    tables.bdemocust.push({3: rid, 6: b.customer, 125: '0'});
+    ['new pouch line', 'holiday pack', 'club size relaunch'].forEach(function (name, k) {
+      tables.bdemoopps.push({3: String(100 + i * 3 + k), 6: rid, 8: b.customer + ' ' + name, 23: k === 2 ? '1' : '0', 24: k === 2 ? 'Closed' : 'Open'});
+    });
+    tables.bdemoaddr.push({3: String(200 + i), 6: 'Main warehouse', 7: a[0], 8: a[1], 13: rid, 18: '1', 23: a[2], 24: a[3], 25: a[4]});
+    tables.bdemoaddr.push({3: String(250 + i), 6: 'Co-packer', 7: pick(ADDRESSES, i + 3)[0], 8: '', 13: rid, 18: '0', 23: pick(ADDRESSES, i + 3)[2], 24: pick(ADDRESSES, i + 3)[3], 25: pick(ADDRESSES, i + 3)[4]});
+    tables.bdemoship.push({3: String(300 + i), 8: a[0], 9: a[1], 10: a[2], 11: a[3], 12: a[4], 13: 'United States', 16: b.customer});
+  });
+  SHAPES.forEach(function (shape, s) {
+    shape.sizes.forEach(function (size, k) {
+      for (var r = 0; r < 4; r++) {
+        var area = size[0] * size[1], fill = 68 + (s * 3 + k * 5 + r * 4) % 24;
+        tables.bdemofill.push({3: String(400 + s * 12 + k * 4 + r), 1: ms(s * 30 + k * 11 + r * 17), 6: String(+(2 + r * 1.5 + k).toFixed(1)), 7: String(+(0.5 + k * 2 + r).toFixed(1)), 8: String(size[1]), 9: String(size[0]), 10: String(size[2]), 11: pick(BRANDS, s + r).prefix + '00' + (101 + s + r), 12: shape.format, 13: shape.style, 14: shape.gusset, 15: pick(ZIPPERS, k + r), 16: String(+area.toFixed(1)), 17: String(fill), 18: String(Math.round(area * size[2] * fill / 100))});
+      }
+    });
+  });
+  [['Quad Seal Bag', 'Flat Bottom'], ['Quad Seal Bag', 'Pinched Bottom'], ['Stand-Up Pouch', 'K-Seal'], ['Stand-Up Pouch', 'Doyen'], ['Three Side Seal', 'Flat Pouch']].forEach(function (s, i) {
+    tables.bdemostyl.push({3: String(i + 1), 6: s[1], 7: s[0]});
+  });
+
+  PRODUCTS.forEach(function (p, i) {
+    var b = BRANDS[p.b], n = i + 1, upc = b.prefix + '00' + (100 + n), rid = String(100 + n), title = b.customer + ' ' + p.name + ' ' + p.weight;
+    var dims = p.w + ' x ' + p.h + ' x ' + p.g, combo = [p.format, p.style, p.gusset].join(' / '), family = b.code + '-' + String(p.w * 100) + '-' + n;
+    var po = String(21000 + n), order = String(500 + n), art = 'https://files.demo-packaging.example/f/' + b.code + n;
+    var spec = String(300 + n), fam = String(200 + n);
+    tables.bdemospec.push({3: spec, 6: fam, 12: 'v1', 14: p.style, 15: p.format, 43: p.gusset, 53: String(p.w), 54: String(p.h), 55: String(p.g), 56: String(p.w * 25.4), 57: String(p.h * 25.4), 58: String(p.g * 25.4), 65: 'in', 146: 'Zipper', 149: '1.5', 151: p.layers, 154: dims, 155: p.format + ' / ' + p.style, 428: '1.5', 1543: 'Current'});
+    tables.bdemofami.push({3: fam, 6: family, 9: String(p.b + 1), 31: spec, 76: b.customer + ' ' + family, 144: '0'});
+    tables.bdemoprod.push({3: rid, 12: title, 13: title, 14: upc, 128: '2', 132: upc, 136: '2', 141: b.customer, 225: '', 2209: 'Shelf ' + n, 353: 'Rev ' + n, 539: 'Match the approved pantone swatch.', 604: 'On file', 662: 'Rev ' + n});
+    // The first order of each product keeps PO 21000 + n; some products reorder under later POs.
+    for (var o = 0; o < 1 + i % 3; o++) {
+      var line = String(1000 + n * 10 + o), orderId = String(+order + o * 100), thisPo = String(+po + o * 1000), age = i * 8 + o * 120, approved = (i + o) % 3 > 0;
+      tables.bdemoordr.push({3: orderId, 18: thisPo});
+      tables.bdemoitem.push({1: ms(age), 2: ms(age / 2), 3: line, 6: orderId, 7: b.customer, 8: orderId, 13: upc, 14: title, 151: rid, 161: p.weight, 162: title, 163: o ? 'Reorder' : 'New', 184: thisPo, 262: day(age), 265: '0' + (o + 1) + '.26', 329: art, 382: b.customer, 417: approved ? '1' : '0', 419: approved ? day(age / 2) : '', 420: 'Press sheet ' + thisPo, 506: family, 573: o ? 'Revised' : 'New', 710: p.layers, 711: dims, 712: combo, 794: 'Zipper at 1.5"', 2122: p.format, 2209: 'Shelf ' + n, 2243: p.style, 2331: String(p.w), 2332: String(p.h), 2333: String(p.g), 2412: '0', 2519: '0', 2693: '', 2694: '', 2695: '0', 2696: ''});
+      tables.bdemorevw.push({3: String(5000 + n * 10 + o), 7: '', 8: '', 10: '', 16: '', 17: '', 19: '', 31: '', 34: '', 35: line, 41: p.format, 42: p.style, 44: dims, 54: '0', 63: '0', 67: combo});
+    }
+    [0, 1, 2].slice(0, 2 + i % 2).forEach(function (v, index, all) {
+      var artRow = {3: String(2000 + n * 4 + v), 10: title, 11: day(i * 8 + v * 95), 12: v === all.length - 1 ? 'New' : 'Revised', 18: 'Art REV', 37: rid, 40: title, 58: upc, 59: title, 61: '0' + (all.length - v) + '.26', 84: b.customer, 127: fam, 152: String(all.length - v), 205: v ? '0' : '1', 330: b.customer, 361: art + '-vendor.pdf', 376: p.weight, 481: String(parseFloat(p.weight)), 522: dims, 523: combo, 524: 'Tear notch', 525: p.layers, 526: 'Zipper, tear notch', 583: v ? '1' : '0', 588: art + '-customer.pdf', 624: upc};
+      colorBank(artRow, 191, n); colorBank(artRow, 571, n + 1); colorBank(artRow, 589, n + 2);
+      tables.bdemoartv.push(artRow);
+    });
+    tables.bdemomock.push({1: ms(i * 7), 3: String(1500 + n), 6: 'Opportunity ' + n, 7: p.format, 9: p.format, 10: p.style, 11: p.style, 12: String(p.w), 13: String(p.h), 14: String(p.g), 15: p.weight, 16: '1', 18: '3', 19: 'Demo mockup request.', 22: day(-7), 26: pick(ZIPPERS, i), 27: 'PET12/LLDPE100', 33: p.gusset, 35: String(p.b + 1), 36: b.customer, 39: p.name, 40: '1.5', 49: 'Mockup', 51: 'Opportunity ' + n, 53: p.format, 54: p.style, 56: p.gusset, 57: String(p.w), 58: String(p.h), 59: String(p.g), 62: pick(ZIPPERS, i), 63: '1.5', 74: ADDRESSES[p.b][0], 75: ADDRESSES[p.b][1], 76: ADDRESSES[p.b][2], 77: ADDRESSES[p.b][3], 78: ADDRESSES[p.b][4], 79: 'United States'});
+    var cups = [0, 1, 2, 3, 4].map(function (c) { return (2.1 + (n % 7) * 0.12 + ((n + c * 3) % 5) * 0.02).toFixed(2); });
+    tables.bdemodens.push({3: String(i + 1), 1: ms(i * 5), 6: b.customer, 7: p.name, 8: '', 9: cups[0], 10: cups[1], 11: cups[2], 12: cups[3], 13: cups[4], 14: (cups.reduce(function (s, v) { return s + +v; }, 0) / 5).toFixed(2)});
+  });
+
+  ['Demo Sans Regular', 'Demo Sans Medium', 'Demo Sans Bold', 'Demo Serif Regular', 'Demo Serif Italic', 'Demo Mono', 'Demo Condensed'].forEach(function (name, i) { tables.bdemofont.push({3: String(i + 1), 6: name, 7: ''}); });
+  LAYERS.forEach(function (name, i) { tables.bdemolayr.push({3: String(i + 1), 6: name, 7: String(40 - i * 3)}); });
+  PRODUCTS.slice(0, 12).forEach(function (p, i) {
+    var lid = String(3000 + i), b = BRANDS[p.b], done = i % 5;
+    tables.bdemolist.push({3: lid, 10: String(501 + i), 13: 'Art checklist: ' + p.name, 14: '0', 16: '0', 17: String(p.b + 1), 18: b.customer, 19: String(21001 + i), 21: '4', 25: pick(PEOPLE, i), 29: String(1 + i % 4 * 0.5), 30: String(4 - Math.min(done, 4))});
+    ['Prepress', 'Proofreading', 'PC', 'Engineering'].forEach(function (dept, t) {
+      tables.bdemotask.push({3: String(3100 + i * 10 + t), 12: lid, 14: '0', 15: '', 16: t < done ? '1' : '0', 18: String(t + 1), 26: 'General', 27: dept, 28: dept + ' review of ' + p.name, 29: '', 32: String(t + 1), 34: '0'});
+    });
+  });
+  [['Prepress', 'Production Art'], ['Prepress', 'Proof Review'], ['Project Coordination', 'Scheduling'], ['Engineering', 'Dieline Review']].forEach(function (s, i) { tables.bdemosrvc.push({3: String(i + 1), 6: s[0], 7: s[1]}); });
+
+  var ids = {};
+  function nextRid(table) { ids[table] = ids[table] || Object.keys(tables[table] || {}).length + 90000; return String(++ids[table]); }
+  function rows(table) { return tables[table] || (tables[table] = []); }
+  function xmlEsc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+
+  // Quickbase query language: {fid.OP.'value'} joined by AND / OR, with parentheses.
+  function when(value) { return /^\d{10,}$/.test(value) ? +value : Date.parse(value) || 0; }
+  function test(row, fid, op, want) {
+    var have = String(row[fid] == null ? '' : row[fid]), h = have.toLowerCase(), w = String(want).toLowerCase(), n = parseFloat(have), m = parseFloat(want);
+    switch (op) {
+      case 'EX': case 'TV': return h === w;
+      case 'XEX': case 'XTV': return h !== w;
+      case 'CT': case 'HAS': return h.indexOf(w) >= 0;
+      case 'XCT': return h.indexOf(w) < 0;
+      case 'SW': return h.indexOf(w) === 0;
+      case 'XSW': return h.indexOf(w) !== 0;
+      case 'OAF': case 'AF': return when(have) >= when(want);
+      case 'OBF': case 'BF': return when(have) <= when(want);
+      case 'GT': return isNaN(n) ? have > want : n > m;
+      case 'GTE': return n >= m;
+      case 'LT': return isNaN(n) ? have < want : n < m;
+      case 'LTE': return n <= m;
+      default: return true;
+    }
+  }
+  function tokenize(q) {
+    var out = [], re = /\{\s*'?(\d+)'?\s*\.\s*([A-Z]+)\s*\.\s*'((?:\\.|[^'])*)'\s*\}|\(|\)|AND|OR/gi, m;
+    while ((m = re.exec(q))) out.push(m[1] ? {fid: m[1], op: m[2].toUpperCase(), value: m[3].replace(/\\(.)/g, '$1')} : m[0].toUpperCase());
+    return out;
+  }
+  function matcher(q) {
+    var t = tokenize(q || ''), i = 0;
+    if (!t.length) return function () { return true; };
+    function atom(row) {
+      var k = t[i++];
+      if (k === '(') { var v = or(row); i++; return v; }
+      return !k || !k.fid || test(row, k.fid, k.op, k.value);
+    }
+    function and(row) { var v = atom(row); while (t[i] === 'AND') { i++; var r = atom(row); v = v && r; } return v; }
+    function or(row) { var v = and(row); while (t[i] === 'OR') { i++; var r = and(row); v = v || r; } return v; }
+    return function (row) { i = 0; return or(row); };
+  }
+  function select(table, q, slist, options) {
+    var list = rows(table).filter(matcher(q)), opt = String(options || ''), sort = String(slist || '').split('.').filter(Boolean)[0];
+    if (sort) {
+      var desc = /sortorder-D/.test(opt);
+      list = list.slice().sort(function (a, b) { var x = a[sort], y = b[sort], nx = parseFloat(x), ny = parseFloat(y), c = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x || '').localeCompare(String(y || '')); return desc ? -c : c; });
+    }
+    var skip = /skp-(\d+)/.exec(opt), num = /num-(\d+)/.exec(opt);
+    if (skip) list = list.slice(+skip[1]);
+    if (num) list = list.slice(0, +num[1]);
+    return list;
+  }
+  function ok(body) { return '<?xml version="1.0"?><qdbapi><action>demo</action><errcode>0</errcode><errtext>No error</errtext>' + (body || '') + '</qdbapi>'; }
+  function labelOf(table, fid) { return (labels[table] && labels[table][fid]) || 'Field ' + fid; }
+  function fidsOf(table) { var seen = {}; rows(table).forEach(function (r) { Object.keys(r).forEach(function (k) { seen[k] = 1; }); }); Object.keys(labels[table] || {}).forEach(function (k) { if (k !== 'name') seen[k] = 1; }); return Object.keys(seen).sort(function (a, b) { return a - b; }); }
+  function doQuery(table, p) {
+    var list = select(table, p.query, p.slist, p.options), clist = String(p.clist || '').split('.').filter(function (x) { return /^\d+$/.test(x); });
+    if (!clist.length) clist = fidsOf(table);
+    var fields = clist.map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    var body = list.map(function (r) {
+      return '<record rid="' + xmlEsc(r[3]) + '">' + clist.map(function (f) { return '<f id="' + f + '">' + xmlEsc(r[f]) + '</f>'; }).join('') + '<update_id>1</update_id></record>';
+    }).join('');
+    return ok('<table><fields>' + fields + '</fields><records>' + body + '</records></table>');
+  }
+  function schema(table) {
+    if (!tables[table]) {
+      var kids = Object.keys(labels).map(function (t) { return '<chdbid name="_dbid_' + xmlEsc(labels[t].name.toLowerCase().replace(/\W+/g, '_')) + '">' + t + '</chdbid>'; }).join('');
+      return ok('<table><name>Demo Packaging</name><original><app_id>' + table + '</app_id></original><chdbids>' + kids + '</chdbids><fields></fields></table>');
+    }
+    var fields = fidsOf(table).map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    return ok('<table><name>' + xmlEsc((labels[table] || {}).name || table) + '</name><original><table_id>' + table + '</table_id></original><fields>' + fields + '</fields></table>');
+  }
+  function writeFields(p, body) {
+    var out = {}, k;
+    for (k in p) { var m = /^_fid_(\d+)$/.exec(k); if (m) out[m[1]] = p[k]; }
+    if (body && /<field/.test(body)) {
+      var doc = new DOMParser().parseFromString(body, 'text/xml');
+      [].forEach.call(doc.querySelectorAll('field'), function (n) { if (n.getAttribute('fid')) out[n.getAttribute('fid')] = n.textContent; });
+      var rid = doc.querySelector('rid'); if (rid) p.rid = rid.textContent;
+      ['query', 'clist', 'slist', 'options', 'varname'].forEach(function (name) { var e = doc.querySelector(name); if (e && !p[name]) p[name] = e.textContent; });
+    }
+    return out;
+  }
+  // The real page stores a generated script on the record. There is no record to open here, so hand it over as a download.
+  function saveUpload(body) {
+    var file = new DOMParser().parseFromString(body, 'text/xml').querySelector('field[filename]');
+    if (file) {
+      var bytes = Uint8Array.from(atob(file.textContent), function (c) { return c.charCodeAt(0); });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([bytes], {type: 'application/javascript'}));
+      link.download = file.getAttribute('filename');
+      window.__demoLastFile = {name: link.download, text: new TextDecoder().decode(bytes)};
+      link.click();
+    }
+    return ok('<rid>1</rid>');
+  }
+  function xmlApi(table, p, body) {
+    var fields = writeFields(p, body), row;
+    switch (p.a) {
+      case 'API_DoQuery': return doQuery(table, p);
+      case 'API_DoQueryCount': return ok('<numMatches>' + select(table, p.query).length + '</numMatches>');
+      case 'API_GetDBVar': return ok('<value>demo-value</value>');
+      case 'API_SetDBVar': return ok();
+      case 'API_GetUserInfo': return ok('<user id="1.demo"><firstName>Demo</firstName><lastName>User</lastName><login>demo.user</login><email>demo.user@demo-packaging.example</email><screenName>Demo User</screenName></user>');
+      case 'API_GetSchema': return schema(table);
+      case 'API_GetDBPage': return '';
+      case 'dbpage': return (window.__DEMO_PAGES || {})[p.pageID || p.pageid] || '';
+      case 'API_UploadFile': return saveUpload(body);
+      case 'API_AddRecord':
+        row = fields; row[3] = nextRid(table); row[1] = String(Date.now()); row[2] = row[1]; rows(table).unshift(row);
+        return ok('<rid>' + row[3] + '</rid><update_id>1</update_id>');
+      case 'API_EditRecord':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid || p.key); })[0];
+        if (row) Object.keys(fields).forEach(function (f) { row[f] = fields[f]; });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid><num_fields_changed>1</num_fields_changed><update_id>2</update_id>');
+      case 'API_DeleteRecord':
+        tables[table] = rows(table).filter(function (r) { return String(r[3]) !== String(p.rid); });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>');
+      case 'API_GetRecordInfo':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid); })[0] || {};
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>' + Object.keys(row).map(function (f) { return '<field><fid>' + f + '</fid><name>' + xmlEsc(labelOf(table, f)) + '</name><type>Text</type><value>' + xmlEsc(row[f]) + '</value></field>'; }).join(''));
+      default: return ok();
+    }
+  }
+  function restWhere(where) { return where || ''; }
+  function restApi(url, init) {
+    var path = url.pathname, body = {};
+    try { body = JSON.parse(init.body || '{}'); } catch (e) {}
+    if (/\/v1\/auth\/temporary\//.test(path)) return {temporaryAuthorization: 'demo-token'};
+    if (/\/v1\/records\/query/.test(path)) {
+      var select_ = body.select || [], sort = (body.sortBy || [])[0], list = select(body.from, restWhere(body.where), sort && sort.fieldId, sort && sort.order === 'DESC' ? 'sortorder-D' : '');
+      return {data: list.map(function (r) { var o = {}; select_.forEach(function (f) { o[f] = {value: r[f] == null ? '' : r[f]}; }); return o; }),
+        fields: select_.map(function (f) { return {id: f, label: labelOf(body.from, f), type: 'text'}; }),
+        metadata: {numRecords: list.length, numFields: select_.length, totalRecords: list.length, skip: 0}};
+    }
+    if (/\/v1\/records/.test(path)) {
+      var created = (body.data || []).map(function (src) { var row = {}; Object.keys(src).forEach(function (f) { row[f] = src[f] && src[f].value; }); row[3] = row[3] || nextRid(body.to); rows(body.to).unshift(row); return +row[3]; });
+      return {data: [], metadata: {createdRecordIds: created, updatedRecordIds: [], unchangedRecordIds: [], totalNumberOfRecordsProcessed: created.length}};
+    }
+    if (/\/v1\/fields/.test(path)) { var t = url.searchParams.get('tableId'); return fidsOf(t).map(function (f) { return {id: +f, label: labelOf(t, f), fieldType: 'text'}; }); }
+    if (/\/v1\/tables/.test(path)) return Object.keys(labels).map(function (t) { return {id: t, name: labels[t].name}; });
+    return {};
+  }
+  function params(url, init) {
+    var p = {};
+    url.searchParams.forEach(function (v, k) { p[k] = v; });
+    var b = init && init.body;
+    if (b && typeof b === 'string' && !/^\s*</.test(b)) new URLSearchParams(b).forEach(function (v, k) { p[k] = v; });
+    else if (b && b.forEach && !(b instanceof Blob)) b.forEach(function (v, k) { if (typeof v === 'string') p[k] = v; });
+    var h = init && init.headers, action = h && (h['QUICKBASE-ACTION'] || (h.get && h.get('QUICKBASE-ACTION')));
+    if (action) p.a = action;
+    return p;
+  }
+  function respond(url, init) {
+    var host = url.hostname;
+    if (host === 'api.quickbase.com') return new Response(JSON.stringify(restApi(url, init || {})), {status: 200, headers: {'Content-Type': 'application/json'}});
+    var m = /^\/db\/([^/?#]+)/.exec(url.pathname), p = params(url, init), text = m ? xmlApi(m[1], p, typeof (init || {}).body === 'string' ? init.body : '') : '';
+    return new Response(text, {status: 200, headers: {'Content-Type': 'text/xml'}});
+  }
+  var realFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var raw = input && input.url ? input.url : String(input), url = new URL(raw, location.href);
+    if (url.hostname === HOST || url.hostname === 'api.quickbase.com' || (url.origin === location.origin && /^\/db\//.test(url.pathname))) return Promise.resolve(respond(url, init || {}));
+    if (url.hostname.indexOf('.example') > 0) return Promise.resolve(new Response('', {status: 404}));
+    return realFetch.apply(this, arguments);
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var tag = document.createElement('div');
+    tag.textContent = 'Demo: fictional company and data';
+    tag.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 10px;border-radius:999px;background:#1f2937;color:#fff;font:600 12px/1 system-ui,sans-serif;opacity:.85;pointer-events:none';
+    document.body.appendChild(tag);
+  });
+})();
+
+</script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Fill Recordings</title>
+  <link rel="icon" id="app-favicon" type="image/webp" href="">
+  <style id="demo-theme">
+    /* Demo Packaging app theme - shared tokens (see tools/README.md) */
+    :root{--x-brand:#3b3f8f;--x-brand-hover:#2d3070;--x-accent:#5257b8;--x-accent-soft:#e4f0f2;--x-ink:#132a35;--x-muted:#62757c;--x-line:#d6e0e3;--x-line-strong:#c3d2d6;--x-soft:#eef4f5;--x-paper:#fff;--x-canvas:#f3f6f7;--x-danger:#a73543;--x-success:#18705f;--x-warning:#8a5a00;--x-radius-card:14px;--x-radius-inner:11px;--x-radius-control:9px;--x-radius-small:7px;--x-shadow-card:0 1px 2px rgba(3,61,75,.05),0 6px 18px rgba(3,61,75,.06);--x-shadow-pop:0 14px 32px rgba(3,61,75,.16);--x-shadow-modal:0 24px 70px rgba(2,32,40,.3);--x-focus:0 0 0 3px rgba(13,99,114,.18);--x-font:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  </style>
+  <style>
+    *{box-sizing:border-box}
+    [hidden]{display:none!important}
+    body{margin:0;min-width:320px;background:var(--x-canvas);color:var(--x-ink);font:15px/1.45 var(--x-font)}
+    button,input,select{font:inherit;color:inherit}
+    button{cursor:pointer}
+    .shell{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
+    .page-head{margin-bottom:18px}
+    .eyebrow{margin:0 0 5px;color:var(--x-accent);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    .page-head h1{margin:0;font-size:clamp(28px,3.4vw,38px);font-weight:750;line-height:1.08;letter-spacing:-.035em}
+    .page-head p{max-width:720px;margin:8px 0 0;color:var(--x-muted)}
+
+    .tabs{margin:0 0 18px;display:inline-flex;gap:4px;padding:4px;border:1px solid var(--x-line);border-radius:999px;background:var(--x-paper)}
+    .tabs button{min-height:40px;padding:0 18px;border:0;border-radius:999px;background:transparent;color:var(--x-muted);font-size:14px;font-weight:700}
+    .tabs button[aria-selected="true"]{background:var(--x-brand);color:#fff}
+    .tabs button:focus-visible{outline:none;box-shadow:var(--x-focus)}
+    .t-short{display:none}
+    @media (max-width:640px){.t-long{display:none}.t-short{display:inline}}
+
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;grid-template-areas:"quick result" "details result";gap:18px 22px;align-items:start}
+    .layout>.quick{grid-area:quick}.layout>.result{grid-area:result}.layout>.details{grid-area:details}
+    .layout>.result{grid-row:1 / span 2}
+    .panel{overflow:hidden;border:1px solid var(--x-line);border-radius:var(--x-radius-card);background:var(--x-paper);box-shadow:var(--x-shadow-card)}
+    .panel-head{padding:18px 22px 14px;border-bottom:1px solid var(--x-line)}
+    .panel-head h2{margin:0;font-size:18px;letter-spacing:-.02em}
+    .panel-head p{margin:4px 0 0;color:var(--x-muted);font-size:13.5px}
+    .section{padding:18px 22px 20px}
+    .section+.section{border-top:1px solid var(--x-line)}
+    .section h3{margin:0 0 12px;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--x-accent)}
+
+    .lookup{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}
+    .quick-row{margin-top:14px}
+    .input.big{min-height:52px;font-size:18px;font-weight:650}
+    .lookup .button{min-height:52px}
+    .save-bar{padding:0 22px 18px}.save-bar .status{margin:8px 0 0}
+    .button.wide{width:100%;min-height:52px;font-size:16px}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .field{min-width:0;display:grid;align-content:start;gap:5px}
+    .field>span{font-size:12.5px;font-weight:800}
+    .field small{color:var(--x-muted);font-size:11.5px;line-height:1.35}
+    .input,.field select{width:100%;min-height:44px;padding:0 12px;border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:#fff;font-size:15px;outline:0}
+    .input:focus,.field select:focus{border-color:var(--x-accent);box-shadow:var(--x-focus)}
+    .input.solve{border-style:dashed;border-color:var(--x-accent);background:#f4f9fa}
+    .input.solve::placeholder{color:var(--x-accent);font-weight:800;opacity:1}
+    .unit{position:relative}.unit .input{padding-right:52px}
+    .unit em{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--x-muted);font-size:12px;font-style:normal;font-weight:800;pointer-events:none}
+    .button{min-height:44px;padding:0 18px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--x-brand);border-radius:var(--x-radius-control);background:var(--x-brand);color:#fff;font-weight:700}
+    .button:hover:not(:disabled){background:var(--x-brand-hover)}
+    .button:disabled{opacity:.5;cursor:not-allowed}
+    .button.secondary{border-color:var(--x-line-strong);background:#fff;color:var(--x-ink)}
+    .button.secondary:hover:not(:disabled){background:var(--x-soft)}
+    .status{margin:10px 0 0;min-height:20px;color:var(--x-muted);font-size:13px}
+    .status.good{color:var(--x-success)}.status.bad{color:var(--x-danger)}
+    .found{margin-top:12px;padding:12px 14px;border-radius:var(--x-radius-inner);background:var(--x-soft);font-size:13.5px}
+    .found strong{display:block;font-size:15px}
+    .actions{padding:14px 22px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-top:1px solid var(--x-line);background:#fbfcfc}
+    .actions .status{flex:1 1 220px;margin:0}
+    .segmented{display:inline-flex;gap:3px;padding:3px;border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:var(--x-soft)}
+    .segmented button{min-height:36px;padding:0 12px;border:0;border-radius:var(--x-radius-small);background:transparent;color:var(--x-accent);font-size:13px;font-weight:800}
+    .segmented button[aria-pressed="true"]{background:var(--x-brand);color:#fff}
+
+    .result{position:sticky;top:18px}
+    .result-top{padding:20px 22px 16px;background:var(--x-brand);color:#fff}
+    .result-top .eyebrow{color:#a9d3da}
+    .result-value{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}
+    .result-value strong{font-size:46px;line-height:1;letter-spacing:-.04em}
+    .result-value small{color:#cfe6ea;font-size:15px;font-weight:800}
+    .result-note{margin:8px 0 0;color:#cfe6ea;font-size:13px}
+    .steps{margin:0;padding:4px 22px 12px;list-style:none}
+    .steps li{padding:11px 0;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--x-line)}
+    .steps li:last-child{border-bottom:0}
+    .steps span{color:var(--x-muted);font-size:13.5px}
+    .steps small{display:block;color:var(--x-muted);font-size:11.5px}
+    .steps strong{font-size:15.5px;font-variant-numeric:tabular-nums;text-align:right}
+    .steps li.total span{color:var(--x-ink);font-weight:800}.steps li.total strong{color:var(--x-accent)}
+    .matches{margin:0 16px 16px;padding:12px 14px;border-radius:var(--x-radius-inner);background:var(--x-soft);font-size:13px}
+    .matches strong{display:block;margin-bottom:6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--x-accent)}
+    .matches ol{margin:0;padding-left:18px}.matches li{margin:3px 0}
+
+    .chart-panel{margin-bottom:18px}
+    .chart-wrap{position:relative;padding:12px 18px 2px}
+    .chart{width:100%;height:auto;display:block}
+    .chart circle{cursor:pointer;transition:r .12s}
+    .chart circle:hover{r:9}
+    .chart-tip{position:absolute;z-index:5;min-width:220px;padding:10px 12px;border-radius:10px;background:#132a35;color:#fff;font-size:12.5px;line-height:1.45;box-shadow:var(--x-shadow-pop);pointer-events:none;transform:translate(-50%,calc(-100% - 12px))}
+    .chart-tip strong{display:block;margin-bottom:3px;font-size:13px}
+    .chart-tip span{color:#b9d7de}
+    .known-filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 18px;padding:0 18px 12px}
+    .known-filters .field{min-width:0}
+    .known-filters .pair{display:flex;align-items:center;gap:6px}.known-filters .pair input{width:84px}.known-filters .pair em{color:var(--x-muted);font-style:normal;font-size:13px}
+    .known-summary{margin:0 18px 8px;padding:11px 14px;border-radius:10px;background:var(--x-accent-soft);color:var(--x-ink);font-size:14px;line-height:1.5}
+    .known-summary b{font-weight:700}
+    .chart-explain{margin:0;padding:0 18px 4px;color:var(--x-muted);font-size:13px;line-height:1.5;max-width:110ch}
+    .known-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
+    .factors .result-top{border-radius:0}
+    @media (max-width:980px){.known-grid{grid-template-columns:1fr}}
+    .legend{padding:0 22px 14px;display:flex;flex-wrap:wrap;gap:6px 16px;color:var(--x-muted);font-size:12.5px}
+    .legend i{display:inline-block;width:10px;height:10px;margin-right:6px;border-radius:50%;vertical-align:-1px}
+    .known-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}.known-head .field{min-width:220px}.known-filters select{min-width:240px}
+    #chartPick button{padding-left:14px;padding-right:14px}
+    .factor-list{margin:0;padding:0 22px 16px;list-style:none;display:grid;gap:6px}
+    .factor-list li{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border-radius:var(--x-radius-small);background:var(--x-soft);font-size:13.5px}
+    .factor-list b{font-variant-numeric:tabular-nums}
+    /* Plan: pick a question, read the answer */
+    .plan-form{display:flex;flex-direction:column}
+    .section h3 small{margin-left:8px;color:var(--x-muted);font-size:11.5px;font-weight:700;letter-spacing:0;text-transform:none}
+    .hint{margin:12px 0 0;color:var(--x-muted);font-size:12.5px}.hint a{color:var(--x-accent);font-weight:700}
+    .result-value strong.long{font-size:30px;letter-spacing:-.02em}
+    /* Good fills: three sizes at a glance, then the bags grouped by one measurement */
+    .size-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:16px 18px 4px}
+    .size-card{padding:16px 18px;border:1px solid var(--x-line);border-radius:var(--x-radius-inner);background:#fff}
+    .size-card h3{margin:0;font-size:16px}
+    .size-card h3 small{display:block;margin-top:2px;color:var(--x-muted);font-size:12.5px;font-weight:600}
+    .size-card .big{margin:12px 0 0;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;font-variant-numeric:tabular-nums}
+    .size-card .big strong{font-size:44px;line-height:1;letter-spacing:-.04em;color:var(--x-brand)}
+    .size-card .big span{color:var(--x-muted);font-size:13px;font-weight:700}
+    .size-card .meter{height:8px;margin:10px 0 12px;border-radius:99px;background:var(--x-soft);overflow:hidden}
+    .size-card .meter i{display:block;height:100%;border-radius:99px;background:var(--x-accent)}
+    .size-card ul{margin:0;padding:0;list-style:none;display:grid;gap:5px;font-size:13.5px}
+    .size-card li{display:flex;justify-content:space-between;gap:10px}.size-card li span{color:var(--x-muted)}
+    .size-card.none .big strong{color:var(--x-line-strong)}
+    .chart-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px 0}
+    .chart-head h3{margin:0;font-size:16px}
+    #chartPick button{padding-left:16px;padding-right:16px}
+    .known-more{margin:10px 18px 0;font-size:13.5px}
+    .known-more summary{width:max-content;padding:4px 0;color:var(--x-accent);font-weight:700;cursor:pointer}
+    .known-more .known-filters{padding:10px 0 4px}
+    .known-showing{margin:10px 18px 0;padding:9px 14px;border-radius:10px;background:var(--x-accent-soft);font-size:13.5px}
+    details.notes summary{color:var(--x-ink);font-size:15px;font-weight:700;cursor:pointer}
+    details.notes ul{margin-top:10px}
+    @media (max-width:760px){.size-cards{grid-template-columns:1fr}}
+    /* Plan: the three inputs fold to one line once they are in */
+    .plan-summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 14px;padding:10px 12px 10px 14px;border-radius:var(--x-radius-inner);background:var(--x-soft);font-size:14.5px;font-weight:700}
+    .plan-summary .button{min-height:36px;padding:0 14px}
+    .plan-form .actions{justify-content:flex-end}
+    .similar-bar{padding:4px 22px 18px}.similar-bar .status{margin:8px 0 0}
+    /* Plan: whether our machines can make the planned bag */
+    .input.over{border-color:var(--x-danger);background:#fbf1f2}.input.over.solve{border-style:dashed}
+    .fit{margin:0 22px 14px;padding:12px 14px;border:1px solid var(--x-line);border-radius:var(--x-radius-inner);background:var(--x-soft)}
+    .check{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:650;cursor:pointer}.check input{width:18px;height:18px;margin:0;accent-color:var(--x-accent)}
+    .fit h4{margin:0 0 6px;font-size:14px;color:var(--x-ink)}
+    .fit-machine{padding:8px 0;border-top:1px solid var(--x-line)}.fit-machine:first-of-type{border-top:0}
+    .fit-machine strong{display:block;font-size:13.5px}
+    .fit-machine.ok strong{color:var(--x-success)}.fit-machine.bad strong{color:var(--x-danger)}
+    .fit ul{margin:4px 0 0;padding-left:18px;font-size:13px}.fit li{margin:2px 0}
+    .fit li.note{color:var(--x-warning)}
+    .fit p{margin:6px 0 0;color:var(--x-muted);font-size:12.5px}
+    .fit .made-before{margin-top:8px;padding-top:8px;border-top:1px dashed var(--x-line-strong);color:var(--x-ink)}
+    .fit .foot{font-size:11.5px}
+    .fit .button{margin-top:10px;min-height:36px;padding:0 14px}
+    .fit-more{margin-top:10px;padding-top:8px;border-top:1px solid var(--x-line)}
+    .fit-more summary{color:var(--x-accent);font-size:12.5px;font-weight:700;cursor:pointer}
+    .count-badge{min-width:28px;height:28px;padding:0 9px;display:inline-grid;place-items:center;border-radius:99px;background:#fff;color:var(--x-brand);font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+    /* Similar bags: tested bags close to the planned one, with their artwork (the same preview the other tools use) */
+    dialog.similar{width:min(1080px,calc(100vw - 32px));max-height:calc(100dvh - 40px);padding:0;overflow:hidden;border:0;border-radius:var(--x-radius-card);background:var(--x-canvas);color:var(--x-ink);box-shadow:var(--x-shadow-pop)}
+    dialog.similar::backdrop{background:rgba(2,32,40,.55)}
+    .similar-inner{max-height:calc(100dvh - 40px);display:flex;flex-direction:column}
+    .similar-head{padding:16px 20px 14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid var(--x-line);background:#fff}
+    .similar-head h2{margin:0;font-size:19px;letter-spacing:-.02em}.similar-head p{margin:4px 0 0;color:var(--x-muted);font-size:13.5px}
+    .similar-close{flex:none;width:40px;height:40px;display:grid;place-items:center;border:0;border-radius:50%;background:var(--x-soft);color:var(--x-brand);font-size:22px;line-height:1}
+    .similar-grid{flex:1 1 auto;min-height:0;overflow:hidden auto;-webkit-overflow-scrolling:touch;padding:18px 20px 22px;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr));grid-auto-rows:max-content;align-content:start;gap:16px}
+    .sim-card{overflow:hidden;border:1px solid var(--x-line);border-radius:var(--x-radius-inner);background:#fff}
+    .sim-pic{position:relative}
+    .sim-over{position:absolute;left:0;right:0;bottom:0;z-index:5;padding:30px 12px 10px;background:linear-gradient(rgba(2,32,40,0),rgba(2,32,40,.86));color:#fff;pointer-events:none}
+    .sim-over strong{display:block;font-size:20px;line-height:1.15;letter-spacing:-.02em;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+    .sim-over small{display:block;margin-top:1px;color:#cfe6ea;font-size:11.5px;font-weight:700}
+    .sim-same{position:absolute;left:9px;top:9px;z-index:5;padding:3px 9px;border-radius:99px;background:#fff;color:var(--x-accent);font-size:11.5px;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.18);pointer-events:none}
+    .sim-card .files-card-hint{top:9px;bottom:auto}
+    .sim-body{padding:10px 12px 12px;font-size:13px}
+    .sim-body p{margin:0}
+    .sim-name{font-size:13.5px;font-weight:700;overflow-wrap:anywhere}.sim-name:empty{display:none}
+    .sim-style{color:var(--x-muted);overflow-wrap:anywhere}.sim-name:not(:empty)+.sim-style{margin-top:2px}
+    .sim-facts{margin-top:6px!important;display:flex;flex-wrap:wrap;gap:2px 14px;color:var(--x-muted)}
+    .sim-facts b{color:var(--x-ink)}
+    /* Phones: the popup fills the screen, one card per row */
+    @media (max-width:640px){
+      dialog.similar{width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;border-radius:0}
+      .similar-inner{height:100%;max-height:none}
+      .similar-head{padding:12px 14px}.similar-head h2{font-size:17px}
+      .similar-grid{grid-template-columns:minmax(0,1fr);padding:12px;gap:12px}
+    }
+    .art{position:relative;height:250px;display:grid;place-items:center;overflow:hidden;border-bottom:1px solid var(--x-line);background:var(--x-soft);color:var(--x-muted);cursor:zoom-in}
+    .art > img.artwork-preview-image{width:100%;height:100%;display:block;object-fit:contain;background:#f7f9f8;opacity:0;transition:opacity .25s}
+    .art > img.artwork-preview-image.ready{opacity:1}
+    .art .placeholder{position:absolute;inset:0;display:grid;place-items:center;padding:16px;text-align:center;font-size:13px;font-weight:700}
+    .art .placeholder a{color:var(--x-accent)}
+    .artwork-loading{display:grid!important;justify-items:center;gap:8px}
+    .artwork-loading-spinner{width:56px;height:56px;display:block;background:center/contain no-repeat url("")}
+    .artwork-loading small{font-size:11px}
+    .link-button{margin:4px 0 0;padding:0;border:0;background:none;color:var(--x-accent);font-size:13.5px;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+    .table-wrap{overflow:auto}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:9px 12px;border-bottom:1px solid var(--x-line);text-align:left;white-space:nowrap}
+    th{position:sticky;top:0;background:var(--x-paper);color:var(--x-muted);font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    td.num{text-align:right;font-variant-numeric:tabular-nums}
+    .empty{padding:28px 22px;color:var(--x-muted);text-align:center}
+    .notes{margin-top:22px;padding:18px 22px;border:1px dashed var(--x-line-strong);border-radius:var(--x-radius-card);color:var(--x-muted);font-size:13.5px}
+    .notes h3{margin:0 0 8px;color:var(--x-ink);font-size:15px}
+    .notes ul{margin:0;padding-left:18px}.notes li{margin:4px 0}
+
+    @media (max-width:980px){.layout{grid-template-columns:1fr;grid-template-areas:"quick" "result" "details"}.layout>.result{grid-row:auto;position:static}}
+    /* Phones: one column, big touch targets, 16px+ inputs (no zoom on focus), tabs pinned while scrolling. */
+    @media (max-width:640px){
+      .shell{padding:14px 12px 40px}
+      .page-head{margin-bottom:12px}.page-head p,.page-head .eyebrow{display:none}.page-head h1{font-size:26px}
+      .tabs{position:sticky;top:0;z-index:30;display:flex;margin:0 -12px 14px;padding:6px 12px;border:0;border-bottom:1px solid var(--x-line);border-radius:0;background:var(--x-canvas)}
+      .tabs button{flex:1;min-height:44px;padding:0 6px;font-size:13.5px}
+      .section{padding:16px 16px 18px}.panel-head{padding:14px 16px 10px}.actions{padding:12px 16px 16px}
+      .grid,.grid.two{grid-template-columns:1fr 1fr;gap:10px}
+      .input,.field select{min-height:48px;font-size:16px}
+      .result-top{padding:16px 16px 14px}.result-value strong{font-size:40px}
+      .steps{padding:2px 16px 8px}.steps li{padding:9px 0}
+      .fit{margin:0 16px 12px}
+      .save-bar{padding:0 16px 16px}
+      .matches{margin:0 12px 12px}
+      .actions .button{flex:1}
+      .notes{padding:14px 16px}
+    }
+    @media (max-width:420px){.grid,.grid.two{grid-template-columns:1fr}}
+
+    /* Demo Packaging app header - shared standard (see App Development/HEADER-STANDARD.md) */
+    :root{--xh-height:60px}
+    .xh{position:relative;z-index:20;background:#3b3f8f;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.18);font-family:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.2}
+    .xh-inner{height:var(--xh-height);padding:0 24px;display:flex;align-items:center;gap:16px}
+    .xh-logo{flex:none;display:block;width:auto;height:26px}
+    .xh-home{flex:none;display:flex;align-items:center;border-radius:6px;text-decoration:none;transition:opacity .15s}.xh-home:hover{opacity:.82}.xh-home:focus-visible{outline:2px solid #8fd6e1;outline-offset:5px}
+    .xh-symbol{flex:none;display:none;width:22px;height:22px}
+    .xh-divider{flex:none;width:1px;height:28px;background:rgba(255,255,255,.28)}
+    .xh-title{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .xh-title strong{overflow:hidden;color:#fff;font-size:16px;font-weight:700;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+    .xh-title span{overflow:hidden;color:#a3c9d1;font-size:11px;font-weight:700;letter-spacing:.1em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    @media(max-width:640px){:root{--xh-height:52px}.xh-inner{padding:0 14px;gap:11px}.xh-logo{height:21px}.xh-divider{height:24px}.xh-title strong{font-size:15px}.xh-title span{display:none}}
+    @media print{.xh{display:none!important}}
+  </style>
+  <style id="no-sideways-scroll">
+    /* Phones never scroll sideways. clip (unlike hidden) keeps sticky headers and inner scroll areas working. */
+    @media (max-width:760px){html,body{max-width:100%;overflow-x:clip}body{min-width:0!important}}
+  </style>
+  
+<!-- app-version:start (managed by demo_versions.py: change versions.json, not this copy) -->
+
+
+
+
+</head>
+<body>
+  <header class="xh">
+    <div class="xh-inner">
+      <a class="xh-home" href="#" title="All demo apps" aria-label="Demo Apps: all our tools"><img class="xh-logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27white%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging" width="89" height="26">
+      <img class="xh-symbol" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27white%27/%3E%3C/svg%3E" alt="Demo Packaging" width="22" height="22"></a>
+      <span class="xh-divider" aria-hidden="true"></span>
+      <div class="xh-title"><strong>Fill Recordings</strong><span>Known good bag fills</span></div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="page-head">
+      <p class="eyebrow">Engineering</p>
+      <h1>Fill Recordings</h1>
+      <p>Record a good fill in a real bag. Then see how full bags usually go, and plan a new one from what has been recorded.</p>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Sections">
+      <button type="button" role="tab" id="tabRecord" aria-selected="true" aria-controls="viewRecord"><span class="t-long">Record a fill</span><span class="t-short">Record</span></button>
+      <button type="button" role="tab" id="tabPlan" aria-selected="false" aria-controls="viewPlan"><span class="t-long">Plan a bag</span><span class="t-short">Plan</span></button>
+      <button type="button" role="tab" id="tabKnown" aria-selected="false" aria-controls="viewKnown"><span class="t-long">Known good fills</span><span class="t-short">Good fills</span></button>
+    </div>
+
+    <!-- ============ Record a fill ============ -->
+    <section id="viewRecord" role="tabpanel" aria-labelledby="tabRecord">
+      <div class="layout">
+        <div class="panel quick">
+          <div class="section">
+            <h3>Record a good fill</h3>
+            <form class="lookup" id="recLookup">
+              <label class="field"><span>1. Barcode</span><input class="input big" id="recBarcode" inputmode="numeric" enterkeyhint="search" placeholder="Barcode or last 5" autocomplete="off"></label>
+              <button class="button" type="submit">Look up</button>
+            </form>
+            <p class="status" id="recStatus">Scan or type the barcode on the bag.</p>
+            <button type="button" class="link-button" id="recManual">No barcode? Enter the bag by hand</button>
+            <div class="found" id="recFound" hidden></div>
+            <div class="grid two quick-row">
+              <label class="field"><span>2. FillBead weight</span><span class="unit"><input class="input big" id="recFillBead" type="number" min="0" step="any" inputmode="decimal" enterkeyhint="next"><em>lb</em></span></label>
+              <div class="field"><span>3. Fill height</span><span class="unit"><input class="input big" id="recPct" type="number" min="0" step="any" inputmode="decimal" enterkeyhint="done" aria-label="Fill height"><em id="recFillUnitLabel">%</em></span>
+                <div class="segmented" id="recFillUnit" role="group" aria-label="Fill height unit"><button type="button" data-unit="pct" aria-pressed="true">%</button><button type="button" data-unit="in" aria-pressed="false">in</button><button type="button" data-unit="mm" aria-pressed="false">mm</button></div>
+                <small id="recFillNote">How high the fill reaches, as a % of the bag's height or measured in in/mm.</small></div>
+            </div>
+          </div>
+        </div>
+        <aside class="panel result" aria-live="polite">
+          <div class="result-top"><p class="eyebrow">Total bag volume</p><div class="result-value"><strong id="recVolume">&ndash;</strong><small>ft&sup3;</small></div><p class="result-note" id="recNote">Enter the barcode (or the bag by hand), the FillBead weight and how high it fills.</p></div>
+          <ul class="steps">
+            <li><span>Filled volume<small>FillBead lb &divide; 23.52 lb/ft&sup3;</small></span><strong id="recFilled">&ndash;</strong></li>
+            <li><span>Size basis<small>Width &times; Gusset &times; Height</small></span><strong id="recBasis">&ndash;</strong></li>
+            <li><span>Face area<small>Width &times; Height</small></span><strong id="recArea">&ndash;</strong></li>
+            <li><span>Product density it simulates<small>Product weight &divide; filled volume</small></span><strong id="recDensity">&ndash;</strong></li>
+            <li class="total"><span>Volume factor<small>Total volume &divide; size basis</small></span><strong id="recFactor">&ndash;</strong></li>
+          </ul>
+          <div class="save-bar"><button class="button wide" id="recSave" type="button" disabled>Save recording</button><p class="status" id="saveStatus"></p></div>
+        </aside>
+        <div class="panel details">
+          <div class="panel-head"><h2>Bag details</h2><p>Filled in from Quickbase, or typed in by hand when the bag has no barcode. Change anything that's wrong; the numbers update as you type.</p></div>
+          <div class="section"><div class="grid" id="recDetails"></div></div>
+          <datalist id="recList_format"></datalist><datalist id="recList_style"></datalist><datalist id="recList_gussetType"></datalist>
+          <div class="actions"><button class="button secondary" id="recClear" type="button">Clear everything</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Plan a bag ============ -->
+    <section id="viewPlan" role="tabpanel" aria-labelledby="tabPlan" hidden>
+      <div class="layout">
+        <div class="panel quick">
+          <div class="panel-head"><h2>What bag fits my product?</h2><p>Enter the product and the bag style. The measurements are worked out, and you can see the tested bags closest to them.</p></div>
+          <div class="plan-form" id="planForm">
+            <div class="section" id="planProductPart">
+              <h3>1. Product and bag style</h3>
+              <div class="plan-summary" id="planSummary" hidden><span id="planSummaryText"></span><button class="button secondary" id="planEdit" type="button">Change</button></div>
+              <div id="planFields">
+                <div class="grid">
+                  <div class="field"><span>Weight</span><span class="unit"><input class="input" id="planWeight" type="number" min="0" step="any" inputmode="decimal" enterkeyhint="next" aria-label="Product weight"><em id="planWeightUnitLabel">lb</em></span>
+                    <div class="segmented" id="planUnit" role="group" aria-label="Weight unit"><button type="button" data-unit="lb" aria-pressed="true">lb</button><button type="button" data-unit="oz" aria-pressed="false">oz</button><button type="button" data-unit="kg" aria-pressed="false">kg</button></div></div>
+                  <label class="field"><span>Density</span><span class="unit"><input class="input" id="planDensity" type="number" min="0" step="any" inputmode="decimal" enterkeyhint="next"><em>lb/ft&sup3;</em></span><small>How heavy a cubic foot of it is.</small></label>
+                  <label class="field"><span>Bag style</span><select id="planGroup"></select></label>
+                </div>
+                <p class="hint">Don't know the density? Measure it with the <a href="https://demo.quickbase.example/db/bdemoapp0?a=dbpage&amp;pageID=1" target="_blank" rel="noopener">Density Calculator</a>.</p>
+              </div>
+            </div>
+            <div class="section" id="planBagPart" hidden>
+              <h3>2. Measurements <small>worked out for you: type any you already know</small></h3>
+              <div class="grid">
+                <label class="field"><span>Width</span><span class="unit"><input class="input" id="planW" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span></label>
+                <label class="field"><span>Height</span><span class="unit"><input class="input" id="planH" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span></label>
+                <label class="field"><span>Gusset</span><span class="unit"><input class="input" id="planG" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span></label>
+              </div>
+              <div class="grid quick-row">
+                <label class="field"><span>Zipper</span><span class="unit"><input class="input" id="planZ" type="number" min="0" step="any" inputmode="decimal"><em>in</em></span><small>How far down from the top. Blank if none.</small></label>
+                <label class="field"><span>Fill to</span><span class="unit"><input class="input" id="planFill" type="number" min="1" max="100" step="any" inputmode="decimal" placeholder="usual"><em>%</em></span><small id="planFillNote"></small></label>
+                <label class="field"><span>Machine</span><select id="planMachine"></select><small id="planMachineNote"></small></label>
+              </div>
+              <label class="check quick-row"><input type="checkbox" id="planFeatures"> Other features (anything besides microperfs)</label>
+            </div>
+            <div class="actions"><button class="button secondary" id="planClear" type="button">Clear</button></div>
+          </div>
+        </div>
+        <aside class="panel result" aria-live="polite">
+          <div class="result-top"><p class="eyebrow" id="planResultLabel">A bag about</p><div class="result-value"><strong id="planResult">&ndash;</strong><small id="planResultUnit"></small></div><p class="result-note" id="planNote"></p></div>
+          <ul class="steps" id="planSteps"></ul>
+          <div class="fit" id="planFit" hidden></div>
+          <div class="similar-bar"><button class="button wide" id="planSimilar" type="button" disabled>See similar bags<span class="count-badge" id="planSimilarCount">0</span></button><p class="status" id="planSimilarNote"></p></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ Known good fills ============ -->
+    <section id="viewKnown" role="tabpanel" aria-labelledby="tabKnown" hidden>
+      <div class="panel chart-panel">
+        <div class="panel-head known-head"><div><h2>How full do bags usually go?</h2><p id="knownMeta">Loading recordings...</p></div>
+          <label class="field"><span>Bag style</span><select id="knownFilter"><option value="">All styles</option></select></label></div>
+        <details class="known-more" id="knownMore"><summary>Narrow down by size</summary>
+          <div class="known-filters" id="knownFilters">
+            <label class="field"><span>Height</span><span class="pair"><input class="input" id="fHMin" type="number" min="0" step="any" inputmode="decimal" placeholder="from" aria-label="Height from"><em>to</em><input class="input" id="fHMax" type="number" min="0" step="any" inputmode="decimal" placeholder="to" aria-label="Height to"><em>in</em></span></label>
+            <label class="field"><span>Width</span><span class="pair"><input class="input" id="fWMin" type="number" min="0" step="any" inputmode="decimal" placeholder="from" aria-label="Width from"><em>to</em><input class="input" id="fWMax" type="number" min="0" step="any" inputmode="decimal" placeholder="to" aria-label="Width to"><em>in</em></span></label>
+            <label class="field"><span>Gusset</span><span class="pair"><input class="input" id="fGMin" type="number" min="0" step="any" inputmode="decimal" placeholder="from" aria-label="Gusset from"><em>to</em><input class="input" id="fGMax" type="number" min="0" step="any" inputmode="decimal" placeholder="to" aria-label="Gusset to"><em>in</em></span></label>
+            <button class="button secondary" id="knownClear" type="button">Clear</button>
+          </div></details>
+        <p class="known-showing" id="knownSummary" hidden></p>
+        <div class="size-cards" id="sizeCards"></div>
+        <div class="chart-head"><h3 id="chartTitle">Usual fill by height</h3>
+          <div class="segmented" id="chartPick" role="group" aria-label="Group the bags by"><button type="button" data-view="height" aria-pressed="true">Height</button><button type="button" data-view="width" aria-pressed="false">Width</button><button type="button" data-view="gusset" aria-pressed="false">Gusset</button></div></div>
+        <div class="chart-wrap" id="chartWrap"><svg class="chart" id="chart" viewBox="0 0 1100 440" role="img" aria-label="Usual fill for bags of each size"></svg><div class="chart-tip" id="chartTip" hidden></div></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="known-grid">
+        <div class="panel"><div class="panel-head"><h2>The recorded bags</h2></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Barcode</th><th>Bag style</th><th>W &times; H &times; G (in)</th><th>Product</th><th>FillBead</th><th>Filled to</th></tr></thead><tbody id="knownRows"></tbody></table></div></div>
+        <aside class="panel factors">
+          <div class="result-top"><p class="eyebrow">Usual fill by bag style</p><div class="result-value"><strong id="knownCount">0</strong><small>recorded bags</small></div></div>
+          <ul class="factor-list" id="factorList" style="padding-top:14px"></ul>
+        </aside>
+      </div>
+    </section>
+
+    <details class="notes">
+      <summary>How this is worked out</summary>
+      <ul>
+        <li>Each recording is a real bag, filled with FillBead to a level that looked right.</li>
+        <li>&ldquo;Usual&rdquo; is the middle value of the recorded bags in a group, so one odd bag does not swing it.</li>
+        <li>Room for product comes from the weight of FillBead that went in (FillBead weighs 23.52 lb per cubic foot).</li>
+        <li>A filled bag rounds out, so how much it holds follows the length of its walls (width + gusset), not width &times; gusset. The planner learns how round each style fills from recorded bags, leaning on the ones closest in size, and names the closest one so you can check it.</li>
+        <li>The usual fill comes from recorded bags of about the same height.</li>
+        <li>A fill is kept below the zipper when the zipper's position is known.</li>
+        <li>Similar bags are tested bags whose width, height and gusset are each within 2 in of the planned bag. Their artwork comes from the newest order for that barcode.</li>
+        <li>Which machine makes the bag: a non-terminated quad with no zipper or other feature goes on the Bag Machine Quad; any other quad goes on the Totani BH60 if it fits, otherwise on the BH80; stand-up pouches go on the Totani CT60; for rollstock only the width is checked, against the 1,200 mm web. Microperfs don't count as a feature.</li>
+      </ul>
+    </details>
+
+    <dialog class="similar" id="similarDialog" aria-labelledby="similarTitle">
+      <div class="similar-inner">
+        <div class="similar-head"><div><h2 id="similarTitle"></h2><p id="similarNote"></p></div><button type="button" class="similar-close" id="similarClose" aria-label="Close">&times;</button></div>
+        <div class="similar-grid" id="similarGrid"></div>
+      </div>
+    </dialog>
+  </main>
+
+  <script src="https://demo.quickbase.example/db/bdemoapp0?a=dbpage&amp;pageID=1&amp;v=20260825-9"></script>
+  <script>
+    "use strict";
+    const QB = {realm: 'demo.quickbase.example', app: 'bdemoapp0', userVar: 'usertoken', appVar: 'q_apptoken'};
+    const FILLBEAD_DENSITY = 23.52;        // lb/ft³, same as the FillBead Density Converter
+    const IN3_PER_FT3 = 1728;
+    const DEFAULT_FACTOR = 0.6, DEFAULT_FILL = 85, NO_GUSSET_DEPTH = 0.3;
+    // Where the lookup reads from: Artwork (current revision) > Family > current Family Spec.
+    const ART = {table: 'bdemoartv', upc: 58, upc2: 624, current: 205, item: 10, brand: 330, family: 127, weightText: 376, weight: 481};
+    const FAMILY = {table: 'bdemofami', spec: 31};
+    const SPEC = {table: 'bdemospec', format: 15, style: 14, gussetStyle: 43, width: 53, height: 54, gusset: 55, zipper: 428};
+    // Order Products' Production Description usually says where the zipper is: "Zipper at 2.01\"".
+    const ORDERS = {table: 'bdemoitem', description: 794, upc: 13, item: 14, artwork: 329, brand: 382};
+    // Density Recordings. Field 8 is Height.
+    const REC = {table: 'bdemofill', created: 1, fillbead: 6, weight: 7, height: 8, width: 9, gusset: 10, barcode: 11, format: 12, style: 13, gussetType: 14, zipper: 15, area: 16, pct: 17, volume: 18};
+
+    const $ = selector => document.querySelector(selector);
+    const esc = value => String(value ?? '').replace(/[&<>'"]/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[ch]));
+    const num = value => { const n = Number(String(value ?? '').replace(/,/g, '')); return value === '' || value === null || value === undefined || !Number.isFinite(n) ? null : n; };
+    const fmt = (value, digits = 2) => value === null || !Number.isFinite(value) ? '–' : value.toLocaleString(undefined, {minimumFractionDigits: digits, maximumFractionDigits: digits});
+    const digitsOf = value => String(value || '').replace(/\D/g, '');
+    const ON_QUICKBASE = window.__DEMO_HOST.toLowerCase() === QB.realm;
+    // A bag style is format / style / gusset type, e.g. "Quad Seal Bag / Flat Bottom / Terminated Gusset".
+    const groupName = (format, style, gussetType) => [format, style, gussetType].map(v => String(v || '').trim()).filter(Boolean).join(' / ') || 'Unspecified';
+    const median = list => { const s = list.filter(Number.isFinite).sort((a, b) => a - b); if (!s.length) return null; const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+    // ---------- Quickbase ----------
+    const xml = text => new DOMParser().parseFromString(text, 'text/xml');
+    const errorOf = doc => { if (doc.querySelector('parsererror')) return 'Quickbase returned malformed XML.'; const code = (doc.querySelector('errcode')?.textContent || '').trim(); return code && code !== '0' ? `Quickbase error ${code}: ${(doc.querySelector('errtext')?.textContent || '').trim()} ${(doc.querySelector('errdetail')?.textContent || '').trim()}`.trim() : ''; };
+    let tokens = null;
+    async function variable(name) {
+      const doc = xml(await (await fetch(`https://${QB.realm}/db/${QB.app}?a=API_GetDBVar&varname=${name}`, {credentials: 'include'})).text());
+      const error = errorOf(doc); if (error) throw new Error(error);
+      return (doc.querySelector('value')?.textContent || '').trim();
+    }
+    async function qb(table, params) {
+      if (!ON_QUICKBASE) throw new Error('Open this page from Quickbase to read or save data.');
+      tokens = tokens || await Promise.all([variable(QB.userVar), variable(QB.appVar)]);
+      const response = await fetch(`https://${QB.realm}/db/${table}?${new URLSearchParams({...params, usertoken: tokens[0], apptoken: tokens[1]})}`, {credentials: 'include'});
+      if (!response.ok) throw new Error(`Quickbase request failed (${response.status}).`);
+      const doc = xml(await response.text()), error = errorOf(doc); if (error) throw new Error(error);
+      return doc;
+    }
+    const records = doc => [...doc.querySelectorAll('record')].map(record => { const out = {}; record.querySelectorAll('f').forEach(f => { out[f.getAttribute('id')] = (f.textContent || '').trim(); }); return out; });
+    async function query(table, where, fids, options = '') {
+      return records(await qb(table, {a: 'API_DoQuery', query: where, clist: fids.join('.'), fmt: 'structured', ...(options ? {options} : {})}));
+    }
+
+    // "12 oz", "4.5 lb", "2 kg" -> pounds. Anything else (e.g. "1 count") -> null.
+    function weightToPounds(text) {
+      const match = String(text || '').match(/(\d+(?:\.\d+)?)\s*(lbs?|pounds?|oz|ounces?|kg|kilograms?|g|grams?)\b/i);
+      if (!match) return null;
+      const value = Number(match[1]), unit = match[2].toLowerCase();
+      return unit.startsWith('lb') || unit.startsWith('pound') ? value : unit.startsWith('oz') || unit.startsWith('ounce') ? value / 16 : unit.startsWith('k') ? value / 0.45359237 : value / 453.59237;
+    }
+    // DL Zipper is usually "Yes"/"No"/a zipper type; a distance ("38.1mm from top") is used when it's written down.
+    function zipperInches(text) {
+      const match = String(text || '').match(/(\d+(?:\.\d+)?)\s*(mm|in|"|inch)/i);
+      if (!match) return null;
+      return match[2].toLowerCase() === 'mm' ? Number(match[1]) / 25.4 : Number(match[1]);
+    }
+
+    // Barcode -> bag details.
+    async function lookupBag(input) {
+      const digits = digitsOf(input);
+      if (digits.length < 5) throw new Error('Enter at least the last 5 digits of the barcode.');
+      const tail = digits.slice(-5), fids = [3, ART.upc, ART.upc2, ART.item, ART.brand, ART.family, ART.weightText, ART.weight];
+      const where = current => `({${ART.upc}.CT.'${tail}'}OR{${ART.upc2}.CT.'${tail}'})${current ? `AND{${ART.current}.EX.'1'}` : ''}`;
+      let rows = await query(ART.table, where(true), fids, 'num-25');
+      if (!rows.length) rows = await query(ART.table, where(false), fids, 'num-25');
+      rows = rows.filter(row => digitsOf(row[ART.upc] || row[ART.upc2]).endsWith(digits));
+      if (!rows.length) throw new Error(`No artwork found for a barcode ending ${digits}.`);
+      rows.sort((a, b) => Number(b[3]) - Number(a[3]));
+      // Different barcodes can end in the same digits: the person picks which one they mean.
+      const chosen = await DemoChoice.resolve({code: digits, rows, upc: row => row[ART.upc] || row[ART.upc2], brand: row => row[ART.brand], detail: row => row[ART.item], link: row => DemoChoice.record(ART.table, row[3])});
+      if (!chosen) throw new Error('No barcode was chosen.');
+      const art = chosen[0], fullUpc = digitsOf(art[ART.upc] || art[ART.upc2]);
+      const bag = {barcode: art[ART.upc] || art[ART.upc2], item: art[ART.item], brand: art[ART.brand], weight: weightToPounds(art[ART.weightText]) ?? num(art[ART.weight]), weightText: art[ART.weightText],
+        format: '', style: '', gussetType: '', width: null, height: null, gusset: null, zipper: null, zipperText: ''};
+      const familyId = String(art[ART.family] || '').replace(/\.0+$/, '');
+      if (familyId) {
+        const family = (await query(FAMILY.table, `{3.EX.'${familyId}'}`, [3, FAMILY.spec]))[0];
+        const specId = String(family?.[FAMILY.spec] || '').replace(/\.0+$/, '');
+        if (specId) {
+          const spec = (await query(SPEC.table, `{3.EX.'${specId}'}`, [3, SPEC.format, SPEC.style, SPEC.gussetStyle, SPEC.width, SPEC.height, SPEC.gusset, SPEC.zipper]))[0] || {};
+          Object.assign(bag, {format: spec[SPEC.format] || '', style: spec[SPEC.style] || '', gussetType: spec[SPEC.gussetStyle] || '', width: num(spec[SPEC.width]), height: num(spec[SPEC.height]), gusset: num(spec[SPEC.gusset]), zipperText: spec[SPEC.zipper] || ''});
+          bag.zipper = /^no\b/i.test(bag.zipperText) ? 0 : zipperInches(bag.zipperText);
+        }
+      }
+      // The zipper height is written in the order's Production Description ("Zipper at 2.01\"").
+      try {
+        const doc = await qb(ORDERS.table, {a: 'API_DoQuery', query: `{${ORDERS.description}.CT.'${tail}'}`, clist: `3.${ORDERS.description}`, slist: '3', options: 'sortorder-D.num-10', fmt: 'structured'});
+        for (const row of records(doc)) {
+          const text = String(row[ORDERS.description] || '').replace(/<[^>]+>/g, ' ');
+          const upc = text.match(/UPC#?\s*([\d-]+)/i);
+          if (upc && !(digitsOf(upc[1]).endsWith(fullUpc) || fullUpc.endsWith(digitsOf(upc[1])))) continue;
+          const zipper = text.match(/zipper\s+at\s+(\d+(?:\.\d+)?)\s*("|in\b|inch|mm)?/i);
+          if (zipper) { bag.zipper = /mm/i.test(zipper[2] || '') ? Number(zipper[1]) / 25.4 : Number(zipper[1]); bag.zipperText = `${zipper[0].trim()} (order description)`; }
+          break;
+        }
+      } catch (error) { console.warn('Production Description lookup failed.', error); }
+      return bag;
+    }
+
+    // ---------- The model ----------
+    // Size basis uses the bag's full height; % filled is a share of that same height. The zipper is a limit
+    // (the fill line should stay below it), not part of the volume.
+    function sizeBasis(width, height, gusset) {
+      if (!(width > 0) || !(height > 0)) return null;
+      return width * (gusset > 0 ? gusset : width * NO_GUSSET_DEPTH) * height;   // in³
+    }
+    const belowZipper = (height, zipper) => height > 0 && zipper > 0 ? (height - zipper) / height * 100 : null;   // highest fill %, in %
+    let known = [];      // saved recordings
+    function groupStats(group) {
+      const rows = known.filter(row => !group || row.group === group);
+      const pool = rows.length >= 1 ? rows : known;
+      return {factor: median(pool.map(row => row.factor)) ?? DEFAULT_FACTOR, fill: median(pool.map(row => row.pct)) ?? DEFAULT_FILL, count: rows.length, fromAll: !rows.length && known.length > 0};
+    }
+    // How much a bag holds, and how full it usually goes, worked out from the recorded bags closest to it.
+    //
+    // A filled bag rounds out, so its room follows the length of its walls (width + gusset) rather than its flat
+    // width x gusset: per inch of height it holds a share ("k") of a circle with that perimeter. A gusset twice as
+    // deep does not make a bag twice as roomy. k is learned from recorded bags of the same style, leaning hardest on
+    // the ones closest in size, so nothing is stretched beyond what has been measured. The usual fill comes from
+    // recorded bags of similar height.
+    const formatOf = group => String(group || '').split(' / ')[0];
+    const styleWeight = (row, style) => !style || row.group === style ? 1 : formatOf(row.group) === formatOf(style) ? 0.4 : 0.05;
+    const depthOf = (width, gusset) => gusset > 0 ? gusset : width * NO_GUSSET_DEPTH;
+    const ringOf = (width, gusset) => (width + depthOf(width, gusset)) ** 2 / Math.PI;      // in²: a circle with the bag's wall length
+    // Room for product per inch of fill (in²), with the recorded bags it leans on and how close the nearest is (1 = the same bag).
+    function room(style, width, gusset, height) {
+      const rows = known.filter(row => row.volume > 0 && row.width > 0 && row.height > 0);
+      if (!rows.length) return {area: 0.7 * ringOf(width, gusset), near: 0, leans: []};
+      const walls = width + depthOf(width, gusset);
+      // Closeness is worked in logarithms and scaled to the nearest bag, so a size far from everything still
+      // leans on the nearest bags instead of on nothing.
+      const scored = rows.map(row => ({row, k: row.volume * IN3_PER_FT3 / row.height / ringOf(row.width, row.gusset),
+        log: Math.log(styleWeight(row, style)) - ((((row.width + depthOf(row.width, row.gusset)) - walls) / 3) ** 2) / 2 - (((row.height - height) / 6) ** 2) / 2}));
+      const top = Math.max(...scored.map(item => item.log)); scored.forEach(item => { item.weight = Math.exp(item.log - top); });
+      const total = scored.reduce((sum, item) => sum + item.weight, 0), k = scored.reduce((sum, item) => sum + item.weight * item.k, 0) / total;
+      return {area: k * ringOf(width, gusset), near: Math.exp(top),
+        leans: scored.map(item => ({row: item.row, share: item.weight / total})).filter(item => item.share >= 0.15).sort((a, b) => b.share - a.share).slice(0, 2)};
+    }
+    // The fill (% of height) that has looked right for bags of this style and about this height.
+    function usualFill(style, height) {
+      const rows = known.filter(row => row.pct > 0 && row.height > 0);
+      if (!rows.length) return {fill: 60, near: 0};
+      const scored = rows.map(row => ({pct: row.pct, log: Math.log(styleWeight(row, style)) - (((row.height - height) / 3) ** 2) / 2}));
+      const top = Math.max(...scored.map(item => item.log)); scored.forEach(item => { item.weight = Math.exp(item.log - top); });
+      const total = scored.reduce((sum, item) => sum + item.weight, 0);
+      return {fill: Math.max(25, Math.min(95, scored.reduce((sum, item) => sum + item.weight * item.pct, 0) / total)), near: Math.exp(top)};
+    }
+
+    // ---------- Record a fill ----------
+    const REC_FIELDS = [
+      ['weight', 'Product weight', 'lb', 'Original weight of the product in this bag.'],
+      ['format', 'Format', ''], ['style', 'Style', ''], ['gussetType', 'Gusset type', ''],
+      ['width', 'Width', 'in'], ['height', 'Height', 'in'], ['gusset', 'Gusset', 'in'],
+      ['zipper', 'Zipper height', 'in', 'Distance from the top; 0 if no zipper.']
+    ];
+    let recBag = {barcode: ''}, recManual = false;
+    // Suggestions for Format, Style and Gusset type: the names already used in recordings.
+    function fillRecLists() {
+      ['format', 'style', 'gussetType'].forEach(key => { $(`#recList_${key}`).innerHTML = [...new Set(known.map(row => String(row[key] || '').trim()).filter(Boolean))].sort().map(value => `<option value="${esc(value)}">`).join(''); });
+    }
+    function renderRecDetails() {
+      $('#recDetails').innerHTML = REC_FIELDS.map(([key, label, unit, hint]) => {
+        const value = recBag[key] ?? '', input = unit
+          ? `<span class="unit"><input class="input" data-rec="${key}" type="number" min="0" step="any" inputmode="decimal" value="${esc(value === null ? '' : value)}"><em>${unit}</em></span>`
+          : `<input class="input" data-rec="${key}" list="recList_${key}" autocomplete="off" value="${esc(value)}">`;
+        const note = key === 'zipper' && recBag.zipperText ? `Spec says: ${recBag.zipperText}` : key === 'weight' && recBag.weightText && recBag.weight === null ? `Spec says: ${recBag.weightText}` : hint || '';
+        return `<label class="field"><span>${label}</span>${input}${note ? `<small>${esc(note)}</small>` : ''}</label>`;
+      }).join('');
+      document.querySelectorAll('[data-rec]').forEach(input => input.addEventListener('input', () => { const key = input.dataset.rec; recBag[key] = input.type === 'number' ? num(input.value) : input.value; computeRecord(); }));
+    }
+    let recFillUnit = 'pct';
+    // The fill height as a % of the bag's height, whichever unit it was entered in.
+    function fillPercent() {
+      const value = num($('#recPct').value);
+      if (!(value > 0)) return null;
+      if (recFillUnit === 'pct') return value;
+      const inches = recFillUnit === 'mm' ? value / 25.4 : value;
+      return recBag.height > 0 ? inches / recBag.height * 100 : null;
+    }
+    function computeRecord() {
+      const fillbead = num($('#recFillBead').value), pct = fillPercent();
+      const basis = sizeBasis(recBag.width, recBag.height, recBag.gusset);
+      const limit = belowZipper(recBag.height, recBag.zipper);
+      $('#recFillNote').textContent = recFillUnit !== 'pct'
+        ? (pct ? `= ${fmt(pct, 1)}% of the ${fmt(recBag.height, 2)}" bag height.` : 'Needs the bag height (in Bag details) to convert.')
+        : 'How high the fill reaches, as a % of the bag\u2019s height or measured in in/mm.';
+      if (pct && limit && pct > limit) $('#recFillNote').textContent += ` That's above the zipper (it sits at ${fmt(limit, 0)}%).`;
+      const filled = fillbead > 0 ? fillbead / FILLBEAD_DENSITY : null;
+      const volume = filled && pct > 0 && pct <= 100 ? filled / (pct / 100) : null;
+      const area = recBag.width > 0 && recBag.height > 0 ? recBag.width * recBag.height : null;
+      const factor = volume && basis ? volume * IN3_PER_FT3 / basis : null;
+      const density = recBag.weight > 0 && filled ? recBag.weight / filled : null;
+      $('#recVolume').textContent = fmt(volume, 3);
+      $('#recFilled').textContent = filled ? `${fmt(filled, 3)} ft³` : '–';
+      $('#recBasis').textContent = basis ? `${fmt(basis, 0)} in³` : '–';
+      $('#recArea').textContent = area ? `${fmt(area, 1)} in²` : '–';
+      $('#recDensity').textContent = density ? `${fmt(density, 1)} lb/ft³` : '–';
+      $('#recFactor').textContent = fmt(factor, 3);
+      const group = groupStats(groupName(recBag.format, recBag.style, recBag.gussetType));
+      const sized = recBag.width > 0 && recBag.height > 0;
+      $('#recNote').textContent = !volume ? 'Enter the barcode (or the bag by hand), the FillBead weight and how high it fills.'
+        : !sized ? 'Add the bag’s width and height in Bag details to save it.'
+        : group.count ? `Bags of this style about this tall are usually filled to about ${fmt(usualFill(groupName(recBag.format, recBag.style, recBag.gussetType), recBag.height).fill, 0)}% (from ${group.count} recorded bag${group.count === 1 ? '' : 's'} of this style).` : 'This will be the first recording for this format and style.';
+      recResult = {fillbead, pct, filled, volume, area, factor, basis};
+      // A recording needs the bag's size too: without it the bag cannot be compared with any other.
+      $('#recSave').disabled = !(volume && fillbead > 0 && pct > 0 && pct <= 100 && sized);
+    }
+    let recResult = {};
+    $('#recLookup').addEventListener('submit', async event => {
+      event.preventDefault();
+      const status = $('#recStatus');
+      status.className = 'status'; status.textContent = 'Looking up the bag...'; recManual = false;
+      try {
+        recBag = await lookupBag($('#recBarcode').value);
+        status.className = 'status good'; status.textContent = 'Found. Check the details below.';
+        $('#recFound').hidden = false;
+        $('#recFound').innerHTML = `<strong>${esc(recBag.brand || 'Unknown brand')} &middot; ${esc(recBag.item || '')}</strong>${esc(recBag.barcode)} &middot; ${esc(groupName(recBag.format, recBag.style, recBag.gussetType))}`;
+        if (!(recBag.width > 0 && recBag.height > 0)) { status.className = 'status bad'; status.textContent = 'Found, but the family spec has no width/height. Enter the size in Bag details.'; }
+        else if (!$('#recFillBead').value) $('#recFillBead').focus();
+      } catch (error) { status.className = 'status bad'; status.textContent = error.message; recBag = {barcode: $('#recBarcode').value.trim()}; $('#recFound').hidden = true; }
+      renderRecDetails(); computeRecord();
+    });
+    ['#recFillBead', '#recPct'].forEach(selector => $(selector).addEventListener('input', computeRecord));
+    // No barcode: the bag is described by hand in Bag details, and saved without a barcode.
+    $('#recManual').addEventListener('click', () => {
+      recManual = true; recBag = {barcode: ''}; lastLookup.rec = ''; $('#recBarcode').value = '';
+      $('#recFound').hidden = false; $('#recFound').innerHTML = '<strong>Entered by hand</strong>No barcode. Fill in the size and style in Bag details below.';
+      $('#recStatus').className = 'status'; $('#recStatus').textContent = 'Describe the bag below: at least its width and height.';
+      renderRecDetails(); computeRecord();
+      const first = document.querySelector('[data-rec="format"]'); first.scrollIntoView({block: 'center', behavior: 'smooth'}); first.focus({preventScroll: true});
+    });
+    function clearRecord() {
+      recBag = {barcode: ''}; recManual = false; lastLookup.rec = '';
+      ['#recBarcode', '#recFillBead', '#recPct'].forEach(selector => { $(selector).value = ''; });
+      $('#recFound').hidden = true; $('#recStatus').className = 'status'; $('#recStatus').textContent = 'Scan or type the barcode on the bag.'; $('#saveStatus').textContent = '';
+      renderRecDetails(); computeRecord();
+    }
+    $('#recClear').addEventListener('click', clearRecord);
+    document.querySelectorAll('#recFillUnit button').forEach(button => button.addEventListener('click', () => {
+      recFillUnit = button.dataset.unit;
+      document.querySelectorAll('#recFillUnit button').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+      $('#recFillUnitLabel').textContent = {pct: '%', in: 'in', mm: 'mm'}[recFillUnit];
+      computeRecord();
+    }));
+    $('#recSave').addEventListener('click', async () => {
+      const status = $('#saveStatus'), button = $('#recSave');
+      button.disabled = true; status.className = 'status'; status.textContent = 'Saving...';
+      const r = recResult, b = recBag, value = v => v === null || v === undefined || !Number.isFinite(v) ? '' : String(Math.round(v * 10000) / 10000);
+      try {
+        await qb(REC.table, {a: 'API_AddRecord',
+          [`_fid_${REC.fillbead}`]: value(r.fillbead), [`_fid_${REC.weight}`]: value(b.weight), [`_fid_${REC.height}`]: value(b.height), [`_fid_${REC.width}`]: value(b.width), [`_fid_${REC.gusset}`]: value(b.gusset),
+          // Barcode is a numeric field in the table, so only its digits are saved.
+          [`_fid_${REC.barcode}`]: digitsOf(b.barcode || $('#recBarcode').value),
+          [`_fid_${REC.format}`]: b.format || '', [`_fid_${REC.style}`]: b.style || '', [`_fid_${REC.gussetType}`]: b.gussetType || '',
+          [`_fid_${REC.zipper}`]: value(b.zipper ?? 0), [`_fid_${REC.area}`]: value(r.area), [`_fid_${REC.pct}`]: value(r.pct / 100), [`_fid_${REC.volume}`]: value(r.volume)});
+        await loadKnown();
+        clearRecord();
+        status.className = 'status good'; status.textContent = 'Saved to Density Recordings. Ready for the next bag.';
+        $('#recBarcode').focus();
+      } catch (error) { status.className = 'status bad'; status.textContent = error.message; }
+      finally { button.disabled = false; }
+    });
+
+    // ---------- Plan a bag ----------
+    // From a product (its weight and density) and a bag style to the bag it needs, then to tested bags close to it.
+    let planUnit = 'lb', planned = null, similar = [];
+    const NEAR = 2;                                                   // inches: how close a tested bag has to be, on every measurement
+    const toPounds = value => value === null ? null : planUnit === 'oz' ? value / 16 : planUnit === 'kg' ? value / 0.45359237 : value;
+    const fromPounds = value => planUnit === 'oz' ? value * 16 : planUnit === 'kg' ? value * 0.45359237 : value;
+    const cubic = ft3 => `${Math.round(ft3 * IN3_PER_FT3).toLocaleString()} in³`;
+    const quarter = value => String(Math.round(value * 4) / 4);       // inches, to the nearest quarter
+    const bagCount = n => `${n} bag${n === 1 ? '' : 's'}`;
+    // The style list starts on "Choose a style", so a style is always a deliberate pick ("Any style" included).
+    function fillGroups() {
+      const select = $('#planGroup'), keep = select.dataset.ready ? select.value : '?';
+      const groups = [...new Set(known.map(row => row.group))].sort();
+      select.innerHTML = '<option value="?" disabled hidden>Choose a style</option><option value="">Any style</option>' + groups.map(group => `<option>${esc(group)}</option>`).join('');
+      select.value = [...select.options].some(option => option.value === keep) ? keep : '?';
+      select.dataset.ready = '1';
+    }
+    // The usual shape of a style's bags: how tall and how deep they are for their width.
+    function usualShape(style) {
+      const rows = known.filter(row => row.width > 0 && row.height > 0), own = rows.filter(row => row.group === style), pool = own.length ? own : rows;
+      return {tall: median(pool.map(row => row.height / row.width)) ?? 1.5, deep: median(pool.map(row => (row.gusset > 0 ? row.gusset : row.width * NO_GUSSET_DEPTH) / row.width)) ?? 0.4};
+    }
+    // ---------- Machine sizes ----------
+    // What our machines can make, in mm, from "BH60 BH80 CT60 Bag Machine Sizing Limitations" (2019-04-23) and the Totani
+    // BH80 / CT60 sizing sheet, with Maintainer's rules for which machine makes which bag (Oct 2026).
+    // null = no documented limit (the sheet's "??"), so none is enforced. A function = the limit depends on another measurement.
+    // Quads on the Totani go on the BH60 when they fit it, else on the BH80. The BH80 runs an 800 mm web and needs trim off
+    // it, which is where its height limit comes from. The Bag Machine's film is 2 x width + 2 x gusset, at most 1,200 mm.
+    const MM = 25.4;
+    const MACHINES = {
+      bh60g:      {name: 'Totani BH60', setup: 'with bottom gusset', w: [90, 294], h: [200, b => 578 - b.g], g: [44, 194], bottom: true},
+      bh60:       {name: 'Totani BH60', setup: 'without bottom gusset', w: [90, 294], h: [200, 578], g: [44, 194]},
+      bh60pin:    {name: 'Totani BH60', setup: 'pinched bottom', w: [90, 294], h: [200, 578], g: [44, 152]},
+      bh80g:      {name: 'Totani BH80', setup: 'with bottom gusset', w: [140, 422], h: [300, b => 762 - b.g], g: [44, 197], web: 800, trim: 38, bottom: true},
+      bh80:       {name: 'Totani BH80', setup: 'without bottom gusset', w: [140, 422], h: [300, 778], g: [44, 197], web: 800, trim: 22},
+      nishibe:    {name: 'Bag Machine Quad', setup: 'pinched bottom', w: [null, 500], h: [null, 1000], g: [null, b => 600 - b.w], film: 1200},
+      ct60:       {name: 'Totani CT60', setup: 'with bottom gusset', w: [null, 450], h: [null, b => 600 - b.g], g: [50, 100], bottom: true},
+      rollstock:  {name: 'Rollstock', setup: 'web width only', w: [null, 1200], h: null, g: null}
+    };
+    // Sizes we have made before in each style, in mm, from the Family Specifications (Sept 2026). Context only, not limits.
+    const MADE_BEFORE = {
+      'quad flat terminated': [133.4, 442.0, 199.9, 730.3, 50.8, 190.5], 'quad flat non-terminated': [125.0, 263.7, 202.9, 342.9, 64.8, 120.7],
+      'quad pinched terminated': [215.9, 442.0, 381.0, 776.0, 79.2, 193.0], 'quad pinched non-terminated': [203.2, 425.5, 438.2, 813.1, 69.9, 165.1],
+      'quad bottom fill non-terminated': [304.8, 387.4, 622.3, 762.0, 88.9, 152.4], 'quad bottom fill terminated': [203.2, 203.2, 438.2, 438.2, 114.3, 114.3],
+      'quad fog non-terminated': [190.5, 406.4, 393.2, 685.8, 88.9, 114.3], 'quad fog terminated': [311.2, 311.2, 546.1, 546.1, 88.9, 88.9],
+      'stand-up angle plow': [114.3, 400.1, 139.7, 533.4, 44.5, 152.4], 'stand-up k-seal': [88.9, 330.2, 127.0, 419.1, 38.1, 127.0],
+      'stand-up doyne': [110.0, 203.2, 165.1, 323.9, 50.8, 101.6], 'stand-up k-seal curved': [146.1, 160.0, 119.9, 235.0, 57.2, 89.9],
+      'stand-up shaped': [95.3, 108.0, 171.5, 184.2, 69.9, 88.9], '3-side seal': [71.9, 419.1, 66.5, 647.7, null, null]
+    };
+    // A bag style ("Quad Seal Bag / Pinched Bottom / Non-Terminated Gusset") -> the machines that make it (smallest first), and why.
+    // featured: the bag has a zipper or another feature (microperfs don't count).
+    function machineFor(style, featured) {
+      const s = String(style || '').toLowerCase();
+      if (/quad/.test(s)) {
+        const loose = /non-terminated/.test(s), flat = /flat bottom/.test(s);
+        if (loose && !featured) return {keys: ['nishibe'], why: 'A non-terminated quad with no zipper or other features is made on the Bag Machine Quad. With a zipper or another feature it would go on the Totani.'};
+        return {keys: flat ? ['bh60g', 'bh80g'] : /pinched/.test(s) ? ['bh60pin', 'bh80'] : ['bh60', 'bh80'],
+          why: `${loose ? 'A non-terminated quad with a zipper or other feature' : /terminated/.test(s) ? 'A terminated quad' : 'A quad'} is made on the Totani BH60 if it fits, otherwise on the BH80${flat ? ', using their sizes for a bottom gusset' : ''}.`};
+      }
+      if (/stand-?up/.test(s)) return {keys: ['ct60'], why: 'A stand-up pouch is made on the Totani CT60, using its sizes for a bottom gusset.'};
+      if (/rollstock/.test(s)) return {keys: ['rollstock'], why: `For rollstock only the width is checked: it has to fit the ${inch(1200)} (1,200 mm) web.`};
+      return null;
+    }
+    function madeBeforeKey(style) {
+      const s = String(style || '').toLowerCase(), term = /non-terminated/.test(s) ? 'non-terminated' : /terminated/.test(s) ? 'terminated' : '';
+      if (/quad/.test(s)) { const bottom = /flat bottom/.test(s) ? 'flat' : /pinched/.test(s) ? 'pinched' : /bottom fill/.test(s) ? 'bottom fill' : /fog/.test(s) ? 'fog' : ''; return bottom && term ? `quad ${bottom} ${term}` : ''; }
+      if (/stand-?up/.test(s)) { const kind = /angle plow/.test(s) ? 'angle plow' : /k-seal curved/.test(s) ? 'k-seal curved' : /k-seal/.test(s) ? 'k-seal' : /doyne/.test(s) ? 'doyne' : /shaped/.test(s) ? 'shaped' : ''; return kind && `stand-up ${kind}`; }
+      return /3-side/.test(s) ? '3-side seal' : '';
+    }
+    const inch = mm => `${fmt(mm / MM, 2)} in`;
+    const NAMES = {w: ['bag', 'wide', 'narrow', 'narrowest', 'widest'], h: ['bag', 'tall', 'short', 'shortest', 'tallest'], g: ['gusset', 'deep', 'shallow', 'shallowest', 'deepest']};
+    // Checks a planned bag (inches) against a machine: what is outside its sizes, and what to watch.
+    function checkMachine(key, size) {
+      const m = MACHINES[key], bag = {w: size.w * MM, h: size.h * MM, g: (size.g || 0) * MM}, problems = [], notes = [], over = new Set(), big = new Set(), gaps = [];
+      const after = {h: ` with a ${quarter(size.g)} in gusset`, g: ` on a bag ${quarter(size.w)} in wide`};
+      const why = dim => dim === 'h' && m.web ? ` The height${m.bottom ? ' and gusset' : ''} plus ${fmt(m.trim, 0)} mm of trim ${m.bottom ? 'have' : 'has'} to fit on its ${fmt(m.web, 0)} mm (${inch(m.web)}) web.`
+        : dim === 'g' && m.film ? ` Twice the width plus twice the gusset has to fit on its ${fmt(m.film, 0)} mm (${inch(m.film)}) film.` : '';
+      ['w', 'h', 'g'].forEach(dim => {
+        const range = m[dim]; if (!range) return;
+        const [low, high] = range.map(limit => typeof limit === 'function' ? limit(bag) : limit), [, , , least, most] = NAMES[dim];
+        const depends = typeof range[1] === 'function' ? after[dim] : '';
+        if (low !== null && bag[dim] < low - 0.01) gaps.push({dim, by: low - bag[dim], limit: low, under: true});
+        else if (high !== null && bag[dim] > high + 0.01) gaps.push({dim, by: bag[dim] - high, limit: high, under: false});
+        if (low !== null && bag[dim] < low - 0.01) { problems.push(`Too ${NAMES[dim][2]}: the ${least} ${NAMES[dim][0]} it makes is ${inch(low)} (${fmt(low, 0)} mm).`); over.add(dim); }
+        if (key === 'rollstock' && bag[dim] > high + 0.01) { problems.push(`Too wide: rollstock can be at most ${inch(high)} (${fmt(high, 0)} mm) wide, the width of the web.`); over.add(dim); big.add(dim); }
+        else if (high !== null && bag[dim] > high + 0.01) { problems.push(`Too ${NAMES[dim][1]}: ${high <= 0 ? `there is no room for any ${dim === 'g' ? 'gusset' : 'height'}${depends}` : `the ${most} ${NAMES[dim][0]} it makes${depends} is ${inch(high)} (${fmt(high, 0)} mm)`}.${why(dim)}`); over.add(dim); big.add(dim); }
+      });
+      if (key === 'ct60' && bag.h <= 200) notes.push(`The double cutter is only for bags taller than ${inch(200)} (200 mm).`);
+      if (key === 'ct60' && bag.w >= 410) notes.push(`Corner sealing of the bottom gusset is only available under ${inch(410)} (410 mm) wide.`);
+      return {machine: m, problems, notes, over, big, gaps};
+    }
+    // The Machine choice: which machine to keep the worked-out sizes inside, or don't limit them. It only offers the
+    // machines that can make this bag, so a bag too big for the BH60 offers the BH80 alone. Remembered in this browser.
+    const MACHINE_PICK = 'fill168.machinePick';
+    let machinePick = ''; try { machinePick = localStorage.getItem(MACHINE_PICK) || ''; } catch (error) { /* not remembered */ }
+    const fitsMachine = (key, size) => !!size && !checkMachine(key, size).problems.length;
+    const tooBigFor = (key, size) => !!size && checkMachine(key, size).big.size > 0;
+    function fillMachines(made, offered, chosen) {
+      const select = $('#planMachine'), names = [...new Set(offered.map(key => MACHINES[key].name))];
+      select.innerHTML = made ? names.map(name => `<option>${esc(name)}</option>`).join('') + '<option value="">Don\'t limit the sizes</option>' : `<option value="">${$('#planGroup').value !== '?' && $('#planGroup').value ? 'No machine limits for this style' : 'Choose a style first'}</option>`;
+      select.disabled = !made;
+      select.value = chosen ? MACHINES[chosen].name : '';
+      const only = made && made.keys.length > 1 && names.length === 1 && chosen && MACHINES[made.keys[0]].name !== names[0];
+      $('#planMachineNote').textContent = !made ? '' : !chosen ? 'Sizes are not kept inside what a machine makes.' : only ? `Only the ${names[0]} makes a bag this size.` : 'Sizes stay inside what it makes.';
+    }
+    // A machine's smallest and largest for one measurement, in inches, for a bag of this size (some depend on the others).
+    function machineRange(key, dim, size) {
+      const range = MACHINES[key][dim], bag = {w: size.w * MM, h: size.h * MM, g: (size.g || 0) * MM};
+      if (!range) return [0, Infinity];
+      const [low, high] = range.map(limit => typeof limit === 'function' ? limit(bag) : limit);
+      return [low === null ? 0 : low / MM, high === null ? Infinity : Math.max(0, high / MM)];
+    }
+
+    const quarterUp = value => String(Math.max(0.25, Math.ceil(value * 4 - 1e-6) / 4));
+    let fitDetailsOpen = false;
+    // Fit to nearest machine: every measurement to the quarter inch, inside that machine's range, all three filled in,
+    // so the page then says how full the product would make that bag.
+    function fitToNearest(key) {
+      const size = {...planned}, inputs = {w: '#planW', h: '#planH', g: '#planG'};
+      ['w', 'g', 'h'].forEach(dim => {
+        const [low, high] = machineRange(key, dim, size), near = Math.round((size[dim] || 0) * 4) / 4;
+        size[dim] = near < low - 1e-6 ? Math.ceil(low * 4 - 1e-6) / 4 : near > high + 1e-6 ? Math.floor(high * 4 + 1e-6) / 4 : near;
+      });
+      ['w', 'h', 'g'].forEach(dim => { $(inputs[dim]).value = size[dim]; });
+      machinePick = MACHINES[key].name; try { localStorage.setItem(MACHINE_PICK, machinePick); } catch (error) { /* not remembered */ }
+      computePlan();
+    }
+
+    // The "Can we make it?" box under the plan, plus a red outline on any measurement that is outside.
+    function showFit(size, style, featured) {
+      const box = $('#planFit');
+      ['#planW', '#planH', '#planG'].forEach(selector => { $(selector).classList.remove('over'); $(selector).removeAttribute('title'); });
+      if (!size) { box.hidden = true; box.innerHTML = ''; return ''; }
+      const made = machineFor(style, featured);
+      let html = '<h4>Can we make it?</h4>', details = '', verdict = '';
+      if (made) made.checks = made.keys.map(key => ({key, ...checkMachine(key, size)}));
+      if (!style) html += '<p>Choose a bag style to check this size against our machines.</p>';
+      else if (!made) html += '<p>There are no documented machine size limits for this style.</p>';
+      else {
+        const fit = made.checks.filter(c => !c.problems.length), names = made.checks.map(c => c.machine.name);
+        if (fit.length) {
+          const notes = [...new Set(fit.flatMap(c => c.notes))];
+          html += `<div class="fit-machine ok"><strong>Fits the ${esc(fit.map(c => c.machine.name).join(' or the '))}</strong>${notes.length ? `<ul>${notes.map(n => `<li class="note">${esc(n)}</li>`).join('')}</ul>` : ''}</div>`;
+        } else {
+          // The nearest machine: the one this bag misses by the least. If it only just misses, offer to fit it.
+          const total = c => c.gaps.reduce((sum, gap) => sum + gap.by, 0), near = [...made.checks].sort((a, b) => total(a) - total(b))[0];
+          const misses = near.gaps.map(gap => `${quarterUp(gap.by / MM)} in too ${NAMES[gap.dim][gap.under ? 2 : 1]}`);
+          const close = near.gaps.every(gap => gap.by <= Math.max(MM, 0.1 * gap.limit));
+          html += `<div class="fit-machine bad"><strong>None of our machines makes this size</strong></div><p>Nearest is the ${esc(near.machine.name)}: ${esc(misses.length > 1 ? `${misses.slice(0, -1).join(', ')} and ${misses.at(-1)}` : misses[0])}.</p>`
+            + (close ? `<button class="button secondary" id="planFitNearest" type="button" data-key="${near.key}">Fit to nearest machine</button>` : '');
+        }
+        const which = made.checks.length < 2 ? '' : fit.length === made.checks.length ? ` Both the ${names.join(' and the ')} can make it.` : fit.length === 1 ? ` Only the ${fit[0].machine.name} makes a bag this size.` : '';
+        details += `<p>${esc(made.why + which)}</p>` + made.checks.map(c => `<div class="fit-machine ${c.problems.length ? 'bad' : 'ok'}"><strong>${esc(c.machine.name)} (${esc(c.machine.setup)}): ${c.problems.length ? 'outside its sizes' : 'fits'}</strong>`
+          + (c.problems.length || c.notes.length ? `<ul>${c.problems.map(p => `<li>${esc(p)}</li>`).join('')}${c.notes.map(n => `<li class="note">${esc(n)}</li>`).join('')}</ul>` : '') + '</div>').join('');
+        if (!fit.length) {
+          // Outline what every machine objects to; if they disagree, what any of them flags.
+          const all = ['w', 'h', 'g'].filter(dim => made.checks.every(c => c.over.has(dim))), flag = all.length ? all : [...new Set(made.checks.flatMap(c => [...c.over]))];
+          const who = names.length > 1 ? `the ${names.join(' or the ')}` : `the ${names[0]}`;
+          flag.forEach(dim => { const input = $({w: '#planW', h: '#planH', g: '#planG'}[dim]); input.classList.add('over'); input.title = `Outside what ${who} makes`; });
+          verdict = ` This size is outside what ${who} makes.`;
+        }
+      }
+      const before = MADE_BEFORE[madeBeforeKey(style)];
+      if (before) {
+        const span = (low, high) => low === high ? inch(low) : `${inch(low).replace(' in', '')} to ${inch(high)}`;
+        details += `<p class="made-before"><b>Made before in this style</b> (for reference, not a limit): ${span(before[0], before[1])} wide, ${span(before[2], before[3])} tall${before[4] !== null ? `, ${span(before[4], before[5])} gusset` : ', no gusset'}.</p>`;
+      }
+      const sources = [made && 'Machine sizes: BH60 BH80 CT60 Bag Machine Sizing Limitations (April 2019) and the Totani BH80 / CT60 sizing sheet.', before && 'Made before: Family Specifications, Sept 2026.'].filter(Boolean);
+      if (sources.length) details += `<p class="foot">${sources.join(' ')}</p>`;
+      if (details) html += `<details class="fit-more"${fitDetailsOpen ? ' open' : ''}><summary>Details</summary>${details}</details>`;
+      box.innerHTML = html; box.hidden = false;
+      return verdict;
+    }
+    function computePlan(skip = []) {
+      const density = num($('#planDensity').value), weight = toPounds(num($('#planWeight').value));
+      const W = num($('#planW').value), G = num($('#planG').value), H = num($('#planH').value), Z = num($('#planZ').value) || 0;
+      const picked = $('#planGroup').value, style = picked === '?' ? '' : picked, group = groupStats(style);
+      const ready = weight > 0 && density > 0 && picked !== '?';
+      const featured = $('#planFeatures').checked || Z > 0;      // a zipper or any other feature (not microperfs)
+      const made = machineFor(style, featured), choices = made ? made.keys.filter(key => !skip.includes(key)) : [];
+      // The machine to plan for: the one picked in the Machine box if it is still a choice, else the smallest.
+      const planKey = !made || machinePick === 'off' ? null : choices.find(key => MACHINES[key].name === machinePick) || choices[0] || null;
+      const fillInput = num($('#planFill').value), chosen = fillInput > 0 && fillInput <= 100 ? fillInput : null;
+      const steps = [], step = (label, value, note = '', total = false) => steps.push({label, value, note, total});
+      const show = (label, value, unit, note) => { $('#planResultLabel').textContent = label; const big = $('#planResult'); big.textContent = value; big.classList.toggle('long', String(value).length > 7); $('#planResultUnit').textContent = unit; $('#planNote').textContent = note; };
+      const verdictFor = (reach, usual, limit, name) => reach > 100 ? `${name} will not fit in this bag.` : limit > 0 && reach > limit ? `That is above the zipper, which sits at ${fmt(limit, 0)}%.` : reach > usual + 8 ? `Fuller than usual for a bag this size (${fmt(usual, 0)}%).` : reach < usual - 8 ? `Emptier than usual for a bag this size (${fmt(usual, 0)}%).` : 'About right for a bag this size.';
+      ['#planW', '#planG', '#planH'].forEach(selector => { $(selector).placeholder = ''; $(selector).classList.remove('solve'); });
+      $('#planFillNote').textContent = ''; planned = null;
+      $('#planBagPart').hidden = !ready;
+      if (!ready) show('A bag about', '–', '', 'Enter the product’s weight, its density and the bag style.');
+      else {
+        const product = weight / density, need = product * IN3_PER_FT3, name = `${fmt(fromPounds(weight), 2)} ${planUnit}`;   // need: in³ the product takes up
+        const gGiven = $('#planG').value.trim() !== '', given = [W > 0, gGiven, H > 0].filter(Boolean).length, flat = Math.max(0, G || 0);
+        const mark = (selector, value) => { $(selector).placeholder = `≈ ${fmt(value, 2)}`; $(selector).classList.add('solve'); };
+        const fillAt = height => chosen ?? usualFill(style, height).fill;                         // % of the height the product should reach
+        const holds = (width, height, gusset) => room(style, width, gusset, height).area * height * fillAt(height) / 100;    // in³ of product at that fill
+        // Bigger always holds more, so the missing measurement is found by halving the gap until it fits.
+        const solve = (gap, low = 0.5, high = 150) => { if (gap(high) < 0) return null; if (gap(low) > 0) return low; for (let i = 0; i < 60; i++) { const mid = (low + high) / 2; if (gap(mid) < 0) low = mid; else high = mid; } return (low + high) / 2; };
+        let size = null;
+        if (given === 3) {
+          const there = room(style, W, G, H), reach = need / (there.area * H) * 100, usual = usualFill(style, H);
+          show('It would be', fmt(reach, 0), '% full', verdictFor(reach, usual.fill, belowZipper(H, Z), name));
+          step('Usual fill for bags this tall', `${fmt(usual.fill, 0)}%`, '', true);
+          size = {w: W, h: H, g: flat};
+        } else {
+          const shape = usualShape(style);
+          let w = W > 0 ? W : null, h = H > 0 ? H : null, g = gGiven ? flat : null, raised = false;
+          if (given === 2 && !h) h = solve(x => holds(w, x, g) - need);
+          else if (given === 2 && g === null) g = solve(x => holds(w, h, x) - need);
+          else if (given === 2) w = solve(x => holds(x, h, g) - need);
+          else if (w) { g = shape.deep * w; h = solve(x => holds(w, x, g) - need); }            // only the width is known: the usual depth for it
+          else if (h) { w = solve(x => holds(x, h, shape.deep * x) - need); g = w && shape.deep * w; }
+          else if (g !== null) { w = solve(x => holds(x, shape.tall * x, g) - need); h = w && shape.tall * w; }
+          else { w = solve(x => holds(x, shape.tall * x, shape.deep * x) - need); h = w && shape.tall * w; g = w && shape.deep * w; }
+          if (!(w && h && g !== null)) show('Too big to plan', '–', '', 'That needs a bag far bigger than any we plan for.');
+          else {
+            // With a machine chosen, the measurements that were worked out (not typed) are kept inside what it makes:
+            // the others are brought into its range first, then the main one (height if it is free) is worked out again.
+            let kept = '';
+            const free = {w: !(W > 0), h: !(H > 0), g: !gGiven}, main = free.h ? 'h' : free.w ? 'w' : free.g ? 'g' : null;
+            const resolve = () => { const x = main === 'h' ? solve(v => holds(w, v, g) - need) : main === 'w' ? solve(v => holds(v, h, g) - need) : solve(v => holds(w, h, v) - need); if (x) ({h: () => { h = x; }, w: () => { w = x; }, g: () => { g = x; }})[main](); };
+            const key = main && planKey;
+            if (key) {
+              const range = dim => machineRange(key, dim, {w, h, g}), clamp = dim => { const [low, high] = range(dim), value = {w, h, g}[dim], next = Math.min(Math.max(value, low), high); if (Math.abs(next - value) > 1e-6) { ({w: () => { w = next; }, h: () => { h = next; }, g: () => { g = next; }})[dim](); return true; } return false; };
+              let moved = ['w', 'g', 'h'].filter(dim => free[dim] && dim !== main).map(clamp).some(Boolean);
+              if (moved) resolve();
+              // Still too big for the machine: open the other worked-out measurements up to its largest, then try again.
+              const tooBig = () => !({w, h, g}[main] <= range(main)[1] + 1e-6);
+              for (const dim of ['w', 'g'].filter(d => free[d] && d !== main)) {
+                if (!tooBig()) break;
+                const high = range(dim)[1]; if (!Number.isFinite(high)) continue;
+                ({w: () => { w = high; }, g: () => { g = high; }})[dim](); resolve(); moved = true;
+              }
+              const name = MACHINES[key].name;
+              if (tooBig()) kept = ` Even the ${name}'s biggest bag is too small for this much product.`;
+              else if ({w, h, g}[main] < range(main)[0] - 1e-6) { clamp(main); kept = ` Brought up to the ${name}'s smallest size, so the product will sit lower than usual.`; }
+              else if (moved) kept = ` Kept inside the ${name}'s sizes.`;
+              if (skip.length) kept = ` Too big for the ${MACHINES[skip[0]].name}, so planned for the ${name}.${kept.replace(` Kept inside the ${name}'s sizes.`, '')}`;
+              // The answer is shown to the nearest quarter inch: round toward the inside of the machine's range.
+              const over = tooBig();
+              ['w', 'g', 'h'].filter(dim => free[dim] && !(over && dim === main)).forEach(dim => {
+                const [low, high] = range(dim), value = {w, h, g}[dim], near = Math.round(value * 4) / 4;
+                const next = near < low - 1e-6 ? Math.ceil(low * 4 - 1e-6) / 4 : near > high + 1e-6 ? Math.floor(high * 4 + 1e-6) / 4 : value;
+                if (next !== value) ({w: () => { w = next; }, h: () => { h = next; }, g: () => { g = next; }})[dim]();
+              });
+            }
+            // The fill line has to stay below the zipper, so a zipper can make the bag taller.
+            if (!(H > 0) && Z > 0) { const zipperMin = Z / (1 - fillAt(h) / 100); if (zipperMin > h) { h = zipperMin; raised = true; } }
+            const tooHigh = Z > 0 && fillAt(h) / 100 * h > h - Z ? ' The fill would reach the zipper, so go taller or fill lower.' : '';
+            if (!(W > 0)) mark('#planW', w); if (!(H > 0)) mark('#planH', h); if (!gGiven) mark('#planG', g);
+            if (given === 2 && !(H > 0)) show('Make it', quarter(h), 'in tall', `For a bag ${W} in wide${G > 0 ? ` with a ${G} in gusset` : ''}.${raised ? ' Made taller so the fill stays below the zipper.' : ''}${kept}`);
+            else if (given === 2 && !gGiven) show('Give it a gusset of', quarter(g), 'in', `For a bag ${W} in wide and ${H} in tall.${tooHigh}${kept}`);
+            else if (given === 2) show('Make it', quarter(w), 'in wide', `For a bag ${H} in tall${G > 0 ? ` with a ${G} in gusset` : ''}.${tooHigh}${kept}`);
+            else show('A bag about', `${quarter(w)} × ${quarter(h)} × ${quarter(g)}`, 'in', `Width × Height × Gusset, in the usual shape for ${style ? 'this style' : 'our bags'}.${raised ? ' Made taller so the fill stays below the zipper.' : tooHigh}${kept}`);
+            step('Filled to', `${fmt(fillAt(h), 0)}%`, chosen ? 'The fill you chose' : 'Usual for bags about this tall', true);
+            size = {w, h, g};
+          }
+        }
+        if (size) {
+          planned = size;
+          step('FillBead for a test fill', `${fmt(product * FILLBEAD_DENSITY, 2)} lb`, 'Takes up the same room as the product');
+          step('Room the product needs', cubic(product));
+          // Say which recorded bags the answer leans on, and how much to trust it.
+          const basis = room(style, size.w, size.g, size.h);
+          basis.leans.forEach((item, i) => step(i ? 'Also like' : 'Closest recorded bag', `${item.row.width} × ${item.row.height} × ${item.row.gusset || 0} in`, `${item.row.group}, filled to ${fmt(item.row.pct, 0)}%`));
+          if (basis.near < 0.1) $('#planNote').textContent += ' No recorded bag is close to this size and style yet, so treat this as a rough guess.';
+          $('#planFillNote').textContent = chosen ? `Usually ${fmt(usualFill(style, size.h).fill, 0)}% for bags about this tall.` : 'Blank uses the usual fill for bags about this tall.';
+        }
+        $('#planSummaryText').textContent = `${Math.round(fromPounds(weight) * 100) / 100} ${planUnit} · ${density} lb/ft³ · ${style || 'Any style'}`;
+      }
+      // Too big for the machine planned for, and a bigger one makes this style: plan again on that one.
+      if (planned && planKey && !fitsMachine(planKey, planned) && choices.indexOf(planKey) < choices.length - 1) return computePlan([...skip, ...choices.slice(0, choices.indexOf(planKey) + 1)]);
+      // Offer every machine the bag is not too big for (a smaller bag can still be made bigger to suit one).
+      const offered = made ? choices.filter(key => key === planKey || !tooBigFor(key, planned)) : [];
+      fillMachines(made, offered.length ? offered : choices.slice(-1), planKey);      // too big for all of them: the biggest
+      $('#planSteps').innerHTML = steps.map(item => `<li${item.total ? ' class="total"' : ''}><span>${esc(item.label)}${item.note ? `<small>${esc(item.note)}</small>` : ''}</span><strong>${esc(item.value)}</strong></li>`).join('');
+      $('#planNote').textContent += showFit(planned, style, featured);
+      // How many tested bags are close to the planned one: the number on the button.
+      similar = planned ? similarBags(planned, style) : [];
+      $('#planSimilar').disabled = !similar.length; $('#planSimilarCount').textContent = similar.length;
+      $('#planSimilarNote').textContent = !planned ? '' : similar.length ? `${bagCount(similar.length)} already tested ${similar.length === 1 ? 'is' : 'are'} within ${NEAR} in of this width, height and gusset.` : `No tested bag is within ${NEAR} in of this width, height and gusset yet.`;
+    }
+    // Once the weight, the density and the style are all in, they fold away to one line.
+    const productReady = () => toPounds(num($('#planWeight').value)) > 0 && num($('#planDensity').value) > 0 && $('#planGroup').value !== '?';
+    function foldProduct(on) { $('#planSummary').hidden = !on; $('#planFields').hidden = on; }
+    $('#planMachine').addEventListener('change', () => { machinePick = $('#planMachine').value || 'off'; try { localStorage.setItem(MACHINE_PICK, machinePick); } catch (error) { /* not remembered */ } computePlan(); });
+    $('#planGroup').addEventListener('change', () => { computePlan(); if (productReady()) foldProduct(true); });
+    ['#planWeight', '#planDensity'].forEach(selector => $(selector).addEventListener('keydown', event => { if (event.key === 'Enter' && productReady()) { event.preventDefault(); foldProduct(true); } }));
+    $('#planFields').addEventListener('focusout', () => setTimeout(() => { if (!$('#planFields').hidden && productReady() && !$('#planFields').contains(document.activeElement)) foldProduct(true); }, 0));
+    $('#planEdit').addEventListener('click', () => { foldProduct(false); $('#planWeight').focus(); });
+    document.querySelectorAll('#planUnit button').forEach(button => button.addEventListener('click', () => {
+      const pounds = toPounds(num($('#planWeight').value));
+      planUnit = button.dataset.unit;
+      document.querySelectorAll('#planUnit button').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+      $('#planWeightUnitLabel').textContent = planUnit;
+      if (pounds !== null) $('#planWeight').value = Math.round(fromPounds(pounds) * 100) / 100;
+      computePlan();
+    }));
+    ['#planDensity', '#planWeight', '#planW', '#planG', '#planH', '#planZ', '#planFill'].forEach(selector => $(selector).addEventListener('input', () => computePlan()));
+    $('#planFeatures').addEventListener('change', () => computePlan());
+    $('#planFit').addEventListener('click', event => { const button = event.target.closest('#planFitNearest'); if (button) fitToNearest(button.dataset.key); });
+    $('#planFit').addEventListener('toggle', event => { if (event.target.matches('.fit-more')) fitDetailsOpen = event.target.open; }, true);
+    $('#planClear').addEventListener('click', () => { ['#planDensity', '#planWeight', '#planW', '#planG', '#planH', '#planZ', '#planFill'].forEach(selector => { $(selector).value = ''; }); $('#planFeatures').checked = false; $('#planGroup').value = '?'; foldProduct(false); computePlan(); });
+
+    // ---------- Similar bags ----------
+    // Tested bags whose width, height and gusset are ALL within NEAR inches of the planned bag. The same style
+    // comes first, then the closest.
+    function similarBags(size, style) {
+      const off = row => [row.width - size.w, row.height - size.h, (row.gusset || 0) - size.g].map(Math.abs), total = row => off(row).reduce((a, b) => a + b, 0);
+      return known.filter(row => row.width > 0 && row.height > 0 && off(row).every(d => d <= NEAR + 1e-9))
+        .sort((a, b) => (b.group === style) - (a.group === style) || total(a) - total(b));
+    }
+    // A bag's picture is the artwork on its newest order: the same share link the Sales Lookup shows.
+    const artworkCache = new Map();
+    const isShareLink = url => { try { const parsed = new URL(String(url || '').trim()); return parsed.hostname.toLowerCase() === 'files.demo-packaging.example' && /^\/f\/[A-Za-z0-9_-]+/.test(parsed.pathname); } catch { return false; } };
+    const barcodeOf = row => digitsOf(String(row.barcode || '').replace(/\.0+$/, '')).replace(/^0+/, '');   // the table drops leading zeros
+    function artworkFor(row) {
+      const code = barcodeOf(row);
+      if (!code) return Promise.resolve(null);
+      if (!artworkCache.has(code)) artworkCache.set(code, (async () => {
+        const doc = await qb(ORDERS.table, {a: 'API_DoQuery', query: `{${ORDERS.upc}.CT.'${code.slice(-5)}'}`, clist: [3, ORDERS.upc, ORDERS.item, ORDERS.artwork, ORDERS.brand].join('.'), slist: '3', options: 'sortorder-D.num-80', fmt: 'structured'});
+        const orders = records(doc).filter(order => digitsOf(order[ORDERS.upc]).replace(/^0+/, '') === code);
+        const best = orders.find(order => isShareLink(order[ORDERS.artwork])) || orders[0];
+        return best ? {url: isShareLink(best[ORDERS.artwork]) ? best[ORDERS.artwork].trim() : '', brand: best[ORDERS.brand] || '', item: best[ORDERS.item] || ''} : null;
+      })().catch(error => { artworkCache.delete(code); throw error; }));
+      return artworkCache.get(code);
+    }
+    function openSimilar() {
+      if (!planned || !similar.length) return;
+      const dialog = $('#similarDialog'), list = similar.slice(0, 12), style = $('#planGroup').value;
+      $('#similarTitle').textContent = `${bagCount(similar.length)} already tested ${similar.length === 1 ? 'is' : 'are'} similar`;
+      $('#similarNote').textContent = `Each is within ${NEAR} in of ${quarter(planned.w)} × ${quarter(planned.h)} × ${quarter(planned.g)} in on width, height and gusset.${similar.length > list.length ? ` Showing the closest ${list.length}.` : ''}`;
+      $('#similarGrid').innerHTML = list.map((row, i) => `<article class="sim-card" data-i="${i}">
+          <div class="sim-pic">
+            <div class="art" data-manifest="" data-artwork-url="" tabindex="0" role="button" aria-label="Artwork for this bag"><div class="placeholder"><span class="artwork-loading"><span class="artwork-loading-spinner" aria-hidden="true"></span><small>Loading artwork…</small></span></div></div>
+            ${style && style !== '?' && row.group === style ? '<span class="sim-same">Same style</span>' : ''}
+            <div class="sim-over"><strong>${row.width} × ${row.height}${row.gusset > 0 ? ` × ${row.gusset}` : ''} in</strong><small>Width × Height${row.gusset > 0 ? ' × Gusset' : ', no gusset'}</small></div>
+          </div>
+          <div class="sim-body"><p class="sim-name"></p><p class="sim-style">${esc(row.group)}</p>
+            <p class="sim-facts">${row.pct > 0 ? `<span>Filled to <b>${fmt(row.pct, 0)}%</b></span>` : ''}${row.weight > 0 ? `<span>Made for <b>${Math.round(row.weight * 100) / 100} lb</b></span>` : ''}${barcodeOf(row) ? `<span>${esc(barcodeOf(row))}</span>` : ''}</p></div></article>`).join('');
+      placeAllArt();
+      if (!dialog.open) dialog.showModal();
+      list.forEach((row, i) => {
+        const card = $(`#similarGrid .sim-card[data-i="${i}"]`), art = card.querySelector('.art');
+        const say = text => { art.querySelector('.placeholder').innerHTML = `<span>${esc(text)}</span>`; art.style.cursor = 'default'; };
+        artworkFor(row).then(found => {
+          if (!card.isConnected) return;
+          if (found) card.querySelector('.sim-name').textContent = [found.brand, found.item].filter(Boolean).join(' · ');
+          if (!found || !found.url) return say('No artwork on file');
+          if (typeof ArtworkPreviews === 'undefined' || !ArtworkPreviews.loadCard) return say('The artwork preview could not be loaded');
+          art.dataset.artworkUrl = found.url;
+          return ArtworkPreviews.loadCard(art);
+        }).catch(error => say(ON_QUICKBASE ? error.message : 'Artwork loads inside Quickbase'));
+      });
+    }
+    // How the artwork sits in its 250 px frame. The shared preview script places the Files.com viewer with its
+    // own settings; these are the ones chosen for this popup: the whole width of the viewer, looking 61% of the
+    // way down it, and right at the bottom of it on phones.
+    const ART_FIT = {zoom: 1, x: 34, y: 61}, ART_FIT_PHONE = {...ART_FIT, y: 100};
+    const within = (value, low, high) => Math.min(high, Math.max(low, value));
+    function placeArt(art) {
+      const frame = art.querySelector('iframe.files-card-embed'), cw = art.clientWidth, ch = art.clientHeight;
+      if (!frame || !cw || !ch) return;
+      const fit = matchMedia('(max-width:640px)').matches ? ART_FIT_PHONE : ART_FIT;
+      // The viewer is drawn at least 760 px wide, shrunk to the frame, then zoomed and slid so the chosen point is centred.
+      const vw = Math.max(760, cw), base = Math.max(0.2, cw / vw), vh = Math.max(720, Math.ceil(ch / base)), scale = base * fit.zoom;
+      const x = within(cw / 2 - vw * fit.x / 100 * scale, cw - vw * scale, 0), y = within(ch / 2 - vh * fit.y / 100 * scale, ch - vh * scale, 0);
+      const now = (frame.style.transform.match(/-?\d*\.?\d+(?:e-?\d+)?/g) || []).map(Number);
+      if (Math.abs((now[0] || 0) - scale) < 0.002 && Math.abs((now[4] || 0) - x) < 0.6 && Math.abs((now[5] || 0) - y) < 0.6 && frame.style.height === `${vh}px`) return;
+      frame.style.width = `${vw}px`; frame.style.height = `${vh}px`; frame.style.transform = `matrix(${scale},0,0,${scale},${x},${y})`;
+    }
+    const placeAllArt = () => document.querySelectorAll('#similarGrid .art').forEach(placeArt);
+    // The preview script places a picture again when it loads and when the window changes size: put ours back after it.
+    new MutationObserver(placeAllArt).observe($('#similarGrid'), {subtree: true, childList: true, attributes: true, attributeFilter: ['style']});
+    addEventListener('resize', () => setTimeout(placeAllArt, 80));
+    if (window.ResizeObserver) new ResizeObserver(placeAllArt).observe($('#similarGrid'));       // and whenever the cards change width
+    try { localStorage.removeItem('fill-recordings-art-fit'); } catch (ignored) {}      // left behind by the sliders that settled these
+    $('#planSimilar').addEventListener('click', openSimilar);
+    $('#similarClose').addEventListener('click', () => $('#similarDialog').close());
+    $('#similarDialog').addEventListener('click', event => {
+      if (event.target === $('#similarDialog')) { $('#similarDialog').close(); return; }
+      const art = event.target.closest('.art[data-artwork-url]');
+      if (art && art.dataset.artworkUrl && typeof ArtworkPreviews !== 'undefined') ArtworkPreviews.open?.(art);     // the full-size viewer
+    });
+
+    // ---------- Known good fills ----------
+    async function loadKnown() {
+      try {
+        const fids = [3, REC.created, REC.fillbead, REC.weight, REC.height, REC.width, REC.gusset, REC.barcode, REC.format, REC.style, REC.gussetType, REC.zipper, REC.pct, REC.volume];
+        const rows = await query(REC.table, '{3.GT.0}', fids, 'num-5000');
+        known = rows.map(row => {
+          const r = {rid: row[3], created: num(row[REC.created]), fillbead: num(row[REC.fillbead]), weight: num(row[REC.weight]), height: num(row[REC.height]), width: num(row[REC.width]), gusset: num(row[REC.gusset]),
+            barcode: row[REC.barcode], format: row[REC.format], style: row[REC.style], gussetType: row[REC.gussetType], zipper: num(row[REC.zipper]) || 0, pct: (num(row[REC.pct]) ?? 0) * 100, volume: num(row[REC.volume])};
+          r.group = groupName(r.format, r.style, r.gussetType);
+          const basis = sizeBasis(r.width, r.height, r.gusset);
+          r.basis = basis; r.factor = basis && r.volume ? r.volume * IN3_PER_FT3 / basis : null;
+          return r;
+        }).sort((a, b) => (b.created || 0) - (a.created || 0));
+        $('#knownMeta').textContent = known.length ? `From the ${bagCount(known.length)} recorded so far.` : 'No bags recorded yet. Record a good fill to start.';
+      } catch (error) {
+        known = [];
+        $('#knownMeta').textContent = error.message;
+      }
+      renderKnown(); fillGroups(); fillRecLists(); computeRecord(); computePlan();
+    }
+    // Three sizes anyone can check with a ruler.
+    const SIZES = [
+      {name: 'Small bags', note: 'under 10 in tall', has: row => row.height < 10},
+      {name: 'Medium bags', note: '10 to 16 in tall', has: row => row.height >= 10 && row.height <= 16},
+      {name: 'Large bags', note: 'over 16 in tall', has: row => row.height > 16}
+    ];
+    // What is usual for a set of bags: the middle fill, the room for product at that fill, and the FillBead it took.
+    const usualOf = rows => { const fills = rows.map(row => row.pct); return {count: rows.length, fill: median(fills), low: Math.min(...fills), high: Math.max(...fills), room: median(rows.map(row => row.volume * row.pct / 100)), fillbead: median(rows.map(row => row.fillbead))}; };
+    const GROUP_BY = {height: row => row.height, width: row => row.width, gusset: row => row.gusset};
+    let groupBy = 'height', chartPoints = [];
+    function renderKnown() {
+      // Style filter: keep the choice when the list is rebuilt.
+      const filter = $('#knownFilter'), keep = filter.value, all = [...new Set(known.map(row => row.group))].sort();
+      filter.innerHTML = '<option value="">All styles</option>' + all.map(group => `<option>${esc(group)}</option>`).join('');
+      filter.value = all.includes(keep) ? keep : '';
+      // Size ranges: a blank box is no limit.
+      const limits = {height: [num($('#fHMin').value), num($('#fHMax').value)], width: [num($('#fWMin').value), num($('#fWMax').value)], gusset: [num($('#fGMin').value), num($('#fGMax').value)]};
+      const within = row => Object.entries(limits).every(([key, [low, high]]) => (low === null || (row[key] || 0) >= low) && (high === null || (row[key] || 0) <= high));
+      const shown = known.filter(row => (!filter.value || row.group === filter.value) && within(row)), usable = shown.filter(row => row.pct > 0 && row.volume > 0);
+      const said = Object.entries(limits).filter(([, [low, high]]) => low !== null || high !== null).map(([key, [low, high]]) => `${key} ${low !== null && high !== null ? (low === high ? `${low} in` : `${low} to ${high} in`) : low !== null ? `${low} in or more` : `up to ${high} in`}`);
+      const narrowed = [filter.value, ...said].filter(Boolean);
+      $('#knownSummary').hidden = !narrowed.length;
+      $('#knownSummary').textContent = narrowed.length ? `Showing ${shown.length} of ${bagCount(known.length)}: ${narrowed.join(', ')}.` : '';
+      $('#knownCount').textContent = shown.length;
+      $('#sizeCards').innerHTML = SIZES.map(size => {
+        const rows = usable.filter(size.has), head = `<h3>${size.name}<small>${size.note}</small></h3>`;
+        if (!rows.length) return `<div class="size-card none">${head}<div class="big"><strong>–</strong></div><div class="meter"></div><ul><li><span>${known.length ? 'None among these bags' : 'No bags recorded yet'}</span></li></ul></div>`;
+        const usual = usualOf(rows), spread = fmt(usual.low, 0) === fmt(usual.high, 0) ? '' : ` (${fmt(usual.low, 0)} to ${fmt(usual.high, 0)}%)`;
+        return `<div class="size-card">${head}<div class="big"><strong>${fmt(usual.fill, 0)}%</strong><span>usually full${spread}</span></div><div class="meter"><i style="width:${usual.fill}%"></i></div>`
+          + `<ul><li><span>Room for product</span><b>${cubic(usual.room)}</b></li><li><span>FillBead to fill it</span><b>${fmt(usual.fillbead, 2)} lb</b></li><li><span>From</span><b>${bagCount(usual.count)}</b></li></ul></div>`;
+      }).join('');
+      $('#knownRows').innerHTML = shown.length ? shown.map(row => `<tr><td>${row.created ? new Date(row.created).toLocaleDateString() : ''}</td><td>${esc(row.barcode || '')}</td><td>${esc(row.group)}</td><td>${fmt(row.width, 2)} × ${fmt(row.height, 2)} × ${fmt(row.gusset, 2)}</td><td class="num">${row.weight > 0 ? `${fmt(row.weight, 2)} lb` : '–'}</td><td class="num">${fmt(row.fillbead, 2)} lb</td><td class="num">${row.pct > 0 ? `${fmt(row.pct, 0)}%` : '–'}</td></tr>`).join('')
+        : `<tr><td colspan="7" class="empty">${known.length ? 'No recorded bags match.' : 'No bags recorded yet.'}</td></tr>`;
+      const styles = [...new Set(usable.map(row => row.group))];
+      $('#factorList').innerHTML = styles.length ? styles.map(group => { const rows = usable.filter(row => row.group === group); return `<li><span>${esc(group)}<br><small style="color:var(--x-muted)">${bagCount(rows.length)}</small></span><b>${fmt(median(rows.map(row => row.pct)), 0)}%</b></li>`; }).join('')
+        : '<li><span>Nothing to show yet.</span></li>';
+      drawBars(usable);
+    }
+    // Even ranges that cover the bags shown, five at most: 8-12, 12-16, 16-20 ...
+    function rangesFor(values) {
+      const low = Math.min(...values), high = Math.max(...values);
+      for (const step of [0.5, 1, 2, 4, 5, 10, 20, 50]) {
+        const first = Math.floor(low / step), count = Math.floor(high / step) - first + 1;
+        if (count <= 5) return Array.from({length: count}, (_, i) => [(first + i) * step, (first + i + 1) * step]);
+      }
+      return [[Math.floor(low), Math.ceil(high) + 1]];
+    }
+    // One column per range, drawn as a bag: pale to the top, filled to the usual level. Each recorded bag is a dot
+    // at its own fill.
+    function drawBars(rows) {
+      const of = GROUP_BY[groupBy], svg = $('#chart'), W = 1100, H = 440, pad = {l: 70, r: 20, t: 26, b: 100};
+      const points = rows.filter(row => of(row) > 0);
+      chartPoints = points; $('#chartTip').hidden = true;
+      $('#chartTitle').textContent = `Usual fill by ${groupBy}`;
+      if (!points.length) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#62757c" font-size="16">${known.length ? 'No recorded bags match.' : 'Recorded bags will appear here.'}</text>`; $('#legend').innerHTML = ''; return; }
+      const ranges = rangesFor(points.map(of)), plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b, base = pad.t + plotH, slot = plotW / ranges.length, colW = Math.min(170, slot * 0.58);
+      const y = v => base - v / 100 * plotH;
+      let out = '', single = false;
+      [0, 25, 50, 75, 100].forEach(v => { out += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(v)}" y2="${y(v)}" stroke="${v ? '#e7edef' : '#b9c7cb'}"/><text x="${pad.l - 12}" y="${y(v) + 5}" text-anchor="end" font-size="13" fill="#62757c">${v}%</text>`; });
+      out += `<text transform="translate(20 ${pad.t + plotH / 2}) rotate(-90)" text-anchor="middle" font-size="14" font-weight="700" fill="#132a35">How full (% of height)</text>`;
+      ranges.forEach(([low, high], i) => {
+        const cx = pad.l + slot * (i + 0.5), left = cx - colW / 2, inside = points.filter(row => of(row) >= low && of(row) < high);
+        out += `<rect x="${left}" y="${y(100)}" width="${colW}" height="${plotH}" rx="9" fill="#f3f7f8" stroke="#cfdcdf"${inside.length ? '' : ' stroke-dasharray="5 5"'}/>`;
+        out += `<text x="${cx}" y="${base + 28}" text-anchor="middle" font-size="16" font-weight="800" fill="#132a35">${low}–${high} in</text>`;
+        if (!inside.length) { out += `<text x="${cx}" y="${base + 50}" text-anchor="middle" font-size="13" fill="#8a9a9f">no bags yet</text>`; return; }
+        const usual = usualOf(inside), top = y(usual.fill);
+        if (inside.length === 1) single = true;
+        out += `<path d="M${left} ${top} h${colW} v${base - top - 9} a9 9 0 0 1 -9 9 h${-(colW - 18)} a9 9 0 0 1 -9 -9 z" fill="#5257b8" opacity="${inside.length > 1 ? 0.92 : 0.5}"/>`;
+        out += `<text x="${cx}" y="${base - 16}" text-anchor="middle" font-size="26" font-weight="800" fill="#fff">${fmt(usual.fill, 0)}%</text>`;
+        out += `<text x="${cx}" y="${base + 50}" text-anchor="middle" font-size="13.5" fill="#62757c">${bagCount(inside.length)}</text><text x="${cx}" y="${base + 70}" text-anchor="middle" font-size="13.5" fill="#62757c">room for ${cubic(usual.room)}</text>`;
+        inside.forEach((row, k) => { const dx = inside.length > 1 ? (k / (inside.length - 1) - 0.5) * colW * 0.56 : 0; out += `<circle data-i="${points.indexOf(row)}" cx="${cx + dx}" cy="${y(row.pct)}" r="6" fill="#fff" stroke="#3b3f8f" stroke-width="2.4"/>`; });
+      });
+      svg.innerHTML = out;
+      $('#legend').innerHTML = '<span><i style="background:#5257b8;border-radius:3px"></i>Usual fill for bags in that range</span><span><i style="background:#fff;box-shadow:inset 0 0 0 2px #3b3f8f"></i>One recorded bag: hover for details</span>' + (single ? '<span>A paler fill comes from a single bag.</span>' : '');
+    }
+    $('#knownFilter').addEventListener('change', renderKnown);
+    const RANGES = ['#fHMin', '#fHMax', '#fWMin', '#fWMax', '#fGMin', '#fGMax'];
+    RANGES.forEach(selector => $(selector).addEventListener('input', renderKnown));
+    $('#knownClear').addEventListener('click', () => { RANGES.forEach(selector => { $(selector).value = ''; }); renderKnown(); });
+    document.querySelectorAll('#chartPick button').forEach(button => button.addEventListener('click', () => {
+      groupBy = button.dataset.view;
+      document.querySelectorAll('#chartPick button').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+      renderKnown();
+    }));
+    // Hover details for one bag.
+    $('#chart').addEventListener('pointerleave', () => { $('#chartTip').hidden = true; });
+    $('#chart').addEventListener('pointerover', event => {
+      const dot = event.target.closest('circle[data-i]'), tip = $('#chartTip'), p = dot && chartPoints[Number(dot.dataset.i)];
+      if (!p) { tip.hidden = true; return; }
+      const wrap = $('#chartWrap').getBoundingClientRect(), box = dot.getBoundingClientRect();
+      tip.innerHTML = `<strong>${esc(p.group)}</strong>${fmt(p.width, 2)} × ${fmt(p.height, 2)} × ${fmt(p.gusset, 2)} in<br><span>Filled to</span> ${fmt(p.pct, 0)}% <span>with</span> ${fmt(p.fillbead, 2)} lb <span>of FillBead</span>${p.weight > 0 ? `<br><span>Made for</span> ${fmt(p.weight, 2)} lb <span>of product</span>` : ''}${p.barcode ? `<br><span>Barcode</span> ${esc(p.barcode)}` : ''}`;
+      tip.style.left = `${box.left - wrap.left + box.width / 2}px`; tip.style.top = `${box.top - wrap.top}px`; tip.hidden = false;
+    });
+
+    // ---------- Tabs ----------
+    const TABS = [['#tabRecord', '#viewRecord'], ['#tabPlan', '#viewPlan'], ['#tabKnown', '#viewKnown']];
+    TABS.forEach(([tab, view]) => $(tab).addEventListener('click', () => {
+      TABS.forEach(([otherTab, otherView]) => { $(otherTab).setAttribute('aria-selected', String(otherTab === tab)); $(otherView).hidden = otherView !== view; });
+    }));
+
+    // Phone flow: a barcode looks itself up when you leave the box, and Next moves FillBead -> % filled.
+    let lastLookup = {rec: '', plan: ''};
+    [['#recBarcode', '#recLookup', 'rec']].forEach(([input, form, key]) => {
+      $(form).addEventListener('submit', () => { lastLookup[key] = digitsOf($(input).value); });
+      $(input).addEventListener('change', () => { const digits = digitsOf($(input).value); if (digits.length >= 5 && digits !== lastLookup[key]) $(form).requestSubmit(); });
+    });
+    $('#recFillBead').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); $('#recPct').focus(); } });
+    $('#recPct').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); event.target.blur(); } });
+    renderRecDetails(); computeRecord(); fillGroups(); computePlan(); loadKnown();
+  </script>
+<!-- demo-choice:start (managed by demo_choice.py: edit demo_choice_snippet.html, not this copy) -->
+<style id="demo-choice-style">
+  /* "Which barcode did you mean?" When several different UPCs end in the same five digits, the person picks one. */
+  dialog.exc{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 32px);margin:auto;padding:0;border:1px solid #d6e0e3;border-radius:14px;background:#fff;color:#132a35;box-shadow:0 24px 70px rgba(2,32,40,.3);font:14px/1.45 "Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;text-align:left;overflow:hidden}
+  dialog.exc::backdrop{background:rgba(2,32,40,.45)}
+  dialog.exc[open]{display:flex;flex-direction:column}
+  dialog.exc *{box-sizing:border-box}
+  /* Reset whatever the page does to these tags; :where() keeps the reset weaker than the rules below. */
+  :where(dialog.exc) :where(button,a,h2,p,ul,li,div,span,b,code){all:unset;box-sizing:border-box}
+  :where(dialog.exc) :where(div,p,h2,ul,li){display:block}
+  .exc-head{padding:18px 20px 12px;border-bottom:1px solid #e3eaec}
+  .exc-head h2{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .exc-head p{margin-top:5px;color:#62757c}
+  .exc-list{flex:1 1 auto;min-height:0;overflow:auto;padding:6px 12px}
+  .exc-item{display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid #eef2f3}
+  .exc-item:last-child{border-bottom:0}
+  .exc-text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .exc-text b{font-size:15px;font-weight:700;overflow-wrap:anywhere}
+  .exc-text code{font:600 14px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.03em}
+  .exc-text code mark{all:unset;border-radius:3px;background:#ffe9a8;color:#132a35}
+  .exc-text span{color:#62757c;font-size:13px;overflow-wrap:anywhere}
+  .exc-text a{width:max-content;max-width:100%;margin-top:2px;color:#5257b8;font-size:13px;font-weight:700;text-decoration:underline;cursor:pointer}
+  .exc-text a:focus-visible,.exc-use:focus-visible,.exc-cancel:focus-visible{outline:2px solid #5257b8;outline-offset:2px}
+  .exc-use{flex:none;height:38px;padding:0 14px;display:inline-flex;align-items:center;border-radius:9px;background:#3b3f8f;color:#fff;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer}
+  .exc-use:hover{background:#2d3070}
+  .exc-foot{display:flex;justify-content:flex-end;padding:12px 20px;border-top:1px solid #e3eaec}
+  .exc-cancel{height:36px;padding:0 14px;display:inline-flex;align-items:center;border:1px solid #c3d2d6;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer}
+  .exc-cancel:hover{background:#eef4f5}
+  @media(max-width:480px){.exc-item{flex-wrap:wrap}.exc-use{width:100%;justify-content:center}}
+  /* Inside the Illustrator panel the dialog takes the panel's dark greys. */
+  html.panel-mode dialog.exc{border-color:#2f2f2f;border-radius:4px;background:#535353;color:#dedede;font:12px/1.4 "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif}
+  html.panel-mode .exc-head,html.panel-mode .exc-foot,html.panel-mode .exc-item{border-color:#434343}
+  html.panel-mode .exc-head{padding:12px 12px 9px}html.panel-mode .exc-head h2{font-size:13px;color:#f2f2f2}
+  html.panel-mode .exc-head p,html.panel-mode .exc-text span{color:#b9b9b9;font-size:11.5px}
+  html.panel-mode .exc-list{padding:2px 8px}html.panel-mode .exc-item{gap:10px;padding:9px 4px}
+  html.panel-mode .exc-text b{font-size:12.5px;color:#f2f2f2}html.panel-mode .exc-text code{font-size:12px}
+  html.panel-mode .exc-text a{color:#8ab4f8;font-size:11.5px}
+  /* Buttons look the same in every panel, whatever the panel's own button styles are: grey, compact, on the right. */
+  html.panel-mode dialog.exc .exc-use,html.panel-mode dialog.exc .exc-cancel{flex:none;width:auto!important;height:24px!important;padding:0 10px!important;display:inline-flex;align-items:center;justify-content:center;border:1px solid #8c8c8c!important;border-radius:3px!important;background:#4a4a4a!important;color:#f0f0f0!important;font:600 11.5px "Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif!important;white-space:nowrap;box-shadow:none!important;cursor:pointer}
+  html.panel-mode dialog.exc .exc-use:hover,html.panel-mode dialog.exc .exc-cancel:hover{background:#5e5e5e!important}
+  html.panel-mode .exc-foot{padding:8px 12px}
+  @media(max-width:330px){html.panel-mode .exc-item{flex-wrap:wrap}}
+</style>
+<script id="demo-choice-script">
+/*
+  DemoChoice: one shared answer to "several barcodes end in these five digits".
+
+    const rows = await DemoChoice.resolve({
+      code,                         // the digits that were typed
+      rows,                         // every record that matched
+      upc:    row => '...',         // full barcode of a record
+      brand:  row => '...',         // brand (or item name) shown in bold
+      detail: row => '...',         // optional second line
+      link:   row => 'https://...', // the record in Quickbase, so the person can check it
+      remember: false,              // true = ask once per code until the page reloads or DemoChoice.forget()
+      memo: ''                      // optional name for that memory (default: the code), e.g. one per slot
+    });
+
+  One distinct barcode among the rows: they come straight back, nothing is shown. Several: a dialog lists each
+  barcode once and resolves to that barcode's rows, or to null when the person cancels.
+*/
+(function () {
+  'use strict';
+  const digits = value => String(value == null ? '' : value).replace(/\D/g, '');
+  const esc = text => String(text == null ? '' : text).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const remembered = new Map();
+  let queue = Promise.resolve();
+
+  function ask(code, groups) {
+    return new Promise(resolve => {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'exc';
+      const tail = digits(code).slice(-5);
+      const shown = upc => { const text = esc(upc), at = tail ? text.lastIndexOf(tail) : -1; return at < 0 ? text : `${text.slice(0, at)}<mark>${tail}</mark>${text.slice(at + tail.length)}`; };
+      dialog.innerHTML = `<div class="exc-head"><h2>${groups.length} barcodes end in ${esc(tail || code)}</h2><p>Choose the one you mean. Open it in Quickbase first if you want to check.</p></div>` +
+        `<ul class="exc-list">${groups.map((group, index) => `<li class="exc-item"><div class="exc-text"><b>${esc(group.brand || 'No brand on record')}</b><code>${shown(group.upc)}</code>` +
+          `${group.detail ? `<span>${esc(group.detail)}</span>` : ''}${group.link ? `<a href="${esc(group.link)}" target="_blank" rel="noopener">Open in Quickbase</a>` : ''}</div>` +
+          `<button type="button" class="exc-use" data-index="${index}">Use this one</button></li>`).join('')}</ul>` +
+        '<div class="exc-foot"><button type="button" class="exc-cancel">Cancel</button></div>';
+      let answer = null, done = false;
+      // Finishes straight away on a click; the close event alone can arrive late (or not at all in a hidden tab).
+      const finish = () => { if (done) return; done = true; if (dialog.open) dialog.close(); dialog.remove(); resolve(answer); };
+      dialog.addEventListener('click', event => {
+        const use = event.target.closest('.exc-use');
+        if (use) { answer = groups[Number(use.dataset.index)]; finish(); }
+        else if (event.target.closest('.exc-cancel')) finish();
+      });
+      dialog.addEventListener('close', finish);     // Esc
+      document.body.append(dialog);
+      dialog.showModal();
+    });
+  }
+
+  function resolve(options) {
+    const rows = options.rows || [], groups = [], byKey = new Map();
+    for (const row of rows) {
+      // The same barcode written with or without its leading zeros is still one barcode.
+      const upc = String(options.upc(row) || '').trim(), key = digits(upc).replace(/^0+/, '') || upc.toLowerCase();
+      if (!byKey.has(key)) {
+        const group = { key, upc, rows: [], brand: options.brand ? String(options.brand(row) || '').trim() : '',
+                        detail: options.detail ? String(options.detail(row) || '').trim() : '', link: options.link ? String(options.link(row) || '') : '' };
+        byKey.set(key, group);
+        groups.push(group);
+      }
+      byKey.get(key).rows.push(row);
+    }
+    if (groups.length <= 1) return Promise.resolve(rows);
+    groups.sort((a, b) => a.brand.localeCompare(b.brand, undefined, { sensitivity: 'base' }) || a.key.localeCompare(b.key));
+    const memo = options.memo || digits(options.code) || String(options.code);
+    if (options.remember && byKey.has(remembered.get(memo))) return Promise.resolve(byKey.get(remembered.get(memo)).rows);
+    // One dialog at a time, even when several lookups run together.
+    const turn = queue.then(async () => {
+      if (options.remember && byKey.has(remembered.get(memo))) return byKey.get(remembered.get(memo)).rows;
+      const picked = await ask(options.code, groups);
+      if (picked && options.remember) remembered.set(memo, picked.key);
+      return picked ? picked.rows : null;
+    });
+    queue = turn.catch(() => {});
+    return turn;
+  }
+
+  window.DemoChoice = { resolve, forget(code) { if (code === undefined) remembered.clear(); else remembered.delete(digits(code) || String(code)); },
+                         record: (table, rid) => `https://demo.quickbase.example/db/${encodeURIComponent(table)}?a=dr&rid=${encodeURIComponent(String(rid).replace(/\.0+$/, ''))}` };
+})();
+</script>
+<!-- demo-choice:end -->
+<!-- demo-launcher:start (managed by demo_launcher.py: edit demo_launcher_snippet.html, not this copy) -->
+
+
+
+</body>
+</html>

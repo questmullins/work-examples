@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script id="demo-backend">
+/* Demo backend. Answers this page's Quickbase calls in the browser from made-up records, so the tool runs with no
+   server and no account. Every company, product, person and address here is fictional. Changes last until reload. */
+(function () {
+  var HOST = 'demo.quickbase.example';
+  window.__DEMO_HOST = HOST;
+
+  var BRANDS = [
+    {customer: 'Trailhead Pet Co', code: 'TH', prefix: '00011'},
+    {customer: 'Northfield Pet Foods', code: 'NF', prefix: '00012'},
+    {customer: 'Sunny Paws Kitchen', code: 'SP', prefix: '00013'},
+    {customer: 'Bramble & Bone', code: 'BB', prefix: '00014'},
+    {customer: 'Copper Creek Provisions', code: 'CC', prefix: '00015'},
+    {customer: 'Little Harbor Treats', code: 'LH', prefix: '00016'},
+    {customer: 'Meadowlark Mills', code: 'MM', prefix: '00017'},
+    {customer: 'Oak & Ember Foods', code: 'OE', prefix: '00018'},
+    {customer: 'Tidewater Snacks', code: 'TW', prefix: '00019'},
+    {customer: 'Pine Ridge Grains', code: 'PR', prefix: '00020'}
+  ];
+  // Every shape here has a template in the mockup tool.
+  var SHAPES = [
+    {format: 'Quad Seal Bag', style: 'Flat Bottom', gusset: 'Terminated Gusset', sizes: [[7, 11.5, 3.5, '12 oz'], [8.5, 14, 4, '2 lb'], [10, 16, 4.5, '4 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Non-Terminated Gusset', sizes: [[11.5, 18.25, 4.125, '10 lb'], [13, 22, 5, '15 lb'], [15.75, 26.5, 4.5, '25 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Terminated Gusset', sizes: [[8, 13, 4, '3.5 lb'], [9.5, 15, 4, '5 lb'], [12, 20, 4.5, '12 lb']]},
+    {format: 'Stand-Up Pouch', style: 'Angle Plow', gusset: '', sizes: [[5, 7.75, 2.5, '5 oz'], [6, 9, 3, '8 oz'], [7.25, 11, 3.5, '1 lb']]},
+    {format: 'Stand-Up Pouch', style: 'K-Seal', gusset: '', sizes: [[7, 10, 3.25, '10 oz'], [6, 8.5, 2.75, '6 oz'], [8, 12, 3.5, '1.5 lb']]}
+  ];
+  var RECIPES = ['Grain-Free Salmon Kibble', 'Turkey Training Bites', 'Pumpkin Berry Minis', 'Chicken Recipe Kibble', 'Freeze-Dried Beef Morsels', 'Duck & Sweet Potato Bites', 'Lamb & Rice Dinner', 'Peanut Butter Crunch', 'Ancient Grain Granola', 'Sea Salt Veggie Crisps', 'Dark Roast Coffee', 'Honey Oat Clusters'];
+  var LAYERS = ['MATTE / PET / FOIL / LLDPE', 'MATTE / PET / MET PET / LLDPE', 'GLOSS / PET / MET PET / LLDPE', 'SOFT TOUCH / PET / FOIL / LLDPE', 'SOFT TOUCH / PET / MET PET / LLDPE', 'MATTE / PET / PET / LLDPE', 'GLOSS / PET / EVOH / LLDPE', 'MATTE / PE / EVOH / PE', 'GLOSS / KRAFT / MET PET / LLDPE', 'SOFT TOUCH / PET / ALOX / LLDPE'];
+  var COLORS = ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'PMS 186 C', 'PMS 2728 C', 'PMS 349 C', 'PMS 7406 C', 'PMS 485 C', 'PMS 2607 C', 'PMS 7421 C'];
+  var PEOPLE = ['Demo Designer', 'Alex Morgan', 'Jordan Lee', 'Priya Nair', 'Casey Tran', 'Riley Brooks'];
+  var ZIPPERS = ['Small Zipper', 'No Zipper', 'Small Zipper', 'Pocket Zipper'];
+  var PRODUCTS = [];
+  BRANDS.forEach(function (brand, b) {
+    for (var i = 0; i < 6; i++) {
+      var shape = SHAPES[(b + i) % SHAPES.length], size = shape.sizes[(b + i * 2) % 3];
+      PRODUCTS.push({b: b, name: RECIPES[(b * 2 + i) % RECIPES.length], weight: size[3], format: shape.format, style: shape.style, gusset: shape.gusset, w: size[0], h: size[1], g: size[2], layers: LAYERS[(b + i * 3) % LAYERS.length]});
+    }
+  });
+  var ADDRESSES = [
+    ['100 Example Way', 'Dock 2', 'Springfield', 'IL', '62704'],
+    ['250 Sample Road', '', 'Riverton', 'WY', '82501'],
+    ['17 Placeholder Ave', 'Suite 300', 'Fairview', 'TN', '37062'],
+    ['900 Demo Parkway', '', 'Madison', 'WI', '53703'],
+    ['44 Mockup Lane', 'Building B', 'Georgetown', 'TX', '78626'],
+    ['312 Fictional Blvd', '', 'Salem', 'OR', '97301'],
+    ['8 Test Harbor Rd', 'Unit 12', 'Clinton', 'IA', '52732'],
+    ['1200 Sample Mill Dr', '', 'Franklin', 'KY', '42134'],
+    ['75 Placeholder Pier', 'Dock 9', 'Bristol', 'RI', '02809'],
+    ['560 Example Ridge', '', 'Greenville', 'SC', '29601']
+  ];
+  function day(offset) { var d = new Date(Date.UTC(2026, 8, 20) - offset * 864e5); return d.toISOString().slice(0, 10); }
+  function pick(list, i) { return list[i % list.length]; }
+  function colorBank(row, start, n) { for (var c = 0; c < 10; c++) row[start + c] = c < 4 ? COLORS[c] : c < 4 + (n % 4) ? COLORS[4 + (n + c) % 8] : ''; }
+  function ms(offset) { return String(Date.UTC(2026, 8, 20) - offset * 864e5); }
+
+  var tables = {
+    bdemocust: [], bdemoopps: [], bdemofami: [], bdemospec: [], bdemostyl: [], bdemoaddr: [], bdemoship: [],
+    bdemoprod: [], bdemoordr: [], bdemoitem: [], bdemoartv: [], bdemomock: [], bdemorevw: [], bdemodens: [],
+    bdemofont: [], bdemolayr: [], bdemofill: [], bdemolist: [], bdemotask: [], bdemotime: [], bdemosrvc: []
+  };
+  var labels = {
+    bdemoprod: {name: 'Products', 2209: 'Filing #', 3: 'Record ID#', 12: 'Item Name', 13: 'Legacy Item Name', 14: 'Legacy UPC', 128: 'Art Versions', 132: 'UPC', 136: 'Art Version Count', 141: 'Brand', 353: 'Current Vendor Proof', 604: 'Approved Color Standard', 662: 'Current Customer Proof'},
+    bdemoitem: {name: 'Order Items', 1: 'Date Created', 3: 'Record ID#', 7: 'Customer', 13: 'UPC', 14: 'Item', 161: 'Weight', 184: 'PO', 329: 'Artwork Link', 382: 'Brand', 506: 'Family', 710: 'Layers', 711: 'Dimensions', 2122: 'Format', 2243: 'Style'},
+    bdemoartv: {name: 'Art Versions', 3: 'Record ID#', 11: 'Version Date', 12: 'Art Type', 37: 'Related Item', 61: 'Art REV', 152: 'Version', 361: 'Vendor Proof', 583: 'Inactive Art', 588: 'Customer Proof'},
+    bdemocust: {name: 'Customers', 3: 'Record ID#', 6: 'Customer Name', 125: 'Inactive'},
+    bdemoordr: {name: 'Orders', 3: 'Record ID#', 18: 'Customer PO'},
+    bdemofami: {name: 'Families', 3: 'Record ID#', 6: 'Family', 31: 'Current Spec'},
+    bdemospec: {name: 'Family Specifications', 3: 'Record ID#', 15: 'Format', 14: 'Style', 151: 'Layers'},
+    bdemomock: {name: 'Mock-Ups', 3: 'Record ID#', 9: 'Format', 10: 'Style', 39: 'Product Name'},
+    bdemolist: {name: 'Art Checklists', 3: 'Record ID#', 13: 'Description', 18: 'Brand'},
+    bdemotask: {name: 'Checklist Tasks', 3: 'Record ID#', 27: 'Department', 28: 'Description'},
+    bdemofill: {name: 'Fill Recordings', 3: 'Record ID#', 12: 'Format', 13: 'Style'},
+    bdemodens: {name: 'Product Densities', 3: 'Record ID#', 6: 'Brand', 7: 'Product', 14: 'Average'},
+    bdemofont: {name: 'System Fonts', 3: 'Record ID#', 6: 'Font Name', 7: 'Font File'}
+  };
+
+  BRANDS.forEach(function (b, i) {
+    var rid = String(i + 1), a = ADDRESSES[i];
+    tables.bdemocust.push({3: rid, 6: b.customer, 125: '0'});
+    ['new pouch line', 'holiday pack', 'club size relaunch'].forEach(function (name, k) {
+      tables.bdemoopps.push({3: String(100 + i * 3 + k), 6: rid, 8: b.customer + ' ' + name, 23: k === 2 ? '1' : '0', 24: k === 2 ? 'Closed' : 'Open'});
+    });
+    tables.bdemoaddr.push({3: String(200 + i), 6: 'Main warehouse', 7: a[0], 8: a[1], 13: rid, 18: '1', 23: a[2], 24: a[3], 25: a[4]});
+    tables.bdemoaddr.push({3: String(250 + i), 6: 'Co-packer', 7: pick(ADDRESSES, i + 3)[0], 8: '', 13: rid, 18: '0', 23: pick(ADDRESSES, i + 3)[2], 24: pick(ADDRESSES, i + 3)[3], 25: pick(ADDRESSES, i + 3)[4]});
+    tables.bdemoship.push({3: String(300 + i), 8: a[0], 9: a[1], 10: a[2], 11: a[3], 12: a[4], 13: 'United States', 16: b.customer});
+  });
+  SHAPES.forEach(function (shape, s) {
+    shape.sizes.forEach(function (size, k) {
+      for (var r = 0; r < 4; r++) {
+        var area = size[0] * size[1], fill = 68 + (s * 3 + k * 5 + r * 4) % 24;
+        tables.bdemofill.push({3: String(400 + s * 12 + k * 4 + r), 1: ms(s * 30 + k * 11 + r * 17), 6: String(+(2 + r * 1.5 + k).toFixed(1)), 7: String(+(0.5 + k * 2 + r).toFixed(1)), 8: String(size[1]), 9: String(size[0]), 10: String(size[2]), 11: pick(BRANDS, s + r).prefix + '00' + (101 + s + r), 12: shape.format, 13: shape.style, 14: shape.gusset, 15: pick(ZIPPERS, k + r), 16: String(+area.toFixed(1)), 17: String(fill), 18: String(Math.round(area * size[2] * fill / 100))});
+      }
+    });
+  });
+  [['Quad Seal Bag', 'Flat Bottom'], ['Quad Seal Bag', 'Pinched Bottom'], ['Stand-Up Pouch', 'K-Seal'], ['Stand-Up Pouch', 'Doyen'], ['Three Side Seal', 'Flat Pouch']].forEach(function (s, i) {
+    tables.bdemostyl.push({3: String(i + 1), 6: s[1], 7: s[0]});
+  });
+
+  PRODUCTS.forEach(function (p, i) {
+    var b = BRANDS[p.b], n = i + 1, upc = b.prefix + '00' + (100 + n), rid = String(100 + n), title = b.customer + ' ' + p.name + ' ' + p.weight;
+    var dims = p.w + ' x ' + p.h + ' x ' + p.g, combo = [p.format, p.style, p.gusset].join(' / '), family = b.code + '-' + String(p.w * 100) + '-' + n;
+    var po = String(21000 + n), order = String(500 + n), art = 'https://files.demo-packaging.example/f/' + b.code + n;
+    var spec = String(300 + n), fam = String(200 + n);
+    tables.bdemospec.push({3: spec, 6: fam, 12: 'v1', 14: p.style, 15: p.format, 43: p.gusset, 53: String(p.w), 54: String(p.h), 55: String(p.g), 56: String(p.w * 25.4), 57: String(p.h * 25.4), 58: String(p.g * 25.4), 65: 'in', 146: 'Zipper', 149: '1.5', 151: p.layers, 154: dims, 155: p.format + ' / ' + p.style, 428: '1.5', 1543: 'Current'});
+    tables.bdemofami.push({3: fam, 6: family, 9: String(p.b + 1), 31: spec, 76: b.customer + ' ' + family, 144: '0'});
+    tables.bdemoprod.push({3: rid, 12: title, 13: title, 14: upc, 128: '2', 132: upc, 136: '2', 141: b.customer, 225: '', 2209: 'Shelf ' + n, 353: 'Rev ' + n, 539: 'Match the approved pantone swatch.', 604: 'On file', 662: 'Rev ' + n});
+    // The first order of each product keeps PO 21000 + n; some products reorder under later POs.
+    for (var o = 0; o < 1 + i % 3; o++) {
+      var line = String(1000 + n * 10 + o), orderId = String(+order + o * 100), thisPo = String(+po + o * 1000), age = i * 8 + o * 120, approved = (i + o) % 3 > 0;
+      tables.bdemoordr.push({3: orderId, 18: thisPo});
+      tables.bdemoitem.push({1: ms(age), 2: ms(age / 2), 3: line, 6: orderId, 7: b.customer, 8: orderId, 13: upc, 14: title, 151: rid, 161: p.weight, 162: title, 163: o ? 'Reorder' : 'New', 184: thisPo, 262: day(age), 265: '0' + (o + 1) + '.26', 329: art, 382: b.customer, 417: approved ? '1' : '0', 419: approved ? day(age / 2) : '', 420: 'Press sheet ' + thisPo, 506: family, 573: o ? 'Revised' : 'New', 710: p.layers, 711: dims, 712: combo, 794: 'Zipper at 1.5"', 2122: p.format, 2209: 'Shelf ' + n, 2243: p.style, 2331: String(p.w), 2332: String(p.h), 2333: String(p.g), 2412: '0', 2519: '0', 2693: '', 2694: '', 2695: '0', 2696: ''});
+      tables.bdemorevw.push({3: String(5000 + n * 10 + o), 7: '', 8: '', 10: '', 16: '', 17: '', 19: '', 31: '', 34: '', 35: line, 41: p.format, 42: p.style, 44: dims, 54: '0', 63: '0', 67: combo});
+    }
+    [0, 1, 2].slice(0, 2 + i % 2).forEach(function (v, index, all) {
+      var artRow = {3: String(2000 + n * 4 + v), 10: title, 11: day(i * 8 + v * 95), 12: v === all.length - 1 ? 'New' : 'Revised', 18: 'Art REV', 37: rid, 40: title, 58: upc, 59: title, 61: '0' + (all.length - v) + '.26', 84: b.customer, 127: fam, 152: String(all.length - v), 205: v ? '0' : '1', 330: b.customer, 361: art + '-vendor.pdf', 376: p.weight, 481: String(parseFloat(p.weight)), 522: dims, 523: combo, 524: 'Tear notch', 525: p.layers, 526: 'Zipper, tear notch', 583: v ? '1' : '0', 588: art + '-customer.pdf', 624: upc};
+      colorBank(artRow, 191, n); colorBank(artRow, 571, n + 1); colorBank(artRow, 589, n + 2);
+      tables.bdemoartv.push(artRow);
+    });
+    tables.bdemomock.push({1: ms(i * 7), 3: String(1500 + n), 6: 'Opportunity ' + n, 7: p.format, 9: p.format, 10: p.style, 11: p.style, 12: String(p.w), 13: String(p.h), 14: String(p.g), 15: p.weight, 16: '1', 18: '3', 19: 'Demo mockup request.', 22: day(-7), 26: pick(ZIPPERS, i), 27: 'PET12/LLDPE100', 33: p.gusset, 35: String(p.b + 1), 36: b.customer, 39: p.name, 40: '1.5', 49: 'Mockup', 51: 'Opportunity ' + n, 53: p.format, 54: p.style, 56: p.gusset, 57: String(p.w), 58: String(p.h), 59: String(p.g), 62: pick(ZIPPERS, i), 63: '1.5', 74: ADDRESSES[p.b][0], 75: ADDRESSES[p.b][1], 76: ADDRESSES[p.b][2], 77: ADDRESSES[p.b][3], 78: ADDRESSES[p.b][4], 79: 'United States'});
+    var cups = [0, 1, 2, 3, 4].map(function (c) { return (2.1 + (n % 7) * 0.12 + ((n + c * 3) % 5) * 0.02).toFixed(2); });
+    tables.bdemodens.push({3: String(i + 1), 1: ms(i * 5), 6: b.customer, 7: p.name, 8: '', 9: cups[0], 10: cups[1], 11: cups[2], 12: cups[3], 13: cups[4], 14: (cups.reduce(function (s, v) { return s + +v; }, 0) / 5).toFixed(2)});
+  });
+
+  ['Demo Sans Regular', 'Demo Sans Medium', 'Demo Sans Bold', 'Demo Serif Regular', 'Demo Serif Italic', 'Demo Mono', 'Demo Condensed'].forEach(function (name, i) { tables.bdemofont.push({3: String(i + 1), 6: name, 7: ''}); });
+  LAYERS.forEach(function (name, i) { tables.bdemolayr.push({3: String(i + 1), 6: name, 7: String(40 - i * 3)}); });
+  PRODUCTS.slice(0, 12).forEach(function (p, i) {
+    var lid = String(3000 + i), b = BRANDS[p.b], done = i % 5;
+    tables.bdemolist.push({3: lid, 10: String(501 + i), 13: 'Art checklist: ' + p.name, 14: '0', 16: '0', 17: String(p.b + 1), 18: b.customer, 19: String(21001 + i), 21: '4', 25: pick(PEOPLE, i), 29: String(1 + i % 4 * 0.5), 30: String(4 - Math.min(done, 4))});
+    ['Prepress', 'Proofreading', 'PC', 'Engineering'].forEach(function (dept, t) {
+      tables.bdemotask.push({3: String(3100 + i * 10 + t), 12: lid, 14: '0', 15: '', 16: t < done ? '1' : '0', 18: String(t + 1), 26: 'General', 27: dept, 28: dept + ' review of ' + p.name, 29: '', 32: String(t + 1), 34: '0'});
+    });
+  });
+  [['Prepress', 'Production Art'], ['Prepress', 'Proof Review'], ['Project Coordination', 'Scheduling'], ['Engineering', 'Dieline Review']].forEach(function (s, i) { tables.bdemosrvc.push({3: String(i + 1), 6: s[0], 7: s[1]}); });
+
+  var ids = {};
+  function nextRid(table) { ids[table] = ids[table] || Object.keys(tables[table] || {}).length + 90000; return String(++ids[table]); }
+  function rows(table) { return tables[table] || (tables[table] = []); }
+  function xmlEsc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+
+  // Quickbase query language: {fid.OP.'value'} joined by AND / OR, with parentheses.
+  function when(value) { return /^\d{10,}$/.test(value) ? +value : Date.parse(value) || 0; }
+  function test(row, fid, op, want) {
+    var have = String(row[fid] == null ? '' : row[fid]), h = have.toLowerCase(), w = String(want).toLowerCase(), n = parseFloat(have), m = parseFloat(want);
+    switch (op) {
+      case 'EX': case 'TV': return h === w;
+      case 'XEX': case 'XTV': return h !== w;
+      case 'CT': case 'HAS': return h.indexOf(w) >= 0;
+      case 'XCT': return h.indexOf(w) < 0;
+      case 'SW': return h.indexOf(w) === 0;
+      case 'XSW': return h.indexOf(w) !== 0;
+      case 'OAF': case 'AF': return when(have) >= when(want);
+      case 'OBF': case 'BF': return when(have) <= when(want);
+      case 'GT': return isNaN(n) ? have > want : n > m;
+      case 'GTE': return n >= m;
+      case 'LT': return isNaN(n) ? have < want : n < m;
+      case 'LTE': return n <= m;
+      default: return true;
+    }
+  }
+  function tokenize(q) {
+    var out = [], re = /\{\s*'?(\d+)'?\s*\.\s*([A-Z]+)\s*\.\s*'((?:\\.|[^'])*)'\s*\}|\(|\)|AND|OR/gi, m;
+    while ((m = re.exec(q))) out.push(m[1] ? {fid: m[1], op: m[2].toUpperCase(), value: m[3].replace(/\\(.)/g, '$1')} : m[0].toUpperCase());
+    return out;
+  }
+  function matcher(q) {
+    var t = tokenize(q || ''), i = 0;
+    if (!t.length) return function () { return true; };
+    function atom(row) {
+      var k = t[i++];
+      if (k === '(') { var v = or(row); i++; return v; }
+      return !k || !k.fid || test(row, k.fid, k.op, k.value);
+    }
+    function and(row) { var v = atom(row); while (t[i] === 'AND') { i++; var r = atom(row); v = v && r; } return v; }
+    function or(row) { var v = and(row); while (t[i] === 'OR') { i++; var r = and(row); v = v || r; } return v; }
+    return function (row) { i = 0; return or(row); };
+  }
+  function select(table, q, slist, options) {
+    var list = rows(table).filter(matcher(q)), opt = String(options || ''), sort = String(slist || '').split('.').filter(Boolean)[0];
+    if (sort) {
+      var desc = /sortorder-D/.test(opt);
+      list = list.slice().sort(function (a, b) { var x = a[sort], y = b[sort], nx = parseFloat(x), ny = parseFloat(y), c = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x || '').localeCompare(String(y || '')); return desc ? -c : c; });
+    }
+    var skip = /skp-(\d+)/.exec(opt), num = /num-(\d+)/.exec(opt);
+    if (skip) list = list.slice(+skip[1]);
+    if (num) list = list.slice(0, +num[1]);
+    return list;
+  }
+  function ok(body) { return '<?xml version="1.0"?><qdbapi><action>demo</action><errcode>0</errcode><errtext>No error</errtext>' + (body || '') + '</qdbapi>'; }
+  function labelOf(table, fid) { return (labels[table] && labels[table][fid]) || 'Field ' + fid; }
+  function fidsOf(table) { var seen = {}; rows(table).forEach(function (r) { Object.keys(r).forEach(function (k) { seen[k] = 1; }); }); Object.keys(labels[table] || {}).forEach(function (k) { if (k !== 'name') seen[k] = 1; }); return Object.keys(seen).sort(function (a, b) { return a - b; }); }
+  function doQuery(table, p) {
+    var list = select(table, p.query, p.slist, p.options), clist = String(p.clist || '').split('.').filter(function (x) { return /^\d+$/.test(x); });
+    if (!clist.length) clist = fidsOf(table);
+    var fields = clist.map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    var body = list.map(function (r) {
+      return '<record rid="' + xmlEsc(r[3]) + '">' + clist.map(function (f) { return '<f id="' + f + '">' + xmlEsc(r[f]) + '</f>'; }).join('') + '<update_id>1</update_id></record>';
+    }).join('');
+    return ok('<table><fields>' + fields + '</fields><records>' + body + '</records></table>');
+  }
+  function schema(table) {
+    if (!tables[table]) {
+      var kids = Object.keys(labels).map(function (t) { return '<chdbid name="_dbid_' + xmlEsc(labels[t].name.toLowerCase().replace(/\W+/g, '_')) + '">' + t + '</chdbid>'; }).join('');
+      return ok('<table><name>Demo Packaging</name><original><app_id>' + table + '</app_id></original><chdbids>' + kids + '</chdbids><fields></fields></table>');
+    }
+    var fields = fidsOf(table).map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    return ok('<table><name>' + xmlEsc((labels[table] || {}).name || table) + '</name><original><table_id>' + table + '</table_id></original><fields>' + fields + '</fields></table>');
+  }
+  function writeFields(p, body) {
+    var out = {}, k;
+    for (k in p) { var m = /^_fid_(\d+)$/.exec(k); if (m) out[m[1]] = p[k]; }
+    if (body && /<field/.test(body)) {
+      var doc = new DOMParser().parseFromString(body, 'text/xml');
+      [].forEach.call(doc.querySelectorAll('field'), function (n) { if (n.getAttribute('fid')) out[n.getAttribute('fid')] = n.textContent; });
+      var rid = doc.querySelector('rid'); if (rid) p.rid = rid.textContent;
+      ['query', 'clist', 'slist', 'options', 'varname'].forEach(function (name) { var e = doc.querySelector(name); if (e && !p[name]) p[name] = e.textContent; });
+    }
+    return out;
+  }
+  // The real page stores a generated script on the record. There is no record to open here, so hand it over as a download.
+  function saveUpload(body) {
+    var file = new DOMParser().parseFromString(body, 'text/xml').querySelector('field[filename]');
+    if (file) {
+      var bytes = Uint8Array.from(atob(file.textContent), function (c) { return c.charCodeAt(0); });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([bytes], {type: 'application/javascript'}));
+      link.download = file.getAttribute('filename');
+      window.__demoLastFile = {name: link.download, text: new TextDecoder().decode(bytes)};
+      link.click();
+    }
+    return ok('<rid>1</rid>');
+  }
+  function xmlApi(table, p, body) {
+    var fields = writeFields(p, body), row;
+    switch (p.a) {
+      case 'API_DoQuery': return doQuery(table, p);
+      case 'API_DoQueryCount': return ok('<numMatches>' + select(table, p.query).length + '</numMatches>');
+      case 'API_GetDBVar': return ok('<value>demo-value</value>');
+      case 'API_SetDBVar': return ok();
+      case 'API_GetUserInfo': return ok('<user id="1.demo"><firstName>Demo</firstName><lastName>User</lastName><login>demo.user</login><email>demo.user@demo-packaging.example</email><screenName>Demo User</screenName></user>');
+      case 'API_GetSchema': return schema(table);
+      case 'API_GetDBPage': return '';
+      case 'dbpage': return (window.__DEMO_PAGES || {})[p.pageID || p.pageid] || '';
+      case 'API_UploadFile': return saveUpload(body);
+      case 'API_AddRecord':
+        row = fields; row[3] = nextRid(table); row[1] = String(Date.now()); row[2] = row[1]; rows(table).unshift(row);
+        return ok('<rid>' + row[3] + '</rid><update_id>1</update_id>');
+      case 'API_EditRecord':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid || p.key); })[0];
+        if (row) Object.keys(fields).forEach(function (f) { row[f] = fields[f]; });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid><num_fields_changed>1</num_fields_changed><update_id>2</update_id>');
+      case 'API_DeleteRecord':
+        tables[table] = rows(table).filter(function (r) { return String(r[3]) !== String(p.rid); });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>');
+      case 'API_GetRecordInfo':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid); })[0] || {};
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>' + Object.keys(row).map(function (f) { return '<field><fid>' + f + '</fid><name>' + xmlEsc(labelOf(table, f)) + '</name><type>Text</type><value>' + xmlEsc(row[f]) + '</value></field>'; }).join(''));
+      default: return ok();
+    }
+  }
+  function restWhere(where) { return where || ''; }
+  function restApi(url, init) {
+    var path = url.pathname, body = {};
+    try { body = JSON.parse(init.body || '{}'); } catch (e) {}
+    if (/\/v1\/auth\/temporary\//.test(path)) return {temporaryAuthorization: 'demo-token'};
+    if (/\/v1\/records\/query/.test(path)) {
+      var select_ = body.select || [], sort = (body.sortBy || [])[0], list = select(body.from, restWhere(body.where), sort && sort.fieldId, sort && sort.order === 'DESC' ? 'sortorder-D' : '');
+      return {data: list.map(function (r) { var o = {}; select_.forEach(function (f) { o[f] = {value: r[f] == null ? '' : r[f]}; }); return o; }),
+        fields: select_.map(function (f) { return {id: f, label: labelOf(body.from, f), type: 'text'}; }),
+        metadata: {numRecords: list.length, numFields: select_.length, totalRecords: list.length, skip: 0}};
+    }
+    if (/\/v1\/records/.test(path)) {
+      var created = (body.data || []).map(function (src) { var row = {}; Object.keys(src).forEach(function (f) { row[f] = src[f] && src[f].value; }); row[3] = row[3] || nextRid(body.to); rows(body.to).unshift(row); return +row[3]; });
+      return {data: [], metadata: {createdRecordIds: created, updatedRecordIds: [], unchangedRecordIds: [], totalNumberOfRecordsProcessed: created.length}};
+    }
+    if (/\/v1\/fields/.test(path)) { var t = url.searchParams.get('tableId'); return fidsOf(t).map(function (f) { return {id: +f, label: labelOf(t, f), fieldType: 'text'}; }); }
+    if (/\/v1\/tables/.test(path)) return Object.keys(labels).map(function (t) { return {id: t, name: labels[t].name}; });
+    return {};
+  }
+  function params(url, init) {
+    var p = {};
+    url.searchParams.forEach(function (v, k) { p[k] = v; });
+    var b = init && init.body;
+    if (b && typeof b === 'string' && !/^\s*</.test(b)) new URLSearchParams(b).forEach(function (v, k) { p[k] = v; });
+    else if (b && b.forEach && !(b instanceof Blob)) b.forEach(function (v, k) { if (typeof v === 'string') p[k] = v; });
+    var h = init && init.headers, action = h && (h['QUICKBASE-ACTION'] || (h.get && h.get('QUICKBASE-ACTION')));
+    if (action) p.a = action;
+    return p;
+  }
+  function respond(url, init) {
+    var host = url.hostname;
+    if (host === 'api.quickbase.com') return new Response(JSON.stringify(restApi(url, init || {})), {status: 200, headers: {'Content-Type': 'application/json'}});
+    var m = /^\/db\/([^/?#]+)/.exec(url.pathname), p = params(url, init), text = m ? xmlApi(m[1], p, typeof (init || {}).body === 'string' ? init.body : '') : '';
+    return new Response(text, {status: 200, headers: {'Content-Type': 'text/xml'}});
+  }
+  var realFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var raw = input && input.url ? input.url : String(input), url = new URL(raw, location.href);
+    if (url.hostname === HOST || url.hostname === 'api.quickbase.com' || (url.origin === location.origin && /^\/db\//.test(url.pathname))) return Promise.resolve(respond(url, init || {}));
+    if (url.hostname.indexOf('.example') > 0) return Promise.resolve(new Response('', {status: 404}));
+    return realFetch.apply(this, arguments);
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var tag = document.createElement('div');
+    tag.textContent = 'Demo: fictional company and data';
+    tag.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 10px;border-radius:999px;background:#1f2937;color:#fff;font:600 12px/1 system-ui,sans-serif;opacity:.85;pointer-events:none';
+    document.body.appendChild(tag);
+  });
+})();
+
+</script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/png" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27%233b3f8f%27/%3E%3C/svg%3E">
+  <title>Font Jammer</title>
+  <style id="demo-theme">
+    /* Demo Packaging app theme - shared tokens (see tools/README.md) */
+    :root{--x-brand:#3b3f8f;--x-brand-hover:#2d3070;--x-accent:#5257b8;--x-accent-soft:#e4f0f2;--x-ink:#132a35;--x-muted:#62757c;--x-line:#d6e0e3;--x-line-strong:#c3d2d6;--x-soft:#eef4f5;--x-paper:#fff;--x-canvas:#f3f6f7;--x-danger:#a73543;--x-success:#18705f;--x-warning:#8a5a00;--x-radius-card:14px;--x-radius-inner:11px;--x-radius-control:9px;--x-radius-small:7px;--x-shadow-card:0 1px 2px rgba(3,61,75,.05),0 6px 18px rgba(3,61,75,.06);--x-shadow-pop:0 14px 32px rgba(3,61,75,.16);--x-shadow-modal:0 24px 70px rgba(2,32,40,.3);--x-focus:0 0 0 3px rgba(13,99,114,.18);--x-font:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  </style>
+  <style>
+    *{box-sizing:border-box}
+    [hidden]{display:none!important}
+    body{margin:0;min-width:320px;background:var(--x-canvas);color:var(--x-ink);font:14px/1.5 var(--x-font)}
+    button,input{font:inherit;color:inherit}
+    main{width:min(900px,calc(100% - 32px));margin:28px auto 60px}
+    .panel{padding:26px;border:1px solid var(--x-line);border-radius:var(--x-radius-card);background:var(--x-paper);box-shadow:var(--x-shadow-card)}
+    h1{margin:0 0 5px;font-size:27px;font-weight:750;letter-spacing:-.035em}
+    .intro{margin:0 0 21px;color:var(--x-muted)}
+    .drop{position:relative;min-height:130px;padding:20px;display:grid;place-items:center;border:1.5px dashed var(--x-line-strong);border-radius:var(--x-radius-inner);background:var(--x-soft);color:var(--x-muted);text-align:center;cursor:pointer}
+    .drop:hover,.drop.drag{border-color:var(--x-accent);background:var(--x-accent-soft)}
+    .drop strong{display:block;color:var(--x-ink);font-size:15px}
+    .drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+    .summary{margin:16px 0 10px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;color:var(--x-muted);font-size:12px}
+    .summary strong{color:var(--x-brand)}
+    .check{display:flex;align-items:center;gap:8px;cursor:pointer}
+    .check input{width:16px;height:16px;margin:0;accent-color:var(--x-brand)}
+    .fonts{margin:0 0 18px;padding:0;list-style:none;display:grid;gap:8px}
+    .font{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:12px;padding:12px 14px;border:1px solid var(--x-line);border-radius:var(--x-radius-inner)}
+    .font.blocked{background:#fbf3f4;border-color:#ecc9ce}
+    .font input{width:17px;height:17px;margin:3px 0 0;accent-color:var(--x-brand)}
+    .font-main{min-width:0}
+    .font-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:750}
+    .font-meta{display:block;color:var(--x-muted);font-size:12px;overflow-wrap:anywhere}
+    .font-problem{display:block;margin-top:4px;color:var(--x-danger);font-size:12px;font-weight:650}
+    .font-sample{margin-top:6px;font-size:18px;line-height:1.3;overflow-wrap:anywhere}
+    .tag{padding:3px 8px;border-radius:999px;background:var(--x-accent-soft);color:var(--x-brand);font-size:11px;font-weight:800;white-space:nowrap}
+    .tag.exists{background:var(--x-soft);color:var(--x-muted)}
+    .tag.bad{background:#f6dfe2;color:var(--x-danger)}
+    .actions{display:flex;flex-wrap:wrap;gap:10px}
+    .primary{min-width:190px;height:44px;padding:0 20px;border:0;border-radius:var(--x-radius-control);background:var(--x-brand);color:#fff;cursor:pointer;font-weight:700}
+    .primary:hover:not(:disabled){background:var(--x-brand-hover)}
+    .primary:disabled{opacity:.55;cursor:not-allowed}
+    .secondary{height:44px;padding:0 16px;border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:#fff;color:var(--x-ink);cursor:pointer;font-weight:700}
+    .secondary:hover:not(:disabled){background:var(--x-soft)}
+    .primary:focus-visible,.secondary:focus-visible,.drop:focus-within{outline:none;box-shadow:var(--x-focus)}
+    .progress{height:8px;margin-top:18px;overflow:hidden;border-radius:99px;background:var(--x-soft)}
+    .progress span{width:0;height:100%;display:block;background:var(--x-brand);transition:width .15s}
+    .status{min-height:22px;margin-top:10px;color:var(--x-muted)}
+    .status.error{color:var(--x-danger)}.status.good{color:var(--x-success)}
+    .details{max-height:180px;margin:10px 0 0;overflow:auto;color:var(--x-danger);font:11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap}
+    @media (max-width:560px){.panel{padding:19px}.font{grid-template-columns:auto minmax(0,1fr)}.font .tag{grid-column:2;justify-self:start}.actions{flex-direction:column}.primary,.secondary{width:100%}}
+
+    /* Demo Packaging app header - shared standard (see App Development/HEADER-STANDARD.md) */
+    :root{--xh-height:60px}
+    .xh{position:relative;z-index:20;background:#3b3f8f;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.18);font-family:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.2}
+    .xh-inner{height:var(--xh-height);padding:0 24px;display:flex;align-items:center;gap:16px}
+    .xh-logo{flex:none;display:block;width:auto;height:26px}
+    .xh-home{flex:none;display:flex;align-items:center;border-radius:6px;text-decoration:none;transition:opacity .15s}.xh-home:hover{opacity:.82}.xh-home:focus-visible{outline:2px solid #8fd6e1;outline-offset:5px}
+    .xh-symbol{flex:none;display:none;width:22px;height:22px}
+    .xh-divider{flex:none;width:1px;height:28px;background:rgba(255,255,255,.28)}
+    .xh-title{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .xh-title strong{overflow:hidden;color:#fff;font-size:16px;font-weight:700;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+    .xh-title span{overflow:hidden;color:#a3c9d1;font-size:11px;font-weight:700;letter-spacing:.1em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    @media(max-width:640px){:root{--xh-height:52px}.xh-inner{padding:0 14px;gap:11px}.xh-logo{height:21px}.xh-divider{height:24px}.xh-title strong{font-size:15px}.xh-title span{display:none}}
+    @media print{.xh{display:none!important}}
+  </style>
+  <style id="no-sideways-scroll">
+    /* Phones never scroll sideways. clip (unlike hidden) keeps sticky headers and inner scroll areas working. */
+    @media (max-width:760px){html,body{max-width:100%;overflow-x:clip}body{min-width:0!important}}
+  </style>
+  
+<!-- app-version:start (managed by demo_versions.py: change versions.json, not this copy) -->
+
+
+
+
+</head>
+<body>
+  <header class="xh">
+    <div class="xh-inner">
+      <a class="xh-home" href="#" title="All demo apps" aria-label="Demo Apps: all our tools"><img class="xh-logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27white%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging" width="89" height="26">
+      <img class="xh-symbol" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27white%27/%3E%3C/svg%3E" alt="Demo Packaging" width="22" height="22"></a>
+      <span class="xh-divider" aria-hidden="true"></span>
+      <div class="xh-title"><strong>Font Jammer</strong><span>Quickbase System Fonts</span></div>
+    </div>
+  </header>
+  <main>
+    <section class="panel">
+      <h1>Load fonts into System Fonts</h1>
+      <p class="intro">Choose .ttf or .otf files. Each one is saved under its internal font name (the name Illustrator looks up), with the file attached. Fonts already in the table are skipped, and files missing characters the annotation prints are held back.</p>
+      <label class="drop" id="drop">
+        <input id="fileInput" type="file" accept=".ttf,.otf,font/ttf,font/otf" multiple>
+        <span><strong>Drop font files here, or click to choose</strong>TrueType (.ttf) or OpenType (.otf)</span>
+      </label>
+      <div class="summary">
+        <span><strong id="readyCount">0</strong> fonts ready &middot; <span id="existingNote">checking the table...</span></span>
+        <label class="check"><input type="checkbox" id="replaceExisting"> Replace the file on fonts already in the table</label>
+      </div>
+      <ul class="fonts" id="fontList"></ul>
+      <div class="actions"><button class="primary" id="jamButton" type="button" disabled>Jam fonts into Quickbase</button><button class="secondary" id="clearButton" type="button">Clear</button></div>
+      <div class="progress" id="progress" hidden><span></span></div>
+      <div class="status" id="status">Waiting for font files.</div>
+      <pre class="details" id="details" hidden></pre>
+    </section>
+  </main>
+  <script>
+    const QB_REALM = 'demo.quickbase.example';
+    const QB_APP = 'bdemoapp0';
+    const QB_TABLE = 'bdemofont';          // System Fonts
+    const QB_USER_VAR = 'usertoken';
+    const QB_APP_VAR = 'q_apptoken';
+    const NAME_FID = 6;                     // Font Name
+    const FILE_FID = 7;                     // Font File
+    const CONCURRENCY = 2;
+    // Every character the annotation JSX prints: labels, dates, barcodes, dimensions, color names.
+    const REQUIRED = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:#&/.,-()"\'_%+';
+    const qbState = {user:'', app:'', loading:null};
+    const $ = selector => document.querySelector(selector);
+    const esc = value => String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+    const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim();
+    const key = value => clean(value).toLowerCase();
+    let fonts = [];                         // {file, name, family, style, ext, buffer, missing[], trial, problem, existingRid, include, face}
+    let existing = null;                    // Map of lowercase font name -> record ID
+    let sampleCount = 0;
+
+    // ---------- Reading font files ----------
+    function tables(view) {
+      const tag = view.getUint32(0);
+      if (tag === 0x74746366) throw new Error('Font collections (.ttc) aren\'t supported. Use the separate .ttf or .otf files.');
+      if (tag === 0x774f4646 || tag === 0x774f4632) throw new Error('Web fonts (.woff) aren\'t supported. Use the .ttf or .otf file.');
+      const count = view.getUint16(4), found = {};
+      for (let i = 0; i < count; i++) {
+        const at = 12 + 16 * i;
+        found[String.fromCharCode(view.getUint8(at), view.getUint8(at + 1), view.getUint8(at + 2), view.getUint8(at + 3))] = view.getUint32(at + 8);
+      }
+      return found;
+    }
+    function nameTable(view, offset) {
+      const count = view.getUint16(offset + 2), strings = offset + view.getUint16(offset + 4), names = {};
+      for (let i = 0; i < count; i++) {
+        const at = offset + 6 + 12 * i, platform = view.getUint16(at), language = view.getUint16(at + 4), id = view.getUint16(at + 6), length = view.getUint16(at + 8), start = strings + view.getUint16(at + 10);
+        let text = '';
+        if (platform === 0 || platform === 3) { for (let j = 0; j < length; j += 2) text += String.fromCharCode(view.getUint16(start + j)); }
+        else if (platform === 1) { for (let j = 0; j < length; j++) text += String.fromCharCode(view.getUint8(start + j)); }
+        else continue;
+        // Prefer Windows English names, then anything else.
+        const rank = platform === 3 && language === 0x409 ? 3 : platform === 3 ? 2 : 1;
+        if (!names[id] || names[id].rank < rank) names[id] = {text, rank};
+      }
+      return Object.fromEntries(Object.entries(names).map(([id, value]) => [id, value.text]));
+    }
+    // Returns a test for "does this font have a glyph for this character".
+    function cmapTest(view, offset) {
+      const count = view.getUint16(offset + 2);
+      let best = null;
+      for (let i = 0; i < count; i++) {
+        const at = offset + 4 + 8 * i, platform = view.getUint16(at), encoding = view.getUint16(at + 2), sub = offset + view.getUint32(at + 4), format = view.getUint16(sub);
+        const score = format === 12 ? 3 : format === 4 && (platform === 3 || platform === 0) ? 2 : 0;
+        if (score && (!best || score > best.score)) best = {sub, format, score};
+      }
+      if (!best) return () => false;
+      const {sub, format} = best;
+      if (format === 12) {
+        const groups = view.getUint32(sub + 12);
+        return code => { for (let g = 0; g < groups; g++) { const at = sub + 16 + 12 * g, start = view.getUint32(at), end = view.getUint32(at + 4); if (code >= start && code <= end) return view.getUint32(at + 8) + (code - start) > 0; } return false; };
+      }
+      const segments = view.getUint16(sub + 6) / 2, ends = sub + 14, starts = ends + 2 * segments + 2, deltas = starts + 2 * segments, offsets = deltas + 2 * segments;
+      return code => {
+        for (let s = 0; s < segments; s++) {
+          const end = view.getUint16(ends + 2 * s);
+          if (code > end) continue;
+          const start = view.getUint16(starts + 2 * s);
+          if (code < start) return false;
+          const delta = view.getInt16(deltas + 2 * s), rangeOffset = view.getUint16(offsets + 2 * s);
+          if (!rangeOffset) return ((code + delta) & 0xffff) !== 0;
+          const glyph = view.getUint16(offsets + 2 * s + rangeOffset + 2 * (code - start));
+          return glyph !== 0;
+        }
+        return false;
+      };
+    }
+    async function readFont(file) {
+      const ext = (file.name.match(/\.(ttf|otf)$/i) || [,''])[1].toLowerCase();
+      const entry = {file, ext, name:'', family:'', style:'', buffer:null, missing:[], trial:false, problem:'', existingRid:'', include:false, face:''};
+      try {
+        if (!ext) throw new Error('Not a .ttf or .otf file.');
+        entry.buffer = await file.arrayBuffer();
+        const view = new DataView(entry.buffer), found = tables(view);
+        if (found.name == null || found.cmap == null) throw new Error('This file has no font name or character map.');
+        const names = nameTable(view, found.name);
+        entry.name = clean(names[6] || names[4] || file.name.replace(/\.[^.]+$/, ''));
+        entry.family = clean(names[16] || names[1]);
+        entry.style = clean(names[17] || names[2]);
+        entry.trial = /trial|demo/i.test(`${entry.name} ${entry.family}`);
+        const has = cmapTest(view, found.cmap);
+        entry.missing = [...REQUIRED].filter(ch => !has(ch.charCodeAt(0)));
+        entry.problem = [
+          entry.trial ? 'Trial or demo font, not licensed for production proofs.' : '',
+          entry.missing.length ? `Missing characters the annotation prints: ${entry.missing.join(' ')}` : ''
+        ].filter(Boolean).join(' ');
+        // Show a sample in the font itself.
+        const faceName = `jam-sample-${++sampleCount}`;
+        const face = new FontFace(faceName, entry.buffer);
+        document.fonts.add(await face.load());
+        entry.face = faceName;
+      } catch (error) { entry.problem = entry.problem || error.message; }
+      return entry;
+    }
+
+    // ---------- Quickbase ----------
+    function xml(text) { return new DOMParser().parseFromString(text, 'text/xml'); }
+    function xmlError(doc) {
+      if (doc.querySelector('parsererror')) return 'Quickbase returned malformed XML.';
+      const code = clean(doc.querySelector('errcode')?.textContent), message = clean(doc.querySelector('errtext')?.textContent), detail = clean(doc.querySelector('errdetail')?.textContent);
+      return code && code !== '0' ? `Quickbase Error ${code}: ${message} ${detail}`.trim() : '';
+    }
+    function variableApp() { const match = location.pathname.match(/^\/(?:db|up)\/([^/?#]+)/i); return match ? match[1] : QB_APP; }
+    async function dbVariable(name) {
+      const response = await fetch(`https://${QB_REALM}/db/${encodeURIComponent(variableApp())}?${new URLSearchParams({a:'API_GetDBVar', varname:name})}`, {credentials:'include'});
+      if (!response.ok) throw new Error(`Variable request failed (${response.status}).`);
+      const doc = xml(await response.text()), error = xmlError(doc); if (error) throw new Error(error);
+      const value = clean(doc.querySelector('value')?.textContent); if (!value) throw new Error(`${name} is empty.`);
+      return value;
+    }
+    async function credentials() {
+      if (qbState.user && qbState.app) return;
+      if (!qbState.loading) qbState.loading = Promise.all([dbVariable(QB_USER_VAR), dbVariable(QB_APP_VAR)]).then(([user, app]) => { qbState.user = user; qbState.app = app; }).catch(error => { qbState.loading = null; throw error; });
+      await qbState.loading;
+    }
+    // Files go up as base64 inside an XML POST (too large for a URL).
+    async function qbPost(action, inner) {
+      await credentials();
+      const body = `<?xml version="1.0" encoding="UTF-8"?><qdbapi><usertoken>${esc(qbState.user)}</usertoken><apptoken>${esc(qbState.app)}</apptoken>${inner}</qdbapi>`;
+      const response = await fetch(`https://${QB_REALM}/db/${QB_TABLE}?a=${action}`, {method:'POST', credentials:'include', headers:{'Content-Type':'application/xml', 'QUICKBASE-ACTION':action}, body});
+      if (!response.ok) throw new Error(`Quickbase request failed (${response.status}).`);
+      const doc = xml(await response.text()), error = xmlError(doc); if (error) throw new Error(error);
+      return doc;
+    }
+    async function loadExisting() {
+      const doc = await qbPost('API_DoQuery', `<query>{3.GT.0}</query><clist>3.${NAME_FID}</clist><fmt>structured</fmt><options>num-10000</options>`);
+      const map = new Map();
+      doc.querySelectorAll('record').forEach(record => {
+        const field = fid => clean([...record.querySelectorAll('f')].find(f => f.getAttribute('id') === String(fid))?.textContent);
+        const name = key(field(NAME_FID)); if (name && !map.has(name)) map.set(name, field(3));
+      });
+      return map;
+    }
+    function base64(buffer) {
+      const bytes = new Uint8Array(buffer); let binary = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      return btoa(binary);
+    }
+
+    // ---------- Page ----------
+    function render(keepStatus = false) {
+      const replace = $('#replaceExisting').checked;
+      fonts.forEach(font => { font.existingRid = existing?.get(key(font.name)) || ''; });
+      $('#fontList').innerHTML = fonts.map((font, index) => {
+        const blocked = !!font.problem, action = blocked ? 'Held back' : font.existingRid ? (replace ? `Replace file (record ${font.existingRid})` : `Already in table`) : 'New';
+        const tagClass = blocked ? 'bad' : font.existingRid && !replace ? 'exists' : '';
+        return `<li class="font${blocked ? ' blocked' : ''}">
+          <input type="checkbox" data-index="${index}" aria-label="Include ${esc(font.name || font.file.name)}"${font.include ? ' checked' : ''}${!font.buffer ? ' disabled' : ''}>
+          <div class="font-main"><span class="font-name">${esc(font.name || font.file.name)}</span>
+            <span class="font-meta">${esc([font.family, font.style].filter(Boolean).join(' / '))}${font.family ? ' &middot; ' : ''}${esc(font.file.name)} &middot; ${Math.round(font.file.size / 1024)} KB</span>
+            ${font.problem ? `<span class="font-problem">${esc(font.problem)}</span>` : ''}
+            ${font.face ? `<div class="font-sample" style="font-family:'${font.face}'">BRAND: 01-01-2026_QM &middot; 9.5" W x 13" H &amp; P 185 C</div>` : ''}</div>
+          <span class="tag ${tagClass}">${esc(action)}</span></li>`;
+      }).join('');
+      $('#fontList').querySelectorAll('[data-index]').forEach(box => box.addEventListener('change', () => { fonts[Number(box.dataset.index)].include = box.checked; updateCount(); }));
+      updateCount(keepStatus);
+    }
+    function toUpload() { const replace = $('#replaceExisting').checked; return fonts.filter(font => font.include && font.buffer && (!font.existingRid || replace)); }
+    function updateCount(keepStatus = false) {
+      const ready = toUpload().length;
+      $('#readyCount').textContent = ready;
+      $('#jamButton').disabled = !ready;
+      if (keepStatus || !$('#progress').hidden) return;
+      const held = fonts.filter(font => font.problem).length;
+      $('#status').className = 'status';
+      $('#status').textContent = !fonts.length ? 'Waiting for font files.' : held ? `${held} held back. Tick one to upload it anyway.` : 'Ready to load.';
+    }
+    async function addFiles(files) {
+      const list = [...files];
+      if (!list.length) return;
+      $('#status').className = 'status'; $('#status').textContent = `Reading ${list.length} file${list.length === 1 ? '' : 's'}...`;
+      const read = await Promise.all(list.map(readFont));
+      read.forEach(font => {
+        if (fonts.some(other => key(other.name) === key(font.name) && font.name)) return;   // same font added twice
+        font.include = !font.problem && !!font.buffer;
+        fonts.push(font);
+      });
+      fonts.sort((a, b) => (a.name || a.file.name).localeCompare(b.name || b.file.name));
+      render();
+    }
+    async function runPool(tasks, worker) {
+      let cursor = 0;
+      await Promise.all(Array.from({length:Math.min(CONCURRENCY, tasks.length)}, async () => { while (cursor < tasks.length) { const index = cursor++; await worker(tasks[index]); } }));
+    }
+    async function jamFonts() {
+      const queue = toUpload();
+      if (!queue.length) return;
+      const controls = ['#jamButton', '#clearButton', '#fileInput', '#replaceExisting'];
+      controls.forEach(selector => { $(selector).disabled = true; });
+      const bar = $('#progress span'); $('#progress').hidden = false; bar.style.width = '2%';
+      $('#details').hidden = true; $('#details').textContent = '';
+      let created = 0, replaced = 0, done = 0; const failures = [];
+      try {
+        if (window.__DEMO_HOST.toLowerCase() !== QB_REALM) throw new Error('Open this file as a Quickbase code page before loading records.');
+        existing = await loadExisting(); render(true);
+        await runPool(queue, async font => {
+          try {
+            const fileName = `${font.name.replace(/[^\w.-]+/g, '-')}.${font.ext}`;
+            const fileField = `<field fid="${FILE_FID}" filename="${esc(fileName)}">${base64(font.buffer)}</field>`;
+            const rid = existing.get(key(font.name));
+            if (rid) { await qbPost('API_EditRecord', `<rid>${esc(rid)}</rid>${fileField}`); replaced++; }
+            else {
+              const doc = await qbPost('API_AddRecord', `<field fid="${NAME_FID}">${esc(font.name)}</field>${fileField}`);
+              existing.set(key(font.name), clean(doc.querySelector('rid')?.textContent)); created++;
+            }
+            font.include = false;
+          } catch (error) { failures.push(`${font.name}: ${error.message}`); }
+          done++;
+          bar.style.width = `${Math.round(done / queue.length * 100)}%`;
+          $('#status').textContent = `Uploaded ${done} of ${queue.length}...`;
+        });
+        $('#status').className = failures.length ? 'status error' : 'status good';
+        $('#status').textContent = `Finished: ${created} added, ${replaced} replaced, ${failures.length} failed.`;
+        if (failures.length) { $('#details').hidden = false; $('#details').textContent = failures.join('\n'); }
+      } catch (error) {
+        $('#status').className = 'status error'; $('#status').textContent = error.message;
+      } finally {
+        controls.forEach(selector => { $(selector).disabled = false; });
+        $('#progress').hidden = true;
+        render(true);
+      }
+    }
+
+    $('#fileInput').addEventListener('change', event => { addFiles(event.target.files); event.target.value = ''; });
+    ['dragenter', 'dragover'].forEach(type => $('#drop').addEventListener(type, event => { event.preventDefault(); $('#drop').classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach(type => $('#drop').addEventListener(type, () => $('#drop').classList.remove('drag')));
+    $('#drop').addEventListener('drop', event => { event.preventDefault(); addFiles(event.dataTransfer.files); });
+    $('#replaceExisting').addEventListener('change', render);
+    $('#jamButton').addEventListener('click', jamFonts);
+    $('#clearButton').addEventListener('click', () => { fonts = []; $('#details').hidden = true; render(); });
+    // Knowing what's already in the table lets each font show New / Already in table before uploading.
+    if (window.__DEMO_HOST.toLowerCase() === QB_REALM) {
+      loadExisting().then(map => { existing = map; $('#existingNote').textContent = `${map.size} already in the table`; render(); })
+        .catch(error => { $('#existingNote').textContent = `couldn't read the table (${error.message})`; });
+    } else {
+      $('#existingNote').textContent = 'open in Quickbase to check the table';
+    }
+    render();
+  </script>
+<!-- demo-launcher:start (managed by demo_launcher.py: edit demo_launcher_snippet.html, not this copy) -->
+
+
+
+</body>
+</html>

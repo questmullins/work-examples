@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script id="demo-backend">
+/* Demo backend. Answers this page's Quickbase calls in the browser from made-up records, so the tool runs with no
+   server and no account. Every company, product, person and address here is fictional. Changes last until reload. */
+(function () {
+  var HOST = 'demo.quickbase.example';
+  window.__DEMO_HOST = HOST;
+
+  var BRANDS = [
+    {customer: 'Trailhead Pet Co', code: 'TH', prefix: '00011'},
+    {customer: 'Northfield Pet Foods', code: 'NF', prefix: '00012'},
+    {customer: 'Sunny Paws Kitchen', code: 'SP', prefix: '00013'},
+    {customer: 'Bramble & Bone', code: 'BB', prefix: '00014'},
+    {customer: 'Copper Creek Provisions', code: 'CC', prefix: '00015'},
+    {customer: 'Little Harbor Treats', code: 'LH', prefix: '00016'},
+    {customer: 'Meadowlark Mills', code: 'MM', prefix: '00017'},
+    {customer: 'Oak & Ember Foods', code: 'OE', prefix: '00018'},
+    {customer: 'Tidewater Snacks', code: 'TW', prefix: '00019'},
+    {customer: 'Pine Ridge Grains', code: 'PR', prefix: '00020'}
+  ];
+  // Every shape here has a template in the mockup tool.
+  var SHAPES = [
+    {format: 'Quad Seal Bag', style: 'Flat Bottom', gusset: 'Terminated Gusset', sizes: [[7, 11.5, 3.5, '12 oz'], [8.5, 14, 4, '2 lb'], [10, 16, 4.5, '4 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Non-Terminated Gusset', sizes: [[11.5, 18.25, 4.125, '10 lb'], [13, 22, 5, '15 lb'], [15.75, 26.5, 4.5, '25 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Terminated Gusset', sizes: [[8, 13, 4, '3.5 lb'], [9.5, 15, 4, '5 lb'], [12, 20, 4.5, '12 lb']]},
+    {format: 'Stand-Up Pouch', style: 'Angle Plow', gusset: '', sizes: [[5, 7.75, 2.5, '5 oz'], [6, 9, 3, '8 oz'], [7.25, 11, 3.5, '1 lb']]},
+    {format: 'Stand-Up Pouch', style: 'K-Seal', gusset: '', sizes: [[7, 10, 3.25, '10 oz'], [6, 8.5, 2.75, '6 oz'], [8, 12, 3.5, '1.5 lb']]}
+  ];
+  var RECIPES = ['Grain-Free Salmon Kibble', 'Turkey Training Bites', 'Pumpkin Berry Minis', 'Chicken Recipe Kibble', 'Freeze-Dried Beef Morsels', 'Duck & Sweet Potato Bites', 'Lamb & Rice Dinner', 'Peanut Butter Crunch', 'Ancient Grain Granola', 'Sea Salt Veggie Crisps', 'Dark Roast Coffee', 'Honey Oat Clusters'];
+  var LAYERS = ['MATTE / PET / FOIL / LLDPE', 'MATTE / PET / MET PET / LLDPE', 'GLOSS / PET / MET PET / LLDPE', 'SOFT TOUCH / PET / FOIL / LLDPE', 'SOFT TOUCH / PET / MET PET / LLDPE', 'MATTE / PET / PET / LLDPE', 'GLOSS / PET / EVOH / LLDPE', 'MATTE / PE / EVOH / PE', 'GLOSS / KRAFT / MET PET / LLDPE', 'SOFT TOUCH / PET / ALOX / LLDPE'];
+  var COLORS = ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'PMS 186 C', 'PMS 2728 C', 'PMS 349 C', 'PMS 7406 C', 'PMS 485 C', 'PMS 2607 C', 'PMS 7421 C'];
+  var PEOPLE = ['Demo Designer', 'Alex Morgan', 'Jordan Lee', 'Priya Nair', 'Casey Tran', 'Riley Brooks'];
+  var ZIPPERS = ['Small Zipper', 'No Zipper', 'Small Zipper', 'Pocket Zipper'];
+  var PRODUCTS = [];
+  BRANDS.forEach(function (brand, b) {
+    for (var i = 0; i < 6; i++) {
+      var shape = SHAPES[(b + i) % SHAPES.length], size = shape.sizes[(b + i * 2) % 3];
+      PRODUCTS.push({b: b, name: RECIPES[(b * 2 + i) % RECIPES.length], weight: size[3], format: shape.format, style: shape.style, gusset: shape.gusset, w: size[0], h: size[1], g: size[2], layers: LAYERS[(b + i * 3) % LAYERS.length]});
+    }
+  });
+  var ADDRESSES = [
+    ['100 Example Way', 'Dock 2', 'Springfield', 'IL', '62704'],
+    ['250 Sample Road', '', 'Riverton', 'WY', '82501'],
+    ['17 Placeholder Ave', 'Suite 300', 'Fairview', 'TN', '37062'],
+    ['900 Demo Parkway', '', 'Madison', 'WI', '53703'],
+    ['44 Mockup Lane', 'Building B', 'Georgetown', 'TX', '78626'],
+    ['312 Fictional Blvd', '', 'Salem', 'OR', '97301'],
+    ['8 Test Harbor Rd', 'Unit 12', 'Clinton', 'IA', '52732'],
+    ['1200 Sample Mill Dr', '', 'Franklin', 'KY', '42134'],
+    ['75 Placeholder Pier', 'Dock 9', 'Bristol', 'RI', '02809'],
+    ['560 Example Ridge', '', 'Greenville', 'SC', '29601']
+  ];
+  function day(offset) { var d = new Date(Date.UTC(2026, 8, 20) - offset * 864e5); return d.toISOString().slice(0, 10); }
+  function pick(list, i) { return list[i % list.length]; }
+  function colorBank(row, start, n) { for (var c = 0; c < 10; c++) row[start + c] = c < 4 ? COLORS[c] : c < 4 + (n % 4) ? COLORS[4 + (n + c) % 8] : ''; }
+  function ms(offset) { return String(Date.UTC(2026, 8, 20) - offset * 864e5); }
+
+  var tables = {
+    bdemocust: [], bdemoopps: [], bdemofami: [], bdemospec: [], bdemostyl: [], bdemoaddr: [], bdemoship: [],
+    bdemoprod: [], bdemoordr: [], bdemoitem: [], bdemoartv: [], bdemomock: [], bdemorevw: [], bdemodens: [],
+    bdemofont: [], bdemolayr: [], bdemofill: [], bdemolist: [], bdemotask: [], bdemotime: [], bdemosrvc: []
+  };
+  var labels = {
+    bdemoprod: {name: 'Products', 2209: 'Filing #', 3: 'Record ID#', 12: 'Item Name', 13: 'Legacy Item Name', 14: 'Legacy UPC', 128: 'Art Versions', 132: 'UPC', 136: 'Art Version Count', 141: 'Brand', 353: 'Current Vendor Proof', 604: 'Approved Color Standard', 662: 'Current Customer Proof'},
+    bdemoitem: {name: 'Order Items', 1: 'Date Created', 3: 'Record ID#', 7: 'Customer', 13: 'UPC', 14: 'Item', 161: 'Weight', 184: 'PO', 329: 'Artwork Link', 382: 'Brand', 506: 'Family', 710: 'Layers', 711: 'Dimensions', 2122: 'Format', 2243: 'Style'},
+    bdemoartv: {name: 'Art Versions', 3: 'Record ID#', 11: 'Version Date', 12: 'Art Type', 37: 'Related Item', 61: 'Art REV', 152: 'Version', 361: 'Vendor Proof', 583: 'Inactive Art', 588: 'Customer Proof'},
+    bdemocust: {name: 'Customers', 3: 'Record ID#', 6: 'Customer Name', 125: 'Inactive'},
+    bdemoordr: {name: 'Orders', 3: 'Record ID#', 18: 'Customer PO'},
+    bdemofami: {name: 'Families', 3: 'Record ID#', 6: 'Family', 31: 'Current Spec'},
+    bdemospec: {name: 'Family Specifications', 3: 'Record ID#', 15: 'Format', 14: 'Style', 151: 'Layers'},
+    bdemomock: {name: 'Mock-Ups', 3: 'Record ID#', 9: 'Format', 10: 'Style', 39: 'Product Name'},
+    bdemolist: {name: 'Art Checklists', 3: 'Record ID#', 13: 'Description', 18: 'Brand'},
+    bdemotask: {name: 'Checklist Tasks', 3: 'Record ID#', 27: 'Department', 28: 'Description'},
+    bdemofill: {name: 'Fill Recordings', 3: 'Record ID#', 12: 'Format', 13: 'Style'},
+    bdemodens: {name: 'Product Densities', 3: 'Record ID#', 6: 'Brand', 7: 'Product', 14: 'Average'},
+    bdemofont: {name: 'System Fonts', 3: 'Record ID#', 6: 'Font Name', 7: 'Font File'}
+  };
+
+  BRANDS.forEach(function (b, i) {
+    var rid = String(i + 1), a = ADDRESSES[i];
+    tables.bdemocust.push({3: rid, 6: b.customer, 125: '0'});
+    ['new pouch line', 'holiday pack', 'club size relaunch'].forEach(function (name, k) {
+      tables.bdemoopps.push({3: String(100 + i * 3 + k), 6: rid, 8: b.customer + ' ' + name, 23: k === 2 ? '1' : '0', 24: k === 2 ? 'Closed' : 'Open'});
+    });
+    tables.bdemoaddr.push({3: String(200 + i), 6: 'Main warehouse', 7: a[0], 8: a[1], 13: rid, 18: '1', 23: a[2], 24: a[3], 25: a[4]});
+    tables.bdemoaddr.push({3: String(250 + i), 6: 'Co-packer', 7: pick(ADDRESSES, i + 3)[0], 8: '', 13: rid, 18: '0', 23: pick(ADDRESSES, i + 3)[2], 24: pick(ADDRESSES, i + 3)[3], 25: pick(ADDRESSES, i + 3)[4]});
+    tables.bdemoship.push({3: String(300 + i), 8: a[0], 9: a[1], 10: a[2], 11: a[3], 12: a[4], 13: 'United States', 16: b.customer});
+  });
+  SHAPES.forEach(function (shape, s) {
+    shape.sizes.forEach(function (size, k) {
+      for (var r = 0; r < 4; r++) {
+        var area = size[0] * size[1], fill = 68 + (s * 3 + k * 5 + r * 4) % 24;
+        tables.bdemofill.push({3: String(400 + s * 12 + k * 4 + r), 1: ms(s * 30 + k * 11 + r * 17), 6: String(+(2 + r * 1.5 + k).toFixed(1)), 7: String(+(0.5 + k * 2 + r).toFixed(1)), 8: String(size[1]), 9: String(size[0]), 10: String(size[2]), 11: pick(BRANDS, s + r).prefix + '00' + (101 + s + r), 12: shape.format, 13: shape.style, 14: shape.gusset, 15: pick(ZIPPERS, k + r), 16: String(+area.toFixed(1)), 17: String(fill), 18: String(Math.round(area * size[2] * fill / 100))});
+      }
+    });
+  });
+  [['Quad Seal Bag', 'Flat Bottom'], ['Quad Seal Bag', 'Pinched Bottom'], ['Stand-Up Pouch', 'K-Seal'], ['Stand-Up Pouch', 'Doyen'], ['Three Side Seal', 'Flat Pouch']].forEach(function (s, i) {
+    tables.bdemostyl.push({3: String(i + 1), 6: s[1], 7: s[0]});
+  });
+
+  PRODUCTS.forEach(function (p, i) {
+    var b = BRANDS[p.b], n = i + 1, upc = b.prefix + '00' + (100 + n), rid = String(100 + n), title = b.customer + ' ' + p.name + ' ' + p.weight;
+    var dims = p.w + ' x ' + p.h + ' x ' + p.g, combo = [p.format, p.style, p.gusset].join(' / '), family = b.code + '-' + String(p.w * 100) + '-' + n;
+    var po = String(21000 + n), order = String(500 + n), art = 'https://files.demo-packaging.example/f/' + b.code + n;
+    var spec = String(300 + n), fam = String(200 + n);
+    tables.bdemospec.push({3: spec, 6: fam, 12: 'v1', 14: p.style, 15: p.format, 43: p.gusset, 53: String(p.w), 54: String(p.h), 55: String(p.g), 56: String(p.w * 25.4), 57: String(p.h * 25.4), 58: String(p.g * 25.4), 65: 'in', 146: 'Zipper', 149: '1.5', 151: p.layers, 154: dims, 155: p.format + ' / ' + p.style, 428: '1.5', 1543: 'Current'});
+    tables.bdemofami.push({3: fam, 6: family, 9: String(p.b + 1), 31: spec, 76: b.customer + ' ' + family, 144: '0'});
+    tables.bdemoprod.push({3: rid, 12: title, 13: title, 14: upc, 128: '2', 132: upc, 136: '2', 141: b.customer, 225: '', 2209: 'Shelf ' + n, 353: 'Rev ' + n, 539: 'Match the approved pantone swatch.', 604: 'On file', 662: 'Rev ' + n});
+    // The first order of each product keeps PO 21000 + n; some products reorder under later POs.
+    for (var o = 0; o < 1 + i % 3; o++) {
+      var line = String(1000 + n * 10 + o), orderId = String(+order + o * 100), thisPo = String(+po + o * 1000), age = i * 8 + o * 120, approved = (i + o) % 3 > 0;
+      tables.bdemoordr.push({3: orderId, 18: thisPo});
+      tables.bdemoitem.push({1: ms(age), 2: ms(age / 2), 3: line, 6: orderId, 7: b.customer, 8: orderId, 13: upc, 14: title, 151: rid, 161: p.weight, 162: title, 163: o ? 'Reorder' : 'New', 184: thisPo, 262: day(age), 265: '0' + (o + 1) + '.26', 329: art, 382: b.customer, 417: approved ? '1' : '0', 419: approved ? day(age / 2) : '', 420: 'Press sheet ' + thisPo, 506: family, 573: o ? 'Revised' : 'New', 710: p.layers, 711: dims, 712: combo, 794: 'Zipper at 1.5"', 2122: p.format, 2209: 'Shelf ' + n, 2243: p.style, 2331: String(p.w), 2332: String(p.h), 2333: String(p.g), 2412: '0', 2519: '0', 2693: '', 2694: '', 2695: '0', 2696: ''});
+      tables.bdemorevw.push({3: String(5000 + n * 10 + o), 7: '', 8: '', 10: '', 16: '', 17: '', 19: '', 31: '', 34: '', 35: line, 41: p.format, 42: p.style, 44: dims, 54: '0', 63: '0', 67: combo});
+    }
+    [0, 1, 2].slice(0, 2 + i % 2).forEach(function (v, index, all) {
+      var artRow = {3: String(2000 + n * 4 + v), 10: title, 11: day(i * 8 + v * 95), 12: v === all.length - 1 ? 'New' : 'Revised', 18: 'Art REV', 37: rid, 40: title, 58: upc, 59: title, 61: '0' + (all.length - v) + '.26', 84: b.customer, 127: fam, 152: String(all.length - v), 205: v ? '0' : '1', 330: b.customer, 361: art + '-vendor.pdf', 376: p.weight, 481: String(parseFloat(p.weight)), 522: dims, 523: combo, 524: 'Tear notch', 525: p.layers, 526: 'Zipper, tear notch', 583: v ? '1' : '0', 588: art + '-customer.pdf', 624: upc};
+      colorBank(artRow, 191, n); colorBank(artRow, 571, n + 1); colorBank(artRow, 589, n + 2);
+      tables.bdemoartv.push(artRow);
+    });
+    tables.bdemomock.push({1: ms(i * 7), 3: String(1500 + n), 6: 'Opportunity ' + n, 7: p.format, 9: p.format, 10: p.style, 11: p.style, 12: String(p.w), 13: String(p.h), 14: String(p.g), 15: p.weight, 16: '1', 18: '3', 19: 'Demo mockup request.', 22: day(-7), 26: pick(ZIPPERS, i), 27: 'PET12/LLDPE100', 33: p.gusset, 35: String(p.b + 1), 36: b.customer, 39: p.name, 40: '1.5', 49: 'Mockup', 51: 'Opportunity ' + n, 53: p.format, 54: p.style, 56: p.gusset, 57: String(p.w), 58: String(p.h), 59: String(p.g), 62: pick(ZIPPERS, i), 63: '1.5', 74: ADDRESSES[p.b][0], 75: ADDRESSES[p.b][1], 76: ADDRESSES[p.b][2], 77: ADDRESSES[p.b][3], 78: ADDRESSES[p.b][4], 79: 'United States'});
+    var cups = [0, 1, 2, 3, 4].map(function (c) { return (2.1 + (n % 7) * 0.12 + ((n + c * 3) % 5) * 0.02).toFixed(2); });
+    tables.bdemodens.push({3: String(i + 1), 1: ms(i * 5), 6: b.customer, 7: p.name, 8: '', 9: cups[0], 10: cups[1], 11: cups[2], 12: cups[3], 13: cups[4], 14: (cups.reduce(function (s, v) { return s + +v; }, 0) / 5).toFixed(2)});
+  });
+
+  ['Demo Sans Regular', 'Demo Sans Medium', 'Demo Sans Bold', 'Demo Serif Regular', 'Demo Serif Italic', 'Demo Mono', 'Demo Condensed'].forEach(function (name, i) { tables.bdemofont.push({3: String(i + 1), 6: name, 7: ''}); });
+  LAYERS.forEach(function (name, i) { tables.bdemolayr.push({3: String(i + 1), 6: name, 7: String(40 - i * 3)}); });
+  PRODUCTS.slice(0, 12).forEach(function (p, i) {
+    var lid = String(3000 + i), b = BRANDS[p.b], done = i % 5;
+    tables.bdemolist.push({3: lid, 10: String(501 + i), 13: 'Art checklist: ' + p.name, 14: '0', 16: '0', 17: String(p.b + 1), 18: b.customer, 19: String(21001 + i), 21: '4', 25: pick(PEOPLE, i), 29: String(1 + i % 4 * 0.5), 30: String(4 - Math.min(done, 4))});
+    ['Prepress', 'Proofreading', 'PC', 'Engineering'].forEach(function (dept, t) {
+      tables.bdemotask.push({3: String(3100 + i * 10 + t), 12: lid, 14: '0', 15: '', 16: t < done ? '1' : '0', 18: String(t + 1), 26: 'General', 27: dept, 28: dept + ' review of ' + p.name, 29: '', 32: String(t + 1), 34: '0'});
+    });
+  });
+  [['Prepress', 'Production Art'], ['Prepress', 'Proof Review'], ['Project Coordination', 'Scheduling'], ['Engineering', 'Dieline Review']].forEach(function (s, i) { tables.bdemosrvc.push({3: String(i + 1), 6: s[0], 7: s[1]}); });
+
+  var ids = {};
+  function nextRid(table) { ids[table] = ids[table] || Object.keys(tables[table] || {}).length + 90000; return String(++ids[table]); }
+  function rows(table) { return tables[table] || (tables[table] = []); }
+  function xmlEsc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+
+  // Quickbase query language: {fid.OP.'value'} joined by AND / OR, with parentheses.
+  function when(value) { return /^\d{10,}$/.test(value) ? +value : Date.parse(value) || 0; }
+  function test(row, fid, op, want) {
+    var have = String(row[fid] == null ? '' : row[fid]), h = have.toLowerCase(), w = String(want).toLowerCase(), n = parseFloat(have), m = parseFloat(want);
+    switch (op) {
+      case 'EX': case 'TV': return h === w;
+      case 'XEX': case 'XTV': return h !== w;
+      case 'CT': case 'HAS': return h.indexOf(w) >= 0;
+      case 'XCT': return h.indexOf(w) < 0;
+      case 'SW': return h.indexOf(w) === 0;
+      case 'XSW': return h.indexOf(w) !== 0;
+      case 'OAF': case 'AF': return when(have) >= when(want);
+      case 'OBF': case 'BF': return when(have) <= when(want);
+      case 'GT': return isNaN(n) ? have > want : n > m;
+      case 'GTE': return n >= m;
+      case 'LT': return isNaN(n) ? have < want : n < m;
+      case 'LTE': return n <= m;
+      default: return true;
+    }
+  }
+  function tokenize(q) {
+    var out = [], re = /\{\s*'?(\d+)'?\s*\.\s*([A-Z]+)\s*\.\s*'((?:\\.|[^'])*)'\s*\}|\(|\)|AND|OR/gi, m;
+    while ((m = re.exec(q))) out.push(m[1] ? {fid: m[1], op: m[2].toUpperCase(), value: m[3].replace(/\\(.)/g, '$1')} : m[0].toUpperCase());
+    return out;
+  }
+  function matcher(q) {
+    var t = tokenize(q || ''), i = 0;
+    if (!t.length) return function () { return true; };
+    function atom(row) {
+      var k = t[i++];
+      if (k === '(') { var v = or(row); i++; return v; }
+      return !k || !k.fid || test(row, k.fid, k.op, k.value);
+    }
+    function and(row) { var v = atom(row); while (t[i] === 'AND') { i++; var r = atom(row); v = v && r; } return v; }
+    function or(row) { var v = and(row); while (t[i] === 'OR') { i++; var r = and(row); v = v || r; } return v; }
+    return function (row) { i = 0; return or(row); };
+  }
+  function select(table, q, slist, options) {
+    var list = rows(table).filter(matcher(q)), opt = String(options || ''), sort = String(slist || '').split('.').filter(Boolean)[0];
+    if (sort) {
+      var desc = /sortorder-D/.test(opt);
+      list = list.slice().sort(function (a, b) { var x = a[sort], y = b[sort], nx = parseFloat(x), ny = parseFloat(y), c = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x || '').localeCompare(String(y || '')); return desc ? -c : c; });
+    }
+    var skip = /skp-(\d+)/.exec(opt), num = /num-(\d+)/.exec(opt);
+    if (skip) list = list.slice(+skip[1]);
+    if (num) list = list.slice(0, +num[1]);
+    return list;
+  }
+  function ok(body) { return '<?xml version="1.0"?><qdbapi><action>demo</action><errcode>0</errcode><errtext>No error</errtext>' + (body || '') + '</qdbapi>'; }
+  function labelOf(table, fid) { return (labels[table] && labels[table][fid]) || 'Field ' + fid; }
+  function fidsOf(table) { var seen = {}; rows(table).forEach(function (r) { Object.keys(r).forEach(function (k) { seen[k] = 1; }); }); Object.keys(labels[table] || {}).forEach(function (k) { if (k !== 'name') seen[k] = 1; }); return Object.keys(seen).sort(function (a, b) { return a - b; }); }
+  function doQuery(table, p) {
+    var list = select(table, p.query, p.slist, p.options), clist = String(p.clist || '').split('.').filter(function (x) { return /^\d+$/.test(x); });
+    if (!clist.length) clist = fidsOf(table);
+    var fields = clist.map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    var body = list.map(function (r) {
+      return '<record rid="' + xmlEsc(r[3]) + '">' + clist.map(function (f) { return '<f id="' + f + '">' + xmlEsc(r[f]) + '</f>'; }).join('') + '<update_id>1</update_id></record>';
+    }).join('');
+    return ok('<table><fields>' + fields + '</fields><records>' + body + '</records></table>');
+  }
+  function schema(table) {
+    if (!tables[table]) {
+      var kids = Object.keys(labels).map(function (t) { return '<chdbid name="_dbid_' + xmlEsc(labels[t].name.toLowerCase().replace(/\W+/g, '_')) + '">' + t + '</chdbid>'; }).join('');
+      return ok('<table><name>Demo Packaging</name><original><app_id>' + table + '</app_id></original><chdbids>' + kids + '</chdbids><fields></fields></table>');
+    }
+    var fields = fidsOf(table).map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    return ok('<table><name>' + xmlEsc((labels[table] || {}).name || table) + '</name><original><table_id>' + table + '</table_id></original><fields>' + fields + '</fields></table>');
+  }
+  function writeFields(p, body) {
+    var out = {}, k;
+    for (k in p) { var m = /^_fid_(\d+)$/.exec(k); if (m) out[m[1]] = p[k]; }
+    if (body && /<field/.test(body)) {
+      var doc = new DOMParser().parseFromString(body, 'text/xml');
+      [].forEach.call(doc.querySelectorAll('field'), function (n) { if (n.getAttribute('fid')) out[n.getAttribute('fid')] = n.textContent; });
+      var rid = doc.querySelector('rid'); if (rid) p.rid = rid.textContent;
+      ['query', 'clist', 'slist', 'options', 'varname'].forEach(function (name) { var e = doc.querySelector(name); if (e && !p[name]) p[name] = e.textContent; });
+    }
+    return out;
+  }
+  // The real page stores a generated script on the record. There is no record to open here, so hand it over as a download.
+  function saveUpload(body) {
+    var file = new DOMParser().parseFromString(body, 'text/xml').querySelector('field[filename]');
+    if (file) {
+      var bytes = Uint8Array.from(atob(file.textContent), function (c) { return c.charCodeAt(0); });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([bytes], {type: 'application/javascript'}));
+      link.download = file.getAttribute('filename');
+      window.__demoLastFile = {name: link.download, text: new TextDecoder().decode(bytes)};
+      link.click();
+    }
+    return ok('<rid>1</rid>');
+  }
+  function xmlApi(table, p, body) {
+    var fields = writeFields(p, body), row;
+    switch (p.a) {
+      case 'API_DoQuery': return doQuery(table, p);
+      case 'API_DoQueryCount': return ok('<numMatches>' + select(table, p.query).length + '</numMatches>');
+      case 'API_GetDBVar': return ok('<value>demo-value</value>');
+      case 'API_SetDBVar': return ok();
+      case 'API_GetUserInfo': return ok('<user id="1.demo"><firstName>Demo</firstName><lastName>User</lastName><login>demo.user</login><email>demo.user@demo-packaging.example</email><screenName>Demo User</screenName></user>');
+      case 'API_GetSchema': return schema(table);
+      case 'API_GetDBPage': return '';
+      case 'dbpage': return (window.__DEMO_PAGES || {})[p.pageID || p.pageid] || '';
+      case 'API_UploadFile': return saveUpload(body);
+      case 'API_AddRecord':
+        row = fields; row[3] = nextRid(table); row[1] = String(Date.now()); row[2] = row[1]; rows(table).unshift(row);
+        return ok('<rid>' + row[3] + '</rid><update_id>1</update_id>');
+      case 'API_EditRecord':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid || p.key); })[0];
+        if (row) Object.keys(fields).forEach(function (f) { row[f] = fields[f]; });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid><num_fields_changed>1</num_fields_changed><update_id>2</update_id>');
+      case 'API_DeleteRecord':
+        tables[table] = rows(table).filter(function (r) { return String(r[3]) !== String(p.rid); });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>');
+      case 'API_GetRecordInfo':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid); })[0] || {};
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>' + Object.keys(row).map(function (f) { return '<field><fid>' + f + '</fid><name>' + xmlEsc(labelOf(table, f)) + '</name><type>Text</type><value>' + xmlEsc(row[f]) + '</value></field>'; }).join(''));
+      default: return ok();
+    }
+  }
+  function restWhere(where) { return where || ''; }
+  function restApi(url, init) {
+    var path = url.pathname, body = {};
+    try { body = JSON.parse(init.body || '{}'); } catch (e) {}
+    if (/\/v1\/auth\/temporary\//.test(path)) return {temporaryAuthorization: 'demo-token'};
+    if (/\/v1\/records\/query/.test(path)) {
+      var select_ = body.select || [], sort = (body.sortBy || [])[0], list = select(body.from, restWhere(body.where), sort && sort.fieldId, sort && sort.order === 'DESC' ? 'sortorder-D' : '');
+      return {data: list.map(function (r) { var o = {}; select_.forEach(function (f) { o[f] = {value: r[f] == null ? '' : r[f]}; }); return o; }),
+        fields: select_.map(function (f) { return {id: f, label: labelOf(body.from, f), type: 'text'}; }),
+        metadata: {numRecords: list.length, numFields: select_.length, totalRecords: list.length, skip: 0}};
+    }
+    if (/\/v1\/records/.test(path)) {
+      var created = (body.data || []).map(function (src) { var row = {}; Object.keys(src).forEach(function (f) { row[f] = src[f] && src[f].value; }); row[3] = row[3] || nextRid(body.to); rows(body.to).unshift(row); return +row[3]; });
+      return {data: [], metadata: {createdRecordIds: created, updatedRecordIds: [], unchangedRecordIds: [], totalNumberOfRecordsProcessed: created.length}};
+    }
+    if (/\/v1\/fields/.test(path)) { var t = url.searchParams.get('tableId'); return fidsOf(t).map(function (f) { return {id: +f, label: labelOf(t, f), fieldType: 'text'}; }); }
+    if (/\/v1\/tables/.test(path)) return Object.keys(labels).map(function (t) { return {id: t, name: labels[t].name}; });
+    return {};
+  }
+  function params(url, init) {
+    var p = {};
+    url.searchParams.forEach(function (v, k) { p[k] = v; });
+    var b = init && init.body;
+    if (b && typeof b === 'string' && !/^\s*</.test(b)) new URLSearchParams(b).forEach(function (v, k) { p[k] = v; });
+    else if (b && b.forEach && !(b instanceof Blob)) b.forEach(function (v, k) { if (typeof v === 'string') p[k] = v; });
+    var h = init && init.headers, action = h && (h['QUICKBASE-ACTION'] || (h.get && h.get('QUICKBASE-ACTION')));
+    if (action) p.a = action;
+    return p;
+  }
+  function respond(url, init) {
+    var host = url.hostname;
+    if (host === 'api.quickbase.com') return new Response(JSON.stringify(restApi(url, init || {})), {status: 200, headers: {'Content-Type': 'application/json'}});
+    var m = /^\/db\/([^/?#]+)/.exec(url.pathname), p = params(url, init), text = m ? xmlApi(m[1], p, typeof (init || {}).body === 'string' ? init.body : '') : '';
+    return new Response(text, {status: 200, headers: {'Content-Type': 'text/xml'}});
+  }
+  var realFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var raw = input && input.url ? input.url : String(input), url = new URL(raw, location.href);
+    if (url.hostname === HOST || url.hostname === 'api.quickbase.com' || (url.origin === location.origin && /^\/db\//.test(url.pathname))) return Promise.resolve(respond(url, init || {}));
+    if (url.hostname.indexOf('.example') > 0) return Promise.resolve(new Response('', {status: 404}));
+    return realFetch.apply(this, arguments);
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var tag = document.createElement('div');
+    tag.textContent = 'Demo: fictional company and data';
+    tag.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 10px;border-radius:999px;background:#1f2937;color:#fff;font:600 12px/1 system-ui,sans-serif;opacity:.85;pointer-events:none';
+    document.body.appendChild(tag);
+  });
+})();
+
+</script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Density Calculator</title>
+  <link rel="icon" id="app-favicon" type="image/webp" href="">
+  <style>
+    :root{--teal:#064c5b;--teal-2:#5257b8;--ink:#132a35;--muted:#65747c;--line:#d7e0e3;--soft:#eef4f5;--paper:#fff;--bg:#f3f6f7;--danger:#a73543;--warn:#8a5a00;--warn-bg:#fff6e0;--success:#18705f;--shadow:0 18px 55px rgba(9,52,62,.12)}
+    *{box-sizing:border-box}
+    body{margin:0;min-width:320px;background:var(--bg);color:var(--ink);font:16px/1.45 "Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    button,input{font:inherit}
+    [hidden]{display:none!important}
+    .shell{max-width:1180px;margin:0 auto;padding:28px 20px 48px}
+    .page-head{margin-bottom:22px}.eyebrow{margin:0 0 5px;color:var(--teal-2);font-size:12px;font-weight:850;letter-spacing:.13em;text-transform:uppercase}.page-head h1{margin:0;font-size:clamp(28px,4vw,42px);line-height:1.05;letter-spacing:-.045em}.page-head p{max-width:640px;margin:8px 0 0;color:var(--muted)}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start}
+    .panel{overflow:hidden;border:1px solid var(--line);border-radius:16px;background:var(--paper);box-shadow:var(--shadow)}
+    .panel-head{padding:20px 22px 16px;border-bottom:1px solid var(--line)}.panel-head h2{margin:0;font-size:19px;letter-spacing:-.02em}.panel-head p{margin:4px 0 0;color:var(--muted);font-size:14px}
+    .section{padding:20px 22px 22px}.section+.section{border-top:1px solid var(--line)}
+    .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .field{display:grid;gap:6px}.field>span,.field-label{font-size:13px;font-weight:800}.field .req{color:var(--danger)}
+    .combo{position:relative}.combo .text-input{padding-right:44px}
+    .combo-toggle{position:absolute;top:0;right:0;width:42px;height:44px;display:grid;place-items:center;border:0;background:transparent;color:var(--muted);cursor:pointer}.combo-toggle:hover{color:var(--teal)}
+    .combo-toggle svg{transition:transform .15s}.combo.open .combo-toggle svg{transform:rotate(180deg)}
+    .combo-menu{position:absolute;z-index:20;top:calc(100% + 4px);left:0;right:0;max-height:260px;overflow:auto;padding:5px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 14px 34px rgba(9,52,62,.16)}
+    .combo-option{width:100%;min-height:38px;padding:0 10px;display:flex;align-items:center;border:0;border-radius:7px;background:transparent;color:var(--ink);cursor:pointer;text-align:left}
+    .combo-option:hover,.combo-option.active{background:var(--soft)}.combo-option.active{box-shadow:inset 3px 0 0 var(--teal)}.combo-option mark{background:none;color:var(--teal);font-weight:800}
+    .combo-empty{padding:10px;color:var(--muted);font-size:13px}
+    .text-input{width:100%;min-height:44px;padding:0 13px;border:1px solid #c5d3d6;border-radius:9px;background:#fff;color:var(--ink)}
+    .text-input:focus,.unit-input input:focus{outline:3px solid rgba(13,99,114,.22);border-color:var(--teal-2)}
+    .text-input.invalid,.unit-input.invalid input{border-color:var(--danger)}
+    .photo{grid-column:1/-1}
+    .dropzone{position:relative;min-height:112px;padding:14px;display:flex;align-items:center;gap:14px;border:1.5px dashed #b8c9cd;border-radius:12px;background:var(--soft);cursor:pointer}
+    .dropzone:hover,.dropzone.drag{border-color:var(--teal-2);background:#e5f0f1}
+    .dropzone input{position:absolute;inset:0;opacity:0;cursor:pointer}
+    .dropzone-icon{width:52px;height:52px;flex:none;display:grid;place-items:center;border-radius:12px;background:#fff;color:var(--teal)}
+    .dropzone strong{display:block}.dropzone small{color:var(--muted)}
+    .photo-preview{display:flex;align-items:center;gap:14px;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfcfc}
+    .photo-preview img{width:84px;height:84px;object-fit:cover;border-radius:9px;border:1px solid var(--line)}
+    .photo-preview div{flex:1;min-width:0}.photo-preview strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.photo-preview small{color:var(--muted)}
+    .readings-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}.readings-head h3{margin:0;font-size:15px}.readings-head small{color:var(--muted);font-size:12px}
+    .readings{display:grid;gap:9px}
+    .reading{display:grid;grid-template-columns:34px minmax(0,1fr) 120px;align-items:center;gap:12px}
+    .reading-num{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:var(--soft);color:var(--teal);font-size:14px;font-weight:900}
+    .reading.filled .reading-num{background:var(--teal);color:#fff}
+    .reading.outlier .reading-num{background:var(--warn-bg);color:var(--warn);box-shadow:inset 0 0 0 2px #e7b54a}
+    .unit-input{position:relative}.unit-input input{width:100%;min-height:46px;padding:0 44px 0 14px;border:1px solid #c5d3d6;border-radius:9px;background:#fff;color:var(--ink);font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+    .unit-input span{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;font-weight:800;pointer-events:none}
+    .reading-density{text-align:right;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}.reading.filled .reading-density{color:var(--ink);font-weight:700}
+    .hint{margin:12px 0 0;color:var(--muted);font-size:12px}
+    .actions{padding:16px 22px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-top:1px solid var(--line);background:#fbfcfc}
+    .status{flex:1 1 220px;min-height:21px;margin:0;color:var(--muted);font-size:13px}.status.good{color:var(--success)}.status.bad{color:var(--danger)}
+    .button{min-height:44px;padding:0 17px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--teal);border-radius:9px;background:var(--teal);color:#fff;cursor:pointer;font-weight:820;text-decoration:none}.button:hover{background:#033e4a}.button:disabled{cursor:not-allowed;opacity:.52}
+    .button.secondary{border-color:#c5d3d6;background:#fff;color:var(--ink)}.button.secondary:hover{border-color:#91aeb4;background:#f7fafb}
+    .button.small{min-height:34px;padding:0 11px;font-size:13px}
+    .result-card{position:sticky;top:18px}
+    .result-top{padding:22px 22px 18px;background:linear-gradient(135deg,#064c5b,#5257b8);color:#fff}
+    .result-top .eyebrow{color:#a9d3da}
+    .result-value{display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}.result-value strong{font-size:54px;line-height:1;letter-spacing:-.04em}.result-value small{color:#cfe6ea;font-size:16px;font-weight:800}
+    .result-note{margin:8px 0 0;color:#cfe6ea;font-size:13px}
+    .steps{margin:0;padding:6px 22px 14px;list-style:none}
+    .steps li{padding:12px 0;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line)}.steps li:last-child{border-bottom:0}
+    .steps li span{color:var(--muted);font-size:14px}.steps li small{display:block;color:var(--muted);font-size:12px}.steps li strong{font-size:17px;font-variant-numeric:tabular-nums}
+    .steps li.total span{color:var(--ink);font-weight:800}.steps li.total strong{color:var(--teal)}
+    .spread{margin:0 16px 16px;padding:10px 12px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-size:13px}
+    .saved{margin:0 16px 16px;padding:12px;border-radius:10px;background:#e3f3ee;color:var(--success);font-size:14px}.saved strong{display:block}.saved .saved-actions{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}
+    details.guide{margin-top:22px}
+    details.guide summary{padding:16px 22px;cursor:pointer;font-weight:800;list-style:none;display:flex;justify-content:space-between;align-items:center}
+    details.guide summary::-webkit-details-marker{display:none}
+    details.guide summary::after{content:"+";color:var(--teal);font-size:20px;font-weight:700}details.guide[open] summary::after{content:"\2013"}
+    .guide ol{margin:0;padding:0 22px 20px 44px;color:var(--ink);font-size:14px}.guide li{margin-bottom:7px}.guide li strong{display:block}.guide li span{color:var(--muted)}
+    @media (max-width:900px){.layout{grid-template-columns:1fr}.result-card{position:static;order:-1}}
+    @media (max-width:560px){.shell{padding:20px 16px 36px}.form-grid{grid-template-columns:1fr}.reading{grid-template-columns:30px minmax(0,1fr) 84px;gap:9px}.reading-num{width:30px;height:30px}.actions .button{flex:1}}
+  
+    /* Demo Packaging app header - shared standard (see App Development/HEADER-STANDARD.md) */
+    :root{--xh-height:60px}
+    .xh{position:relative;z-index:20;background:#3b3f8f;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.18);font-family:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.2}
+    .xh-inner{height:var(--xh-height);padding:0 24px;display:flex;align-items:center;gap:16px}
+    .xh-logo{flex:none;display:block;width:auto;height:26px}
+    .xh-home{flex:none;display:flex;align-items:center;border-radius:6px;text-decoration:none;transition:opacity .15s}.xh-home:hover{opacity:.82}.xh-home:focus-visible{outline:2px solid #8fd6e1;outline-offset:5px}
+    .xh-symbol{flex:none;display:none;width:22px;height:22px}
+    .xh-divider{flex:none;width:1px;height:28px;background:rgba(255,255,255,.28)}
+    .xh-title{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .xh-title strong{overflow:hidden;color:#fff;font-size:16px;font-weight:700;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+    .xh-title span{overflow:hidden;color:#a3c9d1;font-size:11px;font-weight:700;letter-spacing:.1em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    .xh-badge{flex:none;padding:4px 7px;border:1px solid rgba(255,255,255,.3);border-radius:6px;color:#d9eef2;font:700 11px/1 ui-monospace,Consolas,monospace}
+    .xh-actions{flex:none;margin-left:auto;display:flex;align-items:center;gap:8px}
+    .xh-button{height:36px;min-height:0;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(255,255,255,.26);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;box-shadow:none;transform:none;cursor:pointer;font:inherit;font-size:13px;font-weight:700;line-height:1;list-style:none;text-decoration:none;white-space:nowrap}
+    .xh-button:hover{background:rgba(255,255,255,.16);box-shadow:none;transform:none}
+    .xh-button:focus-visible{outline:2px solid #8fd6e1;outline-offset:2px}
+    .xh-button:disabled{cursor:not-allowed;opacity:.45}
+    .xh-button[aria-pressed="true"],details[open]>summary.xh-button{border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.2)}
+    .xh-button.primary{border-color:#fff;background:#fff;color:#3b3f8f}.xh-button.primary:hover:not(:disabled){background:#dff0f3}
+    .xh-button::-webkit-details-marker{display:none}
+    .xh-button svg{flex:none;width:16px;height:16px}
+    @media(max-width:640px){:root{--xh-height:52px}.xh-inner{padding:0 14px;gap:11px}.xh-logo{height:21px}.xh-inner:has(.xh-actions) .xh-logo{display:none}.xh-inner:has(.xh-actions) .xh-symbol{display:block}.xh-divider{height:24px}.xh-title strong{font-size:15px}.xh-title span{display:none}.xh-button{height:34px;padding:0 10px;font-size:12px}}
+    @media print{.xh{display:none!important}}
+  </style>
+  <style id="demo-theme">
+    /* Demo Packaging app theme - shared tokens (see tools/README.md) */
+    :root{--x-brand:#3b3f8f;--x-brand-hover:#2d3070;--x-accent:#5257b8;--x-accent-soft:#e4f0f2;--x-ink:#132a35;--x-muted:#62757c;--x-line:#d6e0e3;--x-line-strong:#c3d2d6;--x-soft:#eef4f5;--x-paper:#fff;--x-canvas:#f3f6f7;--x-danger:#a73543;--x-success:#18705f;--x-warning:#8a5a00;--x-radius-card:14px;--x-radius-inner:11px;--x-radius-control:9px;--x-radius-small:7px;--x-shadow-card:0 1px 2px rgba(3,61,75,.05),0 6px 18px rgba(3,61,75,.06);--x-shadow-pop:0 14px 32px rgba(3,61,75,.16);--x-shadow-modal:0 24px 70px rgba(2,32,40,.3);--x-focus:0 0 0 3px rgba(13,99,114,.18);--x-font:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    body{font-family:var(--x-font)}
+    /* App mapping */
+    :root{--teal:var(--x-brand);--teal-2:var(--x-accent);--ink:var(--x-ink);--muted:var(--x-muted);--line:var(--x-line);--soft:var(--x-soft);--paper:var(--x-paper);--bg:var(--x-canvas);--danger:var(--x-danger);--success:var(--x-success);--warn:var(--x-warning);--shadow:var(--x-shadow-card)}
+    .panel{border-radius:var(--x-radius-card);box-shadow:var(--x-shadow-card)}
+    .eyebrow{color:var(--x-accent);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    .page-head h1{color:var(--x-ink);font-size:clamp(28px,3.4vw,38px);font-weight:750;line-height:1.08;letter-spacing:-.035em}
+    .panel-head h2{font-size:18px;font-weight:700;letter-spacing:-.015em}
+    .button{border-color:var(--x-brand);border-radius:var(--x-radius-control);background:var(--x-brand);color:#fff;font-weight:700}.button:hover:not(:disabled){border-color:var(--x-brand-hover);background:var(--x-brand-hover)}
+    .button.secondary{border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:#fff;color:var(--x-ink);font-weight:700}.button.secondary:hover:not(:disabled){border-color:#9fb4ba;background:var(--x-soft)}
+    .text-input,.unit-input input{border-color:var(--x-line-strong);border-radius:var(--x-radius-control)}.text-input:focus,.unit-input input:focus{border-color:var(--x-accent);box-shadow:var(--x-focus);outline:none}
+    .dropzone,.photo-preview,.spread,.saved{border-radius:var(--x-radius-inner)}
+    .combo-menu{border-color:var(--x-line);border-radius:var(--x-radius-inner);box-shadow:var(--x-shadow-pop)}
+    .result-top{background:var(--x-brand)}
+  </style>
+  <style id="density-lookup">
+    /* Saved densities lookup (header button) */
+    .xh-button svg{width:16px;height:16px}
+    dialog.lookup-sheet{width:min(1040px,calc(100vw - 32px));max-height:calc(100dvh - 40px);padding:0;overflow:hidden;border:0;border-radius:var(--x-radius-card);background:var(--x-canvas);color:var(--x-ink);box-shadow:var(--x-shadow-modal)}
+    dialog.lookup-sheet::backdrop{background:rgba(2,32,40,.55)}
+    .lookup-inner{max-height:calc(100dvh - 40px);display:flex;flex-direction:column}
+    .lookup-head{padding:18px 20px 14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid var(--x-line);background:#fff}
+    .lookup-head h2{margin:0;font-size:20px;font-weight:750;letter-spacing:-.02em}
+    .lookup-head p{margin:2px 0 0;color:var(--x-muted);font-size:13px}
+    .lookup-close{flex:none;width:40px;height:40px;display:grid;place-items:center;border:0;border-radius:50%;background:var(--x-soft);color:var(--x-brand);font-size:22px;line-height:1;cursor:pointer}
+    .lookup-filter{padding:12px 20px;display:grid;grid-template-columns:auto minmax(0,320px);align-items:center;gap:12px;border-bottom:1px solid var(--x-line);background:#fff}
+    .lookup-filter label{font-size:13px;font-weight:800}
+    .lookup-filter select{width:100%;height:44px;padding:0 36px 0 12px;border:1px solid var(--x-line-strong);border-radius:var(--x-radius-control);background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 5.5 8 10l5-4.5' fill='none' stroke='%2362757c' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 12px center/14px;color:var(--x-ink);font:inherit;font-size:16px;font-weight:650;-webkit-appearance:none;appearance:none;outline:0}
+    .lookup-filter select:focus{border-color:var(--x-accent);box-shadow:var(--x-focus)}
+    .lookup-body{overflow:auto;padding:18px 20px 24px}
+    .lookup-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+    .density-card{min-width:0;overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--x-line);border-radius:var(--x-radius-card);background:#fff;box-shadow:var(--x-shadow-card)}
+    /* The whole photo shows, never cropped: it keeps its own proportions, capped in height for very tall shots. */
+    .density-photo{min-height:180px;display:grid;place-items:center;overflow:hidden;border-bottom:1px solid var(--x-line);background:var(--x-soft);color:var(--x-muted);font-size:12px;font-weight:700}
+    .density-photo img{width:100%;height:auto;max-height:560px;display:block;object-fit:contain}
+    .density-photo svg{width:34px;height:34px;margin:0 auto 6px;display:block;opacity:.6}
+    .density-body{flex:1;padding:14px 15px 15px;display:flex;flex-direction:column;gap:4px;overflow-wrap:anywhere}
+    .density-brand{color:var(--x-accent);font-size:12px;font-weight:800;line-height:1.35;letter-spacing:.08em;text-transform:uppercase}
+    .density-name{font-size:15px;font-weight:700;line-height:1.35}
+    .density-value{margin-top:auto;padding-top:10px;display:flex;align-items:baseline;gap:6px;border-top:1px solid var(--x-soft)}
+    .density-value strong{font-size:24px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+    .density-value span{color:var(--x-muted);font-size:12px;font-weight:700}
+    .density-date{color:var(--x-muted);font-size:12px;font-weight:650}
+    .lookup-empty{grid-column:1/-1;min-height:220px;padding:30px;display:grid;place-items:center;border:1px dashed var(--x-line-strong);border-radius:var(--x-radius-card);color:var(--x-muted);text-align:center}
+    .lookup-empty strong{display:block;margin-bottom:4px;color:var(--x-ink);font-size:16px}
+    @media (max-width:640px){
+      dialog.lookup-sheet{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-radius:0}
+      .lookup-inner{height:100dvh;max-height:100dvh}
+      .lookup-head,.lookup-filter,.lookup-body{padding-left:14px;padding-right:14px}
+      .lookup-filter{grid-template-columns:1fr}
+      .lookup-grid{grid-template-columns:1fr;gap:12px}
+      .density-body{padding:11px 12px 12px}
+      .density-value strong{font-size:20px}
+    }
+  </style>
+  <style id="no-sideways-scroll">
+    /* Phones never scroll sideways. clip (unlike hidden) keeps sticky headers and inner scroll areas working. */
+    @media (max-width:760px){html,body{max-width:100%;overflow-x:clip}body{min-width:0!important}}
+  </style>
+  
+<!-- app-version:start (managed by demo_versions.py: change versions.json, not this copy) -->
+
+
+
+
+</head>
+<body>
+  <header class="xh">
+    <div class="xh-inner">
+      <a class="xh-home" href="#" title="All demo apps" aria-label="Demo Apps: all our tools"><img class="xh-logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27white%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging" width="89" height="26">
+      <img class="xh-symbol" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27white%27/%3E%3C/svg%3E" alt="Demo Packaging" width="22" height="22"></a>
+      <span class="xh-divider" aria-hidden="true"></span>
+      <div class="xh-title"><strong>Density Calculator</strong><span>Stock product check</span></div>
+      <div class="xh-actions">
+        <button id="lookupButton" class="xh-button" type="button" aria-haspopup="dialog"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>Lookup</button>
+      </div>
+    </div>
+  </header>
+
+  <dialog class="lookup-sheet" id="lookupDialog" aria-labelledby="lookupTitle">
+    <div class="lookup-inner">
+      <div class="lookup-head">
+        <div><h2 id="lookupTitle">Saved densities</h2><p id="lookupMeta">Loading…</p></div>
+        <button class="lookup-close" id="lookupClose" type="button" aria-label="Close saved densities">×</button>
+      </div>
+      <div class="lookup-filter">
+        <label for="lookupBrand">Brand</label>
+        <select id="lookupBrand"><option value="">All brands</option></select>
+      </div>
+      <div class="lookup-body"><div class="lookup-grid" id="lookupGrid"></div></div>
+    </div>
+  </dialog>
+
+  <main class="shell">
+    <div class="page-head">
+      <p class="eyebrow">Stock product check</p>
+      <h1>Density calculator</h1>
+      <p>Weigh five level, tamped density cups of product. The average weight is multiplied by 4 for the density cup, and the decimal moves one place right to give the final lbs/ft&sup3;.</p>
+    </div>
+
+    <div class="layout">
+      <form id="densityForm" class="panel" novalidate autocomplete="off">
+        <div class="panel-head"><h2>New measurement</h2><p>Saved as a new record in Density Measurements.</p></div>
+
+        <div class="section form-grid">
+          <div class="field">
+            <label class="field-label" for="brandInput">Brand <span class="req">*</span></label>
+            <div id="brandCombo" class="combo">
+              <input id="brandInput" class="text-input" type="text" maxlength="120" required role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="brandMenu" placeholder="Choose or type a brand">
+              <button id="brandToggle" class="combo-toggle" type="button" tabindex="-1" aria-label="Show saved brands"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+              <div id="brandMenu" class="combo-menu" role="listbox" aria-label="Saved brands" hidden></div>
+            </div>
+          </div>
+          <label class="field"><span>Product name <span class="req">*</span></span><input id="productInput" class="text-input" type="text" maxlength="200" required></label>
+          <div class="field photo">
+            <span>Product image</span>
+            <label id="dropzone" class="dropzone">
+              <input id="photoInput" type="file" accept="image/*" aria-label="Choose product image">
+              <span class="dropzone-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg></span>
+              <span><strong>Add a photo of the product</strong><small>Tap to take or choose a photo, or drop an image here. Optional.</small></span>
+            </label>
+            <div id="photoPreview" class="photo-preview" hidden>
+              <img id="photoThumb" alt="Selected product image">
+              <div><strong id="photoName"></strong><small id="photoMeta"></small></div>
+              <button id="photoRemove" class="button secondary small" type="button">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="readings-head"><h3>Cup weights</h3><small>Pounds only, not lb + oz</small></div>
+          <div id="readings" class="readings"></div>
+          <p class="hint">Press Enter to move to the next weight. You can paste all five weights into the first box at once.</p>
+        </div>
+
+        <div class="actions">
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+          <button id="clearButton" class="button secondary" type="button">Clear</button>
+          <button id="saveButton" class="button" type="submit">Save to Quickbase</button>
+        </div>
+      </form>
+
+      <aside class="panel result-card" aria-label="Result">
+        <div class="result-top">
+          <p class="eyebrow">Final density</p>
+          <div class="result-value"><strong id="finalValue">&ndash;</strong><small>lbs/ft&sup3;</small></div>
+          <p id="resultNote" class="result-note">Enter all five cup weights.</p>
+        </div>
+        <ol class="steps">
+          <li><span>Average of 5 weights<small id="sumNote">&nbsp;</small></span><strong id="stepAvg">&ndash;</strong></li>
+          <li><span>&times; 4<small>&frac14; ft&sup3; density cup</small></span><strong id="stepCup">&ndash;</strong></li>
+          <li class="total"><span>Move decimal one place right<small>Final lbs/ft&sup3;</small></span><strong id="stepFinal">&ndash;</strong></li>
+        </ol>
+        <div id="spreadNote" class="spread" hidden></div>
+        <div id="savedNote" class="saved" hidden>
+          <strong id="savedTitle">Saved.</strong>
+          <span id="savedDetail"></span>
+          <div class="saved-actions"><a id="savedLink" class="button small" target="_blank" rel="noopener">Open record</a><button id="newButton" class="button secondary small" type="button">Start new measurement</button></div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="guide panel">
+      <summary>How to take the measurements</summary>
+      <ol>
+        <li><strong>Gather supplies</strong><span>Straight edge, calibrated &frac14; ft&sup3; density cup, a scale set to pounds, and sample product.</span></li>
+        <li><strong>Tare the scale</strong><span>Set the empty cup on the scale and press Tare/Zero.</span></li>
+        <li><strong>Fill the cup</strong><span>Load product until it overflows, tap the base firmly to settle it, then level off the top with the straight edge.</span></li>
+        <li><strong>Weigh it</strong><span>Read the weight in pounds and enter it here.</span></li>
+        <li><strong>Repeat</strong><span>Empty the cup and repeat the fill and weigh steps until you have 5 weights.</span></li>
+        <li><strong>Review and save</strong><span>The calculator averages the weights, multiplies by 4, and moves the decimal one place right. Example: 0.25, 0.24, 0.25, 0.26, 0.24 &rarr; avg 0.248 &rarr; 0.992 &rarr; 9.92 lbs/ft&sup3;.</span></li>
+      </ol>
+    </details>
+  </main>
+
+  <script>
+    const CONFIG={
+      realm:'demo.quickbase.example',appId:'bdemoapp0',userTokenVariable:'usertoken',appTokenVariable:'q_apptoken',
+      densityTableId:'bdemodens',
+      fields:{brand:6,product:7,image:8,readings:[9,10,11,12,13],average:14},
+      // Procedure: average weight x 4 (1/4 ft^3 cup), then move the decimal one place right (x 10).
+      cupMultiplier:4,decimalShift:10,
+      // A reading this far from the average (as a fraction) is flagged for a possible re-run.
+      outlierTolerance:.1,
+      image:{maxSide:1600,quality:.85}
+    };
+    const FACTOR=CONFIG.cupMultiplier*CONFIG.decimalShift,READING_COUNT=CONFIG.fields.readings.length;
+    const IS_QUICKBASE=/\.quickbase\.example$/i.test(window.__DEMO_HOST);
+    const $=selector=>document.querySelector(selector),esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const credentials={user:'',app:'',loading:null};
+    let photo=null,saving=false,savedSignature='';
+
+    function clean(value){return String(value??'').replace(/\s+/g,' ').trim()}
+    function xml(text){return new DOMParser().parseFromString(text,'text/xml')}
+    function xmlError(doc){if(doc.querySelector('parsererror'))return'Quickbase returned malformed XML.';const code=clean(doc.querySelector('errcode')?.textContent),message=clean(doc.querySelector('errtext')?.textContent),detail=clean(doc.querySelector('errdetail')?.textContent);return code&&code!=='0'?`Quickbase Error ${code}: ${message} ${detail}`.trim():''}
+    function variableApp(){const match=location.pathname.match(/^\/(?:db|up)\/([^/?#]+)/i);return match?match[1]:CONFIG.appId}
+    async function dbVariable(name){const params=new URLSearchParams({a:'API_GetDBVar',varname:name}),response=await fetch(`https://${CONFIG.realm}/db/${encodeURIComponent(variableApp())}?${params}`,{credentials:'include'});if(!response.ok)throw new Error(`Credential request failed (${response.status}).`);const doc=xml(await response.text()),error=xmlError(doc);if(error)throw new Error(error);const value=clean(doc.querySelector('value')?.textContent);if(!value)throw new Error(`${name} is empty.`);return value}
+    async function loadCredentials(){if(credentials.user&&credentials.app)return credentials;if(!credentials.loading)credentials.loading=Promise.all([dbVariable(CONFIG.userTokenVariable),dbVariable(CONFIG.appTokenVariable)]).then(([user,app])=>Object.assign(credentials,{user,app})).catch(error=>{credentials.loading=null;throw error});return credentials.loading}
+
+    // Tokens travel in the XML body rather than the URL so they stay out of browser history and proxy logs.
+    async function qbPost(tableId,action,inner){
+      const auth=await loadCredentials();
+      const body=`<?xml version="1.0"?><qdbapi><usertoken>${esc(auth.user)}</usertoken><apptoken>${esc(auth.app)}</apptoken>${inner}</qdbapi>`;
+      const response=await fetch(`https://${CONFIG.realm}/db/${encodeURIComponent(tableId)}?a=${action}`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/xml','QUICKBASE-ACTION':action},body});
+      if(!response.ok)throw new Error(`Quickbase request failed (${response.status}).`);
+      const doc=xml(await response.text()),error=xmlError(doc);if(error)throw new Error(error);return doc
+    }
+    async function addRecord(tableId,values,file){
+      const fields=Object.entries(values).map(([fid,value])=>`<field fid="${Number(fid)}">${esc(value)}</field>`).join('')+(file?`<field fid="${Number(file.fid)}" filename="${esc(file.name)}">${file.base64}</field>`:'');
+      const doc=await qbPost(tableId,'API_AddRecord',fields);
+      const rid=clean(doc.querySelector('rid')?.textContent);if(!rid)throw new Error('Quickbase did not return a record ID.');return rid
+    }
+    async function savedBrands(){
+      const fid=CONFIG.fields.brand,doc=await qbPost(CONFIG.densityTableId,'API_DoQuery',`<query>{'${fid}'.XEX.''}</query><clist>${fid}</clist><fmt>structured</fmt>`);
+      return[...doc.querySelectorAll(`record > f[id="${fid}"]`)].map(node=>node.textContent)
+    }
+
+    // ---------- Saved densities lookup ----------
+    const LOOKUP_FIELDS={created:1,rid:3};
+    const PREVIEW_DENSITIES=[
+      {rid:'4',created:'2026-09-23',brand:'Bramble',product:'Chicken Recipe 10 lb',average:'10.24',image:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23d9c3a3'/%3E%3Cpath d='M140 60h120l20 30v150H120V90z' fill='%23033d4b'/%3E%3Crect x='150' y='120' width='100' height='60' rx='6' fill='%23fff'/%3E%3Ctext x='200' y='157' font-family='Arial' font-size='22' font-weight='700' text-anchor='middle' fill='%23033d4b'%3EBIXBI%3C/text%3E%3C/svg%3E"},
+      {rid:'3',created:'2026-09-18',brand:'Northfield',product:'Freestyle Turkey Bites',average:'14.60',image:''},
+      {rid:'2',created:'2026-09-11',brand:'Bramble',product:'Liberty Grain-Free Salmon Recipe for Large Breed Adult Dogs',average:'9.92',image:''},
+      {rid:'1',created:'2026-08-29',brand:'Trailhead Pet Co',product:'Freeze-Dried Raw Beef',average:'6.35',image:''}
+    ];
+    let densityCache=null;
+    function recordDate(value){const text=clean(value);if(!text)return null;const date=/^\d{10,}$/.test(text)?new Date(Number(text)):new Date(text.length===10?`${text}T12:00:00`:text);return Number.isNaN(date.getTime())?null:date}
+    function fieldNode(record,fid){return record.querySelector(`f[id="${fid}"]`)}
+    function fieldText(record,fid){const node=fieldNode(record,fid);return node?clean([...node.childNodes].filter(child=>child.nodeType===3).map(child=>child.textContent).join('')||node.textContent):''}
+    // File attachments come back as a file name (sometimes with a <url> child); the latest version lives at /up/<table>/a/r<rid>/e<fid>/v0.
+    function imageUrl(record,rid){const node=fieldNode(record,CONFIG.fields.image);if(!node)return'';const url=clean(node.querySelector('url')?.textContent);if(url)return url;return fieldText(record,CONFIG.fields.image)?`https://${CONFIG.realm}/up/${CONFIG.densityTableId}/a/r${encodeURIComponent(rid)}/e${CONFIG.fields.image}/v0`:''}
+    async function loadDensities(){
+      if(densityCache)return densityCache;
+      if(!IS_QUICKBASE){densityCache=PREVIEW_DENSITIES;return densityCache}
+      const F=CONFIG.fields,clist=[LOOKUP_FIELDS.created,LOOKUP_FIELDS.rid,F.brand,F.product,F.image,F.average].join('.');
+      const doc=await qbPost(CONFIG.densityTableId,'API_DoQuery',`<query>{'3'.GT.'0'}</query><clist>${clist}</clist><slist>${LOOKUP_FIELDS.created}</slist><options>sortorder-D</options><fmt>structured</fmt>`);
+      densityCache=[...doc.querySelectorAll('record')].map(record=>{const rid=fieldText(record,LOOKUP_FIELDS.rid);return{rid,created:fieldText(record,LOOKUP_FIELDS.created),brand:fieldText(record,F.brand),product:fieldText(record,F.product),average:fieldText(record,F.average),image:imageUrl(record,rid)}});
+      return densityCache;
+    }
+    const photoIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg>';
+    function densityCard(entry){
+      const date=recordDate(entry.created),average=Number(entry.average);
+      return`<article class="density-card">
+        <div class="density-photo">${entry.image?`<img src="${esc(entry.image)}" alt="${esc(`${entry.brand} ${entry.product}`)}" loading="lazy">`:`<div>${photoIcon}No photo</div>`}</div>
+        <div class="density-body">
+          <div class="density-brand">${esc(entry.brand||'No brand')}</div>
+          <div class="density-name">${esc(entry.product||'Unnamed product')}</div>
+          <div class="density-value"><strong>${Number.isFinite(average)&&entry.average!==''?average.toFixed(2):'–'}</strong><span>lbs/ft&sup3;</span></div>
+          <div class="density-date">${date?`Recorded ${date.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`:'Recording date unknown'}</div>
+        </div>
+      </article>`;
+    }
+    function renderDensities(){
+      const all=densityCache||[],brand=$('#lookupBrand').value;
+      const shown=brand?all.filter(entry=>clean(entry.brand).toLowerCase()===brand.toLowerCase()):all;
+      $('#lookupMeta').textContent=`${shown.length} ${shown.length===1?'measurement':'measurements'}${brand?` for ${brand}`:''}${IS_QUICKBASE?'':' (preview data)'}`;
+      $('#lookupGrid').innerHTML=shown.length?shown.map(densityCard).join(''):`<div class="lookup-empty"><div><strong>No saved densities${brand?` for ${esc(brand)}`:''}</strong>Save a measurement and it will appear here.</div></div>`;
+      // A photo that fails to load falls back to the placeholder instead of a broken image.
+      $('#lookupGrid').querySelectorAll('.density-photo img').forEach(img=>img.addEventListener('error',()=>{img.parentElement.innerHTML=`<div>${photoIcon}Photo unavailable</div>`},{once:true}));
+    }
+    function fillLookupBrands(){
+      const select=$('#lookupBrand'),current=select.value;
+      const brands=[...new Map((densityCache||[]).map(entry=>clean(entry.brand)).filter(Boolean).map(name=>[name.toLowerCase(),name])).values()].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base',numeric:true}));
+      select.innerHTML='<option value="">All brands</option>'+brands.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');
+      const typed=clean($('#brandInput').value).toLowerCase();
+      select.value=brands.find(name=>name.toLowerCase()===current.toLowerCase())||brands.find(name=>name.toLowerCase()===typed)||'';
+    }
+    async function openLookup(){
+      $('#lookupDialog').showModal();
+      if(!densityCache){$('#lookupMeta').textContent='Loading saved densities…';$('#lookupGrid').innerHTML=''}
+      try{await loadDensities();fillLookupBrands();renderDensities()}
+      catch(error){$('#lookupMeta').textContent='Could not load saved densities';$('#lookupGrid').innerHTML=`<div class="lookup-empty"><div><strong>Couldn’t reach Quickbase</strong>${esc(error.message||String(error))}</div></div>`}
+    }
+
+    // Brand combobox: saved brands from Density Measurements, plus any typed this session.
+    const brandCombo={values:[],active:-1,loading:false};
+    function setBrands(list){const seen=new Map();[...brandCombo.values,...list].map(clean).filter(Boolean).forEach(name=>{const key=name.toLowerCase();if(!seen.has(key))seen.set(key,name)});brandCombo.values=[...seen.values()].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base',numeric:true}))}
+    function brandMatches(){const query=clean($('#brandInput').value).toLowerCase(),exact=brandCombo.values.some(name=>name.toLowerCase()===query);return!query||exact?brandCombo.values:brandCombo.values.filter(name=>name.toLowerCase().includes(query))}
+    function highlight(name){const query=clean($('#brandInput').value),index=query?name.toLowerCase().indexOf(query.toLowerCase()):-1;return index<0?esc(name):`${esc(name.slice(0,index))}<mark>${esc(name.slice(index,index+query.length))}</mark>${esc(name.slice(index+query.length))}`}
+    function renderBrandMenu(){
+      const menu=$('#brandMenu'),matches=brandMatches(),typed=clean($('#brandInput').value);
+      brandCombo.active=Math.min(brandCombo.active,matches.length-1);
+      menu.innerHTML=brandCombo.loading&&!matches.length?'<div class="combo-empty">Loading saved brands...</div>':matches.length?matches.map((name,index)=>`<button class="combo-option${index===brandCombo.active?' active':''}" type="button" role="option" id="brandOption${index}" aria-selected="${index===brandCombo.active}" data-brand="${esc(name)}" tabindex="-1">${highlight(name)}</button>`).join(''):`<div class="combo-empty">${typed?`"${esc(typed)}" is a new brand. It will be added when you save.`:'No saved brands yet.'}</div>`;
+      $('#brandInput').setAttribute('aria-activedescendant',brandCombo.active>=0?`brandOption${brandCombo.active}`:'');
+      menu.querySelector('.combo-option.active')?.scrollIntoView({block:'nearest'});
+    }
+    function openBrandMenu(){brandCombo.active=-1;renderBrandMenu();$('#brandMenu').hidden=false;$('#brandCombo').classList.add('open');$('#brandInput').setAttribute('aria-expanded','true')}
+    function closeBrandMenu(){$('#brandMenu').hidden=true;$('#brandCombo').classList.remove('open');$('#brandInput').setAttribute('aria-expanded','false');$('#brandInput').removeAttribute('aria-activedescendant')}
+    function chooseBrand(name){const input=$('#brandInput');input.value=name;input.classList.remove('invalid');closeBrandMenu();render();$('#productInput').focus()}
+    function handleBrandKeys(event){
+      const open=!$('#brandMenu').hidden,matches=brandMatches();
+      if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();if(!open){openBrandMenu();if(event.key==='ArrowUp')brandCombo.active=matches.length-1;else brandCombo.active=0;renderBrandMenu();return}const step=event.key==='ArrowDown'?1:-1;brandCombo.active=matches.length?(brandCombo.active+step+matches.length)%matches.length:-1;renderBrandMenu()}
+      else if(event.key==='Enter'){if(open&&brandCombo.active>=0&&matches[brandCombo.active]){event.preventDefault();chooseBrand(matches[brandCombo.active])}else{event.preventDefault();closeBrandMenu();$('#productInput').focus()}}
+      else if(event.key==='Escape'&&open){event.preventDefault();closeBrandMenu()}
+    }
+    async function loadBrands(){
+      if(!IS_QUICKBASE){setBrands(['Bramble','Northfield','Trailhead Pet Co','Sunny Paws Kitchen']);return}
+      brandCombo.loading=true;if(!$('#brandMenu').hidden)renderBrandMenu();
+      try{setBrands(await savedBrands())}catch(error){console.warn('Could not load saved brands.',error)}
+      finally{brandCombo.loading=false;if(!$('#brandMenu').hidden)renderBrandMenu()}
+    }
+
+    function setStatus(message,tone=''){const node=$('#status');node.textContent=message;node.className=`status ${tone}`.trim()}
+    function round(value,places=4){return Number(Number(value).toFixed(places))}
+    function formatNumber(value,places){return Number.isFinite(value)?value.toFixed(places):'–'}
+    function parseWeight(text){const value=String(text??'').trim().replace(/,/g,'.').replace(/\s*(lbs?|#)$/i,'');if(!value)return null;if(!/^\d*\.?\d+$|^\d+\.$/.test(value))return NaN;return Number(value)}
+    function slug(value){return clean(value).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,50)}
+
+    function buildReadings(){
+      $('#readings').innerHTML=Array.from({length:READING_COUNT},(_,index)=>`<div class="reading" data-reading-row="${index}"><span class="reading-num" aria-hidden="true">${index+1}</span><div class="unit-input"><input data-reading="${index}" type="text" inputmode="decimal" enterkeyhint="${index<READING_COUNT-1?'next':'done'}" placeholder="0.00" aria-label="Cup weight ${index+1} in pounds"><span>lb</span></div><span class="reading-density" data-reading-density="${index}">&ndash;</span></div>`).join('');
+    }
+    function readingInputs(){return[...document.querySelectorAll('[data-reading]')]}
+    function readValues(){return readingInputs().map(input=>parseWeight(input.value))}
+
+    function calculate(){
+      const values=readValues(),valid=values.filter(value=>Number.isFinite(value)&&value>0),complete=valid.length===READING_COUNT;
+      const average=valid.length?valid.reduce((sum,value)=>sum+value,0)/valid.length:NaN,cup=average*CONFIG.cupMultiplier,final=cup*CONFIG.decimalShift;
+      return{values,valid,complete,average,cup,final}
+    }
+
+    function render(){
+      const result=calculate(),outliers=[];
+      readingInputs().forEach((input,index)=>{
+        const value=result.values[index],row=input.closest('[data-reading-row]'),good=Number.isFinite(value)&&value>0,bad=value!==null&&!good;
+        const outlier=good&&result.complete&&Math.abs(value-result.average)>result.average*CONFIG.outlierTolerance;
+        if(outlier)outliers.push(index+1);
+        row.classList.toggle('filled',good);row.classList.toggle('outlier',outlier);input.parentElement.classList.toggle('invalid',bad);
+        document.querySelector(`[data-reading-density="${index}"]`).innerHTML=good?`${formatNumber(value*FACTOR,2)} lbs/ft&sup3;`:bad?'Invalid':'&ndash;';
+      });
+      const show=result.valid.length>0;
+      $('#stepAvg').textContent=show?formatNumber(result.average,3):'–';
+      $('#stepCup').textContent=show?formatNumber(result.cup,3):'–';
+      $('#stepFinal').textContent=show?formatNumber(result.final,2):'–';
+      $('#finalValue').textContent=result.complete?formatNumber(result.final,2):'–';
+      $('#sumNote').textContent=show?`${result.valid.length} of ${READING_COUNT} entered`:' ';
+      $('#resultNote').textContent=result.complete?`From an average cup weight of ${formatNumber(result.average,3)} lb.`:show?`Preview from ${result.valid.length} of ${READING_COUNT} weights. Enter all five to save.`:'Enter all five cup weights.';
+      const spread=$('#spreadNote');
+      if(outliers.length){spread.hidden=false;spread.textContent=`Weight${outliers.length>1?'s':''} ${outliers.join(', ')} ${outliers.length>1?'are':'is'} more than ${Math.round(CONFIG.outlierTolerance*100)}% from the average. Check the tamp and level, and consider re-running ${outliers.length>1?'them':'it'}.`}else spread.hidden=true;
+      if(savedSignature&&savedSignature!==signature())$('#savedNote').hidden=true;
+    }
+
+    function signature(){return JSON.stringify([clean($('#brandInput').value),clean($('#productInput').value),readingInputs().map(input=>input.value.trim()),photo?.name||''])}
+    function isDirty(){return!!(clean($('#brandInput').value)||clean($('#productInput').value)||photo||readingInputs().some(input=>input.value.trim()))&&signature()!==savedSignature}
+
+    function loadImage(file){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),image=new Image();image.onload=()=>{URL.revokeObjectURL(url);resolve(image)};image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error(`Could not read ${file.name}.`))};image.src=url})}
+    async function preparePhoto(file){
+      if(!file)return;
+      if(!/^image\//.test(file.type)){setStatus('Choose an image file for the product photo.','bad');return}
+      setStatus('Preparing photo...');
+      try{
+        const image=await loadImage(file),scale=Math.min(1,CONFIG.image.maxSide/Math.max(image.naturalWidth,image.naturalHeight)),canvas=document.createElement('canvas');
+        canvas.width=Math.round(image.naturalWidth*scale);canvas.height=Math.round(image.naturalHeight*scale);
+        const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);
+        const dataUrl=canvas.toDataURL('image/jpeg',CONFIG.image.quality),base64=dataUrl.split(',')[1],bytes=Math.round(base64.length*.75);
+        photo={name:file.name,dataUrl,base64,width:canvas.width,height:canvas.height,bytes};
+        $('#photoThumb').src=dataUrl;$('#photoName').textContent=file.name;$('#photoMeta').textContent=`${canvas.width} × ${canvas.height} JPEG · ${Math.max(1,Math.round(bytes/1024))} KB`;
+        $('#dropzone').hidden=true;$('#photoPreview').hidden=false;setStatus('Photo ready.','good');render();
+      }catch(error){setStatus(error.message,'bad')}
+      finally{$('#photoInput').value=''}
+    }
+    function removePhoto(){photo=null;$('#photoThumb').removeAttribute('src');$('#photoPreview').hidden=true;$('#dropzone').hidden=false;render()}
+
+    function validate(){
+      const problems=[],brand=clean($('#brandInput').value),product=clean($('#productInput').value),result=calculate();
+      $('#brandInput').classList.toggle('invalid',!brand);$('#productInput').classList.toggle('invalid',!product);
+      if(!brand)problems.push('brand');if(!product)problems.push('product name');
+      if(!result.complete)problems.push(`${READING_COUNT-result.valid.length} more valid cup weight${READING_COUNT-result.valid.length===1?'':'s'}`);
+      if(problems.length){
+        setStatus(`Add the ${problems.join(', ').replace(/, ([^,]*)$/,' and $1')} before saving.`,'bad');
+        const first=!brand?$('#brandInput'):!product?$('#productInput'):readingInputs().find((input,index)=>!(result.values[index]>0));first?.focus();return null
+      }
+      return{brand,product,result}
+    }
+
+    async function save(event){
+      event.preventDefault();
+      if(saving)return;
+      const data=validate();if(!data)return;
+      const{brand,product,result}=data,F=CONFIG.fields;
+      // Each reading is stored as its own lbs/ft^3 value so Average Density is the mean of Density 1-5.
+      const values={[F.brand]:brand,[F.product]:product,[F.average]:round(result.final)};
+      result.values.forEach((value,index)=>{values[F.readings[index]]=round(value*FACTOR)});
+      const file=photo?{fid:F.image,name:`${slug(brand)||'brand'}-${slug(product)||'product'}-density.jpg`,base64:photo.base64}:null;
+      saving=true;$('#saveButton').disabled=true;$('#saveButton').textContent='Saving...';setStatus(photo?'Saving measurement and photo to Quickbase...':'Saving measurement to Quickbase...');
+      try{
+        let rid;
+        if(IS_QUICKBASE)rid=await addRecord(CONFIG.densityTableId,values,file);
+        else{await new Promise(resolve=>setTimeout(resolve,500));rid='PREVIEW';console.info('Local preview: Quickbase save skipped.',{table:CONFIG.densityTableId,values,file:file&&{...file,base64:`${file.base64.length} chars`}})}
+        savedSignature=signature();setBrands([brand]);densityCache=null;
+        $('#savedTitle').textContent=IS_QUICKBASE?`Saved as record ${rid}.`:'Preview only, nothing was saved.';
+        $('#savedDetail').textContent=`${brand} ${product}: ${formatNumber(result.final,2)} lbs/ft³`;
+        const link=$('#savedLink');link.hidden=!IS_QUICKBASE;if(IS_QUICKBASE)link.href=`https://${CONFIG.realm}/db/${CONFIG.densityTableId}?a=dr&rid=${encodeURIComponent(rid)}`;
+        $('#savedNote').hidden=false;
+        setStatus(IS_QUICKBASE?`Saved record ${rid} to Density Measurements.`:'Local preview: the record was not sent to Quickbase.','good');
+      }catch(error){setStatus(error.message||String(error),'bad')}
+      finally{saving=false;$('#saveButton').disabled=false;$('#saveButton').textContent='Save to Quickbase'}
+    }
+
+    function resetForm(focus=true){
+      $('#densityForm').reset();readingInputs().forEach(input=>{input.value=''});removePhoto();savedSignature='';
+      document.querySelectorAll('.invalid').forEach(node=>node.classList.remove('invalid'));
+      $('#savedNote').hidden=true;setStatus('');render();if(focus)$('#brandInput').focus();
+    }
+
+    function handleReadingKeys(event){
+      const input=event.target.closest('[data-reading]');if(!input||event.key!=='Enter')return;
+      event.preventDefault();const next=readingInputs()[Number(input.dataset.reading)+1];
+      if(next)next.focus();else $('#saveButton').focus();
+    }
+    function handleReadingPaste(event){
+      const input=event.target.closest('[data-reading]');if(!input)return;
+      const parts=(event.clipboardData?.getData('text')||'').split(/[\s,;]+/).map(part=>part.trim()).filter(Boolean);
+      if(parts.length<2)return;
+      event.preventDefault();const inputs=readingInputs(),start=Number(input.dataset.reading);
+      parts.slice(0,inputs.length-start).forEach((part,offset)=>{inputs[start+offset].value=part});
+      inputs[Math.min(inputs.length-1,start+parts.length-1)].focus();render();
+    }
+
+    async function connect(){
+      if(!IS_QUICKBASE)return;
+      try{await loadCredentials()}catch(error){setStatus(`Could not load Quickbase credentials: ${error.message}`,'bad')}
+    }
+
+    buildReadings();
+    $('#readings').addEventListener('input',render);
+    $('#readings').addEventListener('keydown',handleReadingKeys);
+    $('#readings').addEventListener('paste',handleReadingPaste);
+    ['#brandInput','#productInput'].forEach(selector=>$(selector).addEventListener('input',event=>{event.target.classList.remove('invalid');render()}));
+    $('#brandInput').addEventListener('input',openBrandMenu);
+    $('#brandInput').addEventListener('focus',openBrandMenu);
+    $('#brandInput').addEventListener('click',()=>{if($('#brandMenu').hidden)openBrandMenu()});
+    $('#brandInput').addEventListener('keydown',handleBrandKeys);
+    $('#brandInput').addEventListener('blur',()=>setTimeout(()=>{if(!$('#brandCombo').contains(document.activeElement))closeBrandMenu()},0));
+    $('#brandToggle').addEventListener('mousedown',event=>{event.preventDefault();if($('#brandMenu').hidden){$('#brandInput').focus();openBrandMenu()}else closeBrandMenu()});
+    $('#brandMenu').addEventListener('mousedown',event=>{event.preventDefault();const option=event.target.closest('[data-brand]');if(option)chooseBrand(option.dataset.brand)});
+    $('#photoInput').addEventListener('change',event=>preparePhoto(event.target.files?.[0]));
+    $('#photoRemove').addEventListener('click',removePhoto);
+    const dropzone=$('#dropzone');
+    ['dragenter','dragover'].forEach(type=>dropzone.addEventListener(type,event=>{event.preventDefault();dropzone.classList.add('drag')}));
+    ['dragleave','drop'].forEach(type=>dropzone.addEventListener(type,()=>dropzone.classList.remove('drag')));
+    dropzone.addEventListener('drop',event=>{event.preventDefault();preparePhoto(event.dataTransfer?.files?.[0])});
+    $('#densityForm').addEventListener('submit',save);
+    $('#clearButton').addEventListener('click',()=>{if(!isDirty()||confirm('Clear this measurement?'))resetForm()});
+    $('#newButton').addEventListener('click',()=>resetForm());
+    window.addEventListener('beforeunload',event=>{if(isDirty()){event.preventDefault();event.returnValue=''}});
+    render();
+    connect().then(loadBrands);
+    $('#lookupButton').addEventListener('click',openLookup);
+    $('#lookupClose').addEventListener('click',()=>$('#lookupDialog').close());
+    $('#lookupDialog').addEventListener('click',event=>{if(event.target===$('#lookupDialog'))$('#lookupDialog').close()});
+    $('#lookupBrand').addEventListener('change',renderDensities);
+  </script>
+<!-- demo-launcher:start (managed by demo_launcher.py: edit demo_launcher_snippet.html, not this copy) -->
+
+
+
+</body>
+</html>

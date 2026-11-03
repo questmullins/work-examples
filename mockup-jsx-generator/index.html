@@ -1,0 +1,423 @@
+<!doctype html><html lang="en"><head>
+<script id="demo-backend">
+/* Demo backend. Answers this page's Quickbase calls in the browser from made-up records, so the tool runs with no
+   server and no account. Every company, product, person and address here is fictional. Changes last until reload. */
+(function () {
+  var HOST = 'demo.quickbase.example';
+  window.__DEMO_HOST = HOST;
+
+  var BRANDS = [
+    {customer: 'Trailhead Pet Co', code: 'TH', prefix: '00011'},
+    {customer: 'Northfield Pet Foods', code: 'NF', prefix: '00012'},
+    {customer: 'Sunny Paws Kitchen', code: 'SP', prefix: '00013'},
+    {customer: 'Bramble & Bone', code: 'BB', prefix: '00014'},
+    {customer: 'Copper Creek Provisions', code: 'CC', prefix: '00015'},
+    {customer: 'Little Harbor Treats', code: 'LH', prefix: '00016'},
+    {customer: 'Meadowlark Mills', code: 'MM', prefix: '00017'},
+    {customer: 'Oak & Ember Foods', code: 'OE', prefix: '00018'},
+    {customer: 'Tidewater Snacks', code: 'TW', prefix: '00019'},
+    {customer: 'Pine Ridge Grains', code: 'PR', prefix: '00020'}
+  ];
+  // Every shape here has a template in the mockup tool.
+  var SHAPES = [
+    {format: 'Quad Seal Bag', style: 'Flat Bottom', gusset: 'Terminated Gusset', sizes: [[7, 11.5, 3.5, '12 oz'], [8.5, 14, 4, '2 lb'], [10, 16, 4.5, '4 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Non-Terminated Gusset', sizes: [[11.5, 18.25, 4.125, '10 lb'], [13, 22, 5, '15 lb'], [15.75, 26.5, 4.5, '25 lb']]},
+    {format: 'Quad Seal Bag', style: 'Pinched Bottom', gusset: 'Terminated Gusset', sizes: [[8, 13, 4, '3.5 lb'], [9.5, 15, 4, '5 lb'], [12, 20, 4.5, '12 lb']]},
+    {format: 'Stand-Up Pouch', style: 'Angle Plow', gusset: '', sizes: [[5, 7.75, 2.5, '5 oz'], [6, 9, 3, '8 oz'], [7.25, 11, 3.5, '1 lb']]},
+    {format: 'Stand-Up Pouch', style: 'K-Seal', gusset: '', sizes: [[7, 10, 3.25, '10 oz'], [6, 8.5, 2.75, '6 oz'], [8, 12, 3.5, '1.5 lb']]}
+  ];
+  var RECIPES = ['Grain-Free Salmon Kibble', 'Turkey Training Bites', 'Pumpkin Berry Minis', 'Chicken Recipe Kibble', 'Freeze-Dried Beef Morsels', 'Duck & Sweet Potato Bites', 'Lamb & Rice Dinner', 'Peanut Butter Crunch', 'Ancient Grain Granola', 'Sea Salt Veggie Crisps', 'Dark Roast Coffee', 'Honey Oat Clusters'];
+  var LAYERS = ['MATTE / PET / FOIL / LLDPE', 'MATTE / PET / MET PET / LLDPE', 'GLOSS / PET / MET PET / LLDPE', 'SOFT TOUCH / PET / FOIL / LLDPE', 'SOFT TOUCH / PET / MET PET / LLDPE', 'MATTE / PET / PET / LLDPE', 'GLOSS / PET / EVOH / LLDPE', 'MATTE / PE / EVOH / PE', 'GLOSS / KRAFT / MET PET / LLDPE', 'SOFT TOUCH / PET / ALOX / LLDPE'];
+  var COLORS = ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'PMS 186 C', 'PMS 2728 C', 'PMS 349 C', 'PMS 7406 C', 'PMS 485 C', 'PMS 2607 C', 'PMS 7421 C'];
+  var PEOPLE = ['Demo Designer', 'Alex Morgan', 'Jordan Lee', 'Priya Nair', 'Casey Tran', 'Riley Brooks'];
+  var ZIPPERS = ['Small Zipper', 'No Zipper', 'Small Zipper', 'Pocket Zipper'];
+  var PRODUCTS = [];
+  BRANDS.forEach(function (brand, b) {
+    for (var i = 0; i < 6; i++) {
+      var shape = SHAPES[(b + i) % SHAPES.length], size = shape.sizes[(b + i * 2) % 3];
+      PRODUCTS.push({b: b, name: RECIPES[(b * 2 + i) % RECIPES.length], weight: size[3], format: shape.format, style: shape.style, gusset: shape.gusset, w: size[0], h: size[1], g: size[2], layers: LAYERS[(b + i * 3) % LAYERS.length]});
+    }
+  });
+  var ADDRESSES = [
+    ['100 Example Way', 'Dock 2', 'Springfield', 'IL', '62704'],
+    ['250 Sample Road', '', 'Riverton', 'WY', '82501'],
+    ['17 Placeholder Ave', 'Suite 300', 'Fairview', 'TN', '37062'],
+    ['900 Demo Parkway', '', 'Madison', 'WI', '53703'],
+    ['44 Mockup Lane', 'Building B', 'Georgetown', 'TX', '78626'],
+    ['312 Fictional Blvd', '', 'Salem', 'OR', '97301'],
+    ['8 Test Harbor Rd', 'Unit 12', 'Clinton', 'IA', '52732'],
+    ['1200 Sample Mill Dr', '', 'Franklin', 'KY', '42134'],
+    ['75 Placeholder Pier', 'Dock 9', 'Bristol', 'RI', '02809'],
+    ['560 Example Ridge', '', 'Greenville', 'SC', '29601']
+  ];
+  function day(offset) { var d = new Date(Date.UTC(2026, 8, 20) - offset * 864e5); return d.toISOString().slice(0, 10); }
+  function pick(list, i) { return list[i % list.length]; }
+  function colorBank(row, start, n) { for (var c = 0; c < 10; c++) row[start + c] = c < 4 ? COLORS[c] : c < 4 + (n % 4) ? COLORS[4 + (n + c) % 8] : ''; }
+  function ms(offset) { return String(Date.UTC(2026, 8, 20) - offset * 864e5); }
+
+  var tables = {
+    bdemocust: [], bdemoopps: [], bdemofami: [], bdemospec: [], bdemostyl: [], bdemoaddr: [], bdemoship: [],
+    bdemoprod: [], bdemoordr: [], bdemoitem: [], bdemoartv: [], bdemomock: [], bdemorevw: [], bdemodens: [],
+    bdemofont: [], bdemolayr: [], bdemofill: [], bdemolist: [], bdemotask: [], bdemotime: [], bdemosrvc: []
+  };
+  var labels = {
+    bdemoprod: {name: 'Products', 2209: 'Filing #', 3: 'Record ID#', 12: 'Item Name', 13: 'Legacy Item Name', 14: 'Legacy UPC', 128: 'Art Versions', 132: 'UPC', 136: 'Art Version Count', 141: 'Brand', 353: 'Current Vendor Proof', 604: 'Approved Color Standard', 662: 'Current Customer Proof'},
+    bdemoitem: {name: 'Order Items', 1: 'Date Created', 3: 'Record ID#', 7: 'Customer', 13: 'UPC', 14: 'Item', 161: 'Weight', 184: 'PO', 329: 'Artwork Link', 382: 'Brand', 506: 'Family', 710: 'Layers', 711: 'Dimensions', 2122: 'Format', 2243: 'Style'},
+    bdemoartv: {name: 'Art Versions', 3: 'Record ID#', 11: 'Version Date', 12: 'Art Type', 37: 'Related Item', 61: 'Art REV', 152: 'Version', 361: 'Vendor Proof', 583: 'Inactive Art', 588: 'Customer Proof'},
+    bdemocust: {name: 'Customers', 3: 'Record ID#', 6: 'Customer Name', 125: 'Inactive'},
+    bdemoordr: {name: 'Orders', 3: 'Record ID#', 18: 'Customer PO'},
+    bdemofami: {name: 'Families', 3: 'Record ID#', 6: 'Family', 31: 'Current Spec'},
+    bdemospec: {name: 'Family Specifications', 3: 'Record ID#', 15: 'Format', 14: 'Style', 151: 'Layers'},
+    bdemomock: {name: 'Mock-Ups', 3: 'Record ID#', 9: 'Format', 10: 'Style', 39: 'Product Name'},
+    bdemolist: {name: 'Art Checklists', 3: 'Record ID#', 13: 'Description', 18: 'Brand'},
+    bdemotask: {name: 'Checklist Tasks', 3: 'Record ID#', 27: 'Department', 28: 'Description'},
+    bdemofill: {name: 'Fill Recordings', 3: 'Record ID#', 12: 'Format', 13: 'Style'},
+    bdemodens: {name: 'Product Densities', 3: 'Record ID#', 6: 'Brand', 7: 'Product', 14: 'Average'},
+    bdemofont: {name: 'System Fonts', 3: 'Record ID#', 6: 'Font Name', 7: 'Font File'}
+  };
+
+  BRANDS.forEach(function (b, i) {
+    var rid = String(i + 1), a = ADDRESSES[i];
+    tables.bdemocust.push({3: rid, 6: b.customer, 125: '0'});
+    ['new pouch line', 'holiday pack', 'club size relaunch'].forEach(function (name, k) {
+      tables.bdemoopps.push({3: String(100 + i * 3 + k), 6: rid, 8: b.customer + ' ' + name, 23: k === 2 ? '1' : '0', 24: k === 2 ? 'Closed' : 'Open'});
+    });
+    tables.bdemoaddr.push({3: String(200 + i), 6: 'Main warehouse', 7: a[0], 8: a[1], 13: rid, 18: '1', 23: a[2], 24: a[3], 25: a[4]});
+    tables.bdemoaddr.push({3: String(250 + i), 6: 'Co-packer', 7: pick(ADDRESSES, i + 3)[0], 8: '', 13: rid, 18: '0', 23: pick(ADDRESSES, i + 3)[2], 24: pick(ADDRESSES, i + 3)[3], 25: pick(ADDRESSES, i + 3)[4]});
+    tables.bdemoship.push({3: String(300 + i), 8: a[0], 9: a[1], 10: a[2], 11: a[3], 12: a[4], 13: 'United States', 16: b.customer});
+  });
+  SHAPES.forEach(function (shape, s) {
+    shape.sizes.forEach(function (size, k) {
+      for (var r = 0; r < 4; r++) {
+        var area = size[0] * size[1], fill = 68 + (s * 3 + k * 5 + r * 4) % 24;
+        tables.bdemofill.push({3: String(400 + s * 12 + k * 4 + r), 1: ms(s * 30 + k * 11 + r * 17), 6: String(+(2 + r * 1.5 + k).toFixed(1)), 7: String(+(0.5 + k * 2 + r).toFixed(1)), 8: String(size[1]), 9: String(size[0]), 10: String(size[2]), 11: pick(BRANDS, s + r).prefix + '00' + (101 + s + r), 12: shape.format, 13: shape.style, 14: shape.gusset, 15: pick(ZIPPERS, k + r), 16: String(+area.toFixed(1)), 17: String(fill), 18: String(Math.round(area * size[2] * fill / 100))});
+      }
+    });
+  });
+  [['Quad Seal Bag', 'Flat Bottom'], ['Quad Seal Bag', 'Pinched Bottom'], ['Stand-Up Pouch', 'K-Seal'], ['Stand-Up Pouch', 'Doyen'], ['Three Side Seal', 'Flat Pouch']].forEach(function (s, i) {
+    tables.bdemostyl.push({3: String(i + 1), 6: s[1], 7: s[0]});
+  });
+
+  PRODUCTS.forEach(function (p, i) {
+    var b = BRANDS[p.b], n = i + 1, upc = b.prefix + '00' + (100 + n), rid = String(100 + n), title = b.customer + ' ' + p.name + ' ' + p.weight;
+    var dims = p.w + ' x ' + p.h + ' x ' + p.g, combo = [p.format, p.style, p.gusset].join(' / '), family = b.code + '-' + String(p.w * 100) + '-' + n;
+    var po = String(21000 + n), order = String(500 + n), art = 'https://files.demo-packaging.example/f/' + b.code + n;
+    var spec = String(300 + n), fam = String(200 + n);
+    tables.bdemospec.push({3: spec, 6: fam, 12: 'v1', 14: p.style, 15: p.format, 43: p.gusset, 53: String(p.w), 54: String(p.h), 55: String(p.g), 56: String(p.w * 25.4), 57: String(p.h * 25.4), 58: String(p.g * 25.4), 65: 'in', 146: 'Zipper', 149: '1.5', 151: p.layers, 154: dims, 155: p.format + ' / ' + p.style, 428: '1.5', 1543: 'Current'});
+    tables.bdemofami.push({3: fam, 6: family, 9: String(p.b + 1), 31: spec, 76: b.customer + ' ' + family, 144: '0'});
+    tables.bdemoprod.push({3: rid, 12: title, 13: title, 14: upc, 128: '2', 132: upc, 136: '2', 141: b.customer, 225: '', 2209: 'Shelf ' + n, 353: 'Rev ' + n, 539: 'Match the approved pantone swatch.', 604: 'On file', 662: 'Rev ' + n});
+    // The first order of each product keeps PO 21000 + n; some products reorder under later POs.
+    for (var o = 0; o < 1 + i % 3; o++) {
+      var line = String(1000 + n * 10 + o), orderId = String(+order + o * 100), thisPo = String(+po + o * 1000), age = i * 8 + o * 120, approved = (i + o) % 3 > 0;
+      tables.bdemoordr.push({3: orderId, 18: thisPo});
+      tables.bdemoitem.push({1: ms(age), 2: ms(age / 2), 3: line, 6: orderId, 7: b.customer, 8: orderId, 13: upc, 14: title, 151: rid, 161: p.weight, 162: title, 163: o ? 'Reorder' : 'New', 184: thisPo, 262: day(age), 265: '0' + (o + 1) + '.26', 329: art, 382: b.customer, 417: approved ? '1' : '0', 419: approved ? day(age / 2) : '', 420: 'Press sheet ' + thisPo, 506: family, 573: o ? 'Revised' : 'New', 710: p.layers, 711: dims, 712: combo, 794: 'Zipper at 1.5"', 2122: p.format, 2209: 'Shelf ' + n, 2243: p.style, 2331: String(p.w), 2332: String(p.h), 2333: String(p.g), 2412: '0', 2519: '0', 2693: '', 2694: '', 2695: '0', 2696: ''});
+      tables.bdemorevw.push({3: String(5000 + n * 10 + o), 7: '', 8: '', 10: '', 16: '', 17: '', 19: '', 31: '', 34: '', 35: line, 41: p.format, 42: p.style, 44: dims, 54: '0', 63: '0', 67: combo});
+    }
+    [0, 1, 2].slice(0, 2 + i % 2).forEach(function (v, index, all) {
+      var artRow = {3: String(2000 + n * 4 + v), 10: title, 11: day(i * 8 + v * 95), 12: v === all.length - 1 ? 'New' : 'Revised', 18: 'Art REV', 37: rid, 40: title, 58: upc, 59: title, 61: '0' + (all.length - v) + '.26', 84: b.customer, 127: fam, 152: String(all.length - v), 205: v ? '0' : '1', 330: b.customer, 361: art + '-vendor.pdf', 376: p.weight, 481: String(parseFloat(p.weight)), 522: dims, 523: combo, 524: 'Tear notch', 525: p.layers, 526: 'Zipper, tear notch', 583: v ? '1' : '0', 588: art + '-customer.pdf', 624: upc};
+      colorBank(artRow, 191, n); colorBank(artRow, 571, n + 1); colorBank(artRow, 589, n + 2);
+      tables.bdemoartv.push(artRow);
+    });
+    tables.bdemomock.push({1: ms(i * 7), 3: String(1500 + n), 6: 'Opportunity ' + n, 7: p.format, 9: p.format, 10: p.style, 11: p.style, 12: String(p.w), 13: String(p.h), 14: String(p.g), 15: p.weight, 16: '1', 18: '3', 19: 'Demo mockup request.', 22: day(-7), 26: pick(ZIPPERS, i), 27: 'PET12/LLDPE100', 33: p.gusset, 35: String(p.b + 1), 36: b.customer, 39: p.name, 40: '1.5', 49: 'Mockup', 51: 'Opportunity ' + n, 53: p.format, 54: p.style, 56: p.gusset, 57: String(p.w), 58: String(p.h), 59: String(p.g), 62: pick(ZIPPERS, i), 63: '1.5', 74: ADDRESSES[p.b][0], 75: ADDRESSES[p.b][1], 76: ADDRESSES[p.b][2], 77: ADDRESSES[p.b][3], 78: ADDRESSES[p.b][4], 79: 'United States'});
+    var cups = [0, 1, 2, 3, 4].map(function (c) { return (2.1 + (n % 7) * 0.12 + ((n + c * 3) % 5) * 0.02).toFixed(2); });
+    tables.bdemodens.push({3: String(i + 1), 1: ms(i * 5), 6: b.customer, 7: p.name, 8: '', 9: cups[0], 10: cups[1], 11: cups[2], 12: cups[3], 13: cups[4], 14: (cups.reduce(function (s, v) { return s + +v; }, 0) / 5).toFixed(2)});
+  });
+
+  ['Demo Sans Regular', 'Demo Sans Medium', 'Demo Sans Bold', 'Demo Serif Regular', 'Demo Serif Italic', 'Demo Mono', 'Demo Condensed'].forEach(function (name, i) { tables.bdemofont.push({3: String(i + 1), 6: name, 7: ''}); });
+  LAYERS.forEach(function (name, i) { tables.bdemolayr.push({3: String(i + 1), 6: name, 7: String(40 - i * 3)}); });
+  PRODUCTS.slice(0, 12).forEach(function (p, i) {
+    var lid = String(3000 + i), b = BRANDS[p.b], done = i % 5;
+    tables.bdemolist.push({3: lid, 10: String(501 + i), 13: 'Art checklist: ' + p.name, 14: '0', 16: '0', 17: String(p.b + 1), 18: b.customer, 19: String(21001 + i), 21: '4', 25: pick(PEOPLE, i), 29: String(1 + i % 4 * 0.5), 30: String(4 - Math.min(done, 4))});
+    ['Prepress', 'Proofreading', 'PC', 'Engineering'].forEach(function (dept, t) {
+      tables.bdemotask.push({3: String(3100 + i * 10 + t), 12: lid, 14: '0', 15: '', 16: t < done ? '1' : '0', 18: String(t + 1), 26: 'General', 27: dept, 28: dept + ' review of ' + p.name, 29: '', 32: String(t + 1), 34: '0'});
+    });
+  });
+  [['Prepress', 'Production Art'], ['Prepress', 'Proof Review'], ['Project Coordination', 'Scheduling'], ['Engineering', 'Dieline Review']].forEach(function (s, i) { tables.bdemosrvc.push({3: String(i + 1), 6: s[0], 7: s[1]}); });
+
+  var ids = {};
+  function nextRid(table) { ids[table] = ids[table] || Object.keys(tables[table] || {}).length + 90000; return String(++ids[table]); }
+  function rows(table) { return tables[table] || (tables[table] = []); }
+  function xmlEsc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+
+  // Quickbase query language: {fid.OP.'value'} joined by AND / OR, with parentheses.
+  function when(value) { return /^\d{10,}$/.test(value) ? +value : Date.parse(value) || 0; }
+  function test(row, fid, op, want) {
+    var have = String(row[fid] == null ? '' : row[fid]), h = have.toLowerCase(), w = String(want).toLowerCase(), n = parseFloat(have), m = parseFloat(want);
+    switch (op) {
+      case 'EX': case 'TV': return h === w;
+      case 'XEX': case 'XTV': return h !== w;
+      case 'CT': case 'HAS': return h.indexOf(w) >= 0;
+      case 'XCT': return h.indexOf(w) < 0;
+      case 'SW': return h.indexOf(w) === 0;
+      case 'XSW': return h.indexOf(w) !== 0;
+      case 'OAF': case 'AF': return when(have) >= when(want);
+      case 'OBF': case 'BF': return when(have) <= when(want);
+      case 'GT': return isNaN(n) ? have > want : n > m;
+      case 'GTE': return n >= m;
+      case 'LT': return isNaN(n) ? have < want : n < m;
+      case 'LTE': return n <= m;
+      default: return true;
+    }
+  }
+  function tokenize(q) {
+    var out = [], re = /\{\s*'?(\d+)'?\s*\.\s*([A-Z]+)\s*\.\s*'((?:\\.|[^'])*)'\s*\}|\(|\)|AND|OR/gi, m;
+    while ((m = re.exec(q))) out.push(m[1] ? {fid: m[1], op: m[2].toUpperCase(), value: m[3].replace(/\\(.)/g, '$1')} : m[0].toUpperCase());
+    return out;
+  }
+  function matcher(q) {
+    var t = tokenize(q || ''), i = 0;
+    if (!t.length) return function () { return true; };
+    function atom(row) {
+      var k = t[i++];
+      if (k === '(') { var v = or(row); i++; return v; }
+      return !k || !k.fid || test(row, k.fid, k.op, k.value);
+    }
+    function and(row) { var v = atom(row); while (t[i] === 'AND') { i++; var r = atom(row); v = v && r; } return v; }
+    function or(row) { var v = and(row); while (t[i] === 'OR') { i++; var r = and(row); v = v || r; } return v; }
+    return function (row) { i = 0; return or(row); };
+  }
+  function select(table, q, slist, options) {
+    var list = rows(table).filter(matcher(q)), opt = String(options || ''), sort = String(slist || '').split('.').filter(Boolean)[0];
+    if (sort) {
+      var desc = /sortorder-D/.test(opt);
+      list = list.slice().sort(function (a, b) { var x = a[sort], y = b[sort], nx = parseFloat(x), ny = parseFloat(y), c = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x || '').localeCompare(String(y || '')); return desc ? -c : c; });
+    }
+    var skip = /skp-(\d+)/.exec(opt), num = /num-(\d+)/.exec(opt);
+    if (skip) list = list.slice(+skip[1]);
+    if (num) list = list.slice(0, +num[1]);
+    return list;
+  }
+  function ok(body) { return '<?xml version="1.0"?><qdbapi><action>demo</action><errcode>0</errcode><errtext>No error</errtext>' + (body || '') + '</qdbapi>'; }
+  function labelOf(table, fid) { return (labels[table] && labels[table][fid]) || 'Field ' + fid; }
+  function fidsOf(table) { var seen = {}; rows(table).forEach(function (r) { Object.keys(r).forEach(function (k) { seen[k] = 1; }); }); Object.keys(labels[table] || {}).forEach(function (k) { if (k !== 'name') seen[k] = 1; }); return Object.keys(seen).sort(function (a, b) { return a - b; }); }
+  function doQuery(table, p) {
+    var list = select(table, p.query, p.slist, p.options), clist = String(p.clist || '').split('.').filter(function (x) { return /^\d+$/.test(x); });
+    if (!clist.length) clist = fidsOf(table);
+    var fields = clist.map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    var body = list.map(function (r) {
+      return '<record rid="' + xmlEsc(r[3]) + '">' + clist.map(function (f) { return '<f id="' + f + '">' + xmlEsc(r[f]) + '</f>'; }).join('') + '<update_id>1</update_id></record>';
+    }).join('');
+    return ok('<table><fields>' + fields + '</fields><records>' + body + '</records></table>');
+  }
+  function schema(table) {
+    if (!tables[table]) {
+      var kids = Object.keys(labels).map(function (t) { return '<chdbid name="_dbid_' + xmlEsc(labels[t].name.toLowerCase().replace(/\W+/g, '_')) + '">' + t + '</chdbid>'; }).join('');
+      return ok('<table><name>Demo Packaging</name><original><app_id>' + table + '</app_id></original><chdbids>' + kids + '</chdbids><fields></fields></table>');
+    }
+    var fields = fidsOf(table).map(function (f) { return '<field id="' + f + '" field_type="text" base_type="text"><label>' + xmlEsc(labelOf(table, f)) + '</label></field>'; }).join('');
+    return ok('<table><name>' + xmlEsc((labels[table] || {}).name || table) + '</name><original><table_id>' + table + '</table_id></original><fields>' + fields + '</fields></table>');
+  }
+  function writeFields(p, body) {
+    var out = {}, k;
+    for (k in p) { var m = /^_fid_(\d+)$/.exec(k); if (m) out[m[1]] = p[k]; }
+    if (body && /<field/.test(body)) {
+      var doc = new DOMParser().parseFromString(body, 'text/xml');
+      [].forEach.call(doc.querySelectorAll('field'), function (n) { if (n.getAttribute('fid')) out[n.getAttribute('fid')] = n.textContent; });
+      var rid = doc.querySelector('rid'); if (rid) p.rid = rid.textContent;
+      ['query', 'clist', 'slist', 'options', 'varname'].forEach(function (name) { var e = doc.querySelector(name); if (e && !p[name]) p[name] = e.textContent; });
+    }
+    return out;
+  }
+  // The real page stores a generated script on the record. There is no record to open here, so hand it over as a download.
+  function saveUpload(body) {
+    var file = new DOMParser().parseFromString(body, 'text/xml').querySelector('field[filename]');
+    if (file) {
+      var bytes = Uint8Array.from(atob(file.textContent), function (c) { return c.charCodeAt(0); });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([bytes], {type: 'application/javascript'}));
+      link.download = file.getAttribute('filename');
+      window.__demoLastFile = {name: link.download, text: new TextDecoder().decode(bytes)};
+      link.click();
+    }
+    return ok('<rid>1</rid>');
+  }
+  function xmlApi(table, p, body) {
+    var fields = writeFields(p, body), row;
+    switch (p.a) {
+      case 'API_DoQuery': return doQuery(table, p);
+      case 'API_DoQueryCount': return ok('<numMatches>' + select(table, p.query).length + '</numMatches>');
+      case 'API_GetDBVar': return ok('<value>demo-value</value>');
+      case 'API_SetDBVar': return ok();
+      case 'API_GetUserInfo': return ok('<user id="1.demo"><firstName>Demo</firstName><lastName>User</lastName><login>demo.user</login><email>demo.user@demo-packaging.example</email><screenName>Demo User</screenName></user>');
+      case 'API_GetSchema': return schema(table);
+      case 'API_GetDBPage': return '';
+      case 'dbpage': return (window.__DEMO_PAGES || {})[p.pageID || p.pageid] || '';
+      case 'API_UploadFile': return saveUpload(body);
+      case 'API_AddRecord':
+        row = fields; row[3] = nextRid(table); row[1] = String(Date.now()); row[2] = row[1]; rows(table).unshift(row);
+        return ok('<rid>' + row[3] + '</rid><update_id>1</update_id>');
+      case 'API_EditRecord':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid || p.key); })[0];
+        if (row) Object.keys(fields).forEach(function (f) { row[f] = fields[f]; });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid><num_fields_changed>1</num_fields_changed><update_id>2</update_id>');
+      case 'API_DeleteRecord':
+        tables[table] = rows(table).filter(function (r) { return String(r[3]) !== String(p.rid); });
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>');
+      case 'API_GetRecordInfo':
+        row = rows(table).filter(function (r) { return String(r[3]) === String(p.rid); })[0] || {};
+        return ok('<rid>' + xmlEsc(p.rid) + '</rid>' + Object.keys(row).map(function (f) { return '<field><fid>' + f + '</fid><name>' + xmlEsc(labelOf(table, f)) + '</name><type>Text</type><value>' + xmlEsc(row[f]) + '</value></field>'; }).join(''));
+      default: return ok();
+    }
+  }
+  function restWhere(where) { return where || ''; }
+  function restApi(url, init) {
+    var path = url.pathname, body = {};
+    try { body = JSON.parse(init.body || '{}'); } catch (e) {}
+    if (/\/v1\/auth\/temporary\//.test(path)) return {temporaryAuthorization: 'demo-token'};
+    if (/\/v1\/records\/query/.test(path)) {
+      var select_ = body.select || [], sort = (body.sortBy || [])[0], list = select(body.from, restWhere(body.where), sort && sort.fieldId, sort && sort.order === 'DESC' ? 'sortorder-D' : '');
+      return {data: list.map(function (r) { var o = {}; select_.forEach(function (f) { o[f] = {value: r[f] == null ? '' : r[f]}; }); return o; }),
+        fields: select_.map(function (f) { return {id: f, label: labelOf(body.from, f), type: 'text'}; }),
+        metadata: {numRecords: list.length, numFields: select_.length, totalRecords: list.length, skip: 0}};
+    }
+    if (/\/v1\/records/.test(path)) {
+      var created = (body.data || []).map(function (src) { var row = {}; Object.keys(src).forEach(function (f) { row[f] = src[f] && src[f].value; }); row[3] = row[3] || nextRid(body.to); rows(body.to).unshift(row); return +row[3]; });
+      return {data: [], metadata: {createdRecordIds: created, updatedRecordIds: [], unchangedRecordIds: [], totalNumberOfRecordsProcessed: created.length}};
+    }
+    if (/\/v1\/fields/.test(path)) { var t = url.searchParams.get('tableId'); return fidsOf(t).map(function (f) { return {id: +f, label: labelOf(t, f), fieldType: 'text'}; }); }
+    if (/\/v1\/tables/.test(path)) return Object.keys(labels).map(function (t) { return {id: t, name: labels[t].name}; });
+    return {};
+  }
+  function params(url, init) {
+    var p = {};
+    url.searchParams.forEach(function (v, k) { p[k] = v; });
+    var b = init && init.body;
+    if (b && typeof b === 'string' && !/^\s*</.test(b)) new URLSearchParams(b).forEach(function (v, k) { p[k] = v; });
+    else if (b && b.forEach && !(b instanceof Blob)) b.forEach(function (v, k) { if (typeof v === 'string') p[k] = v; });
+    var h = init && init.headers, action = h && (h['QUICKBASE-ACTION'] || (h.get && h.get('QUICKBASE-ACTION')));
+    if (action) p.a = action;
+    return p;
+  }
+  function respond(url, init) {
+    var host = url.hostname;
+    if (host === 'api.quickbase.com') return new Response(JSON.stringify(restApi(url, init || {})), {status: 200, headers: {'Content-Type': 'application/json'}});
+    var m = /^\/db\/([^/?#]+)/.exec(url.pathname), p = params(url, init), text = m ? xmlApi(m[1], p, typeof (init || {}).body === 'string' ? init.body : '') : '';
+    return new Response(text, {status: 200, headers: {'Content-Type': 'text/xml'}});
+  }
+  var realFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var raw = input && input.url ? input.url : String(input), url = new URL(raw, location.href);
+    if (url.hostname === HOST || url.hostname === 'api.quickbase.com' || (url.origin === location.origin && /^\/db\//.test(url.pathname))) return Promise.resolve(respond(url, init || {}));
+    if (url.hostname.indexOf('.example') > 0) return Promise.resolve(new Response('', {status: 404}));
+    return realFetch.apply(this, arguments);
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var tag = document.createElement('div');
+    tag.textContent = 'Demo: fictional company and data';
+    tag.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 10px;border-radius:999px;background:#1f2937;color:#fff;font:600 12px/1 system-ui,sans-serif;opacity:.85;pointer-events:none';
+    document.body.appendChild(tag);
+  });
+})();
+
+</script>
+<script id="demo-pages">window.__DEMO_PAGES={"143": "#target illustrator\n/* Stand-in mockup template for the demo: draws a simple front / gusset / back layout from the request's dimensions.\n   Mockup __MOCKUP_ID__. Sizes are in inches. Not a production dieline. */\n(function () {\n    var PT = 72;\n    var width = __WIDTH__ * PT, height = __HEIGHT__ * PT, gusset = __GUSSET__ * PT;\n    var zipperOn = __ZIPPER_ENABLED__, zipperOffset = __ZIPPER_OFFSET__ * PT;\n    var panels = gusset > 0 ? [width, gusset, width, gusset] : [width, width];\n    var total = 0, i;\n    for (i = 0; i < panels.length; i++) total += panels[i];\n\n    var doc = app.documents.add(DocumentColorSpace.CMYK, total + 144, height + 144);\n    var layer = doc.layers[0];\n    layer.name = \"Dieline\";\n\n    function box(left, top, w, h) {\n        var item = layer.pathItems.rectangle(top, left, w, h);\n        item.filled = false;\n        item.stroked = true;\n        item.strokeWidth = 0.75;\n        return item;\n    }\n\n    var x = 72, top = height + 72;\n    for (i = 0; i < panels.length; i++) {\n        box(x, top, panels[i], height);\n        x += panels[i];\n    }\n    if (zipperOn) {\n        var line = layer.pathItems.add();\n        line.setEntirePath([[72, top - zipperOffset], [72 + total, top - zipperOffset]]);\n        line.filled = false;\n        line.stroked = true;\n        line.strokeDashes = [6, 3];\n    }\n    var label = layer.textFrames.add();\n    label.contents = \"Mockup __MOCKUP_ID__: __ZIPPER_TYPE__\";\n    label.position = [72, 54];\n})();\n", "144": "#target illustrator\n/* Stand-in mockup template for the demo: draws a simple front / gusset / back layout from the request's dimensions.\n   Mockup __MOCKUP_ID__. Sizes are in inches. Not a production dieline. */\n(function () {\n    var PT = 72;\n    var width = __WIDTH__ * PT, height = __HEIGHT__ * PT, gusset = __GUSSET__ * PT;\n    var zipperOn = __ZIPPER_ENABLED__, zipperOffset = __ZIPPER_OFFSET__ * PT;\n    var panels = gusset > 0 ? [width, gusset, width, gusset] : [width, width];\n    var total = 0, i;\n    for (i = 0; i < panels.length; i++) total += panels[i];\n\n    var doc = app.documents.add(DocumentColorSpace.CMYK, total + 144, height + 144);\n    var layer = doc.layers[0];\n    layer.name = \"Dieline\";\n\n    function box(left, top, w, h) {\n        var item = layer.pathItems.rectangle(top, left, w, h);\n        item.filled = false;\n        item.stroked = true;\n        item.strokeWidth = 0.75;\n        return item;\n    }\n\n    var x = 72, top = height + 72;\n    for (i = 0; i < panels.length; i++) {\n        box(x, top, panels[i], height);\n        x += panels[i];\n    }\n    if (zipperOn) {\n        var line = layer.pathItems.add();\n        line.setEntirePath([[72, top - zipperOffset], [72 + total, top - zipperOffset]]);\n        line.filled = false;\n        line.stroked = true;\n        line.strokeDashes = [6, 3];\n    }\n    var label = layer.textFrames.add();\n    label.contents = \"Mockup __MOCKUP_ID__: __ZIPPER_TYPE__\";\n    label.position = [72, 54];\n})();\n", "145": "#target illustrator\n/* Stand-in mockup template for the demo: draws a simple front / gusset / back layout from the request's dimensions.\n   Mockup __MOCKUP_ID__. Sizes are in inches. Not a production dieline. */\n(function () {\n    var PT = 72;\n    var width = __WIDTH__ * PT, height = __HEIGHT__ * PT, gusset = __GUSSET__ * PT;\n    var zipperOn = __ZIPPER_ENABLED__, zipperOffset = __ZIPPER_OFFSET__ * PT;\n    var panels = gusset > 0 ? [width, gusset, width, gusset] : [width, width];\n    var total = 0, i;\n    for (i = 0; i < panels.length; i++) total += panels[i];\n\n    var doc = app.documents.add(DocumentColorSpace.CMYK, total + 144, height + 144);\n    var layer = doc.layers[0];\n    layer.name = \"Dieline\";\n\n    function box(left, top, w, h) {\n        var item = layer.pathItems.rectangle(top, left, w, h);\n        item.filled = false;\n        item.stroked = true;\n        item.strokeWidth = 0.75;\n        return item;\n    }\n\n    var x = 72, top = height + 72;\n    for (i = 0; i < panels.length; i++) {\n        box(x, top, panels[i], height);\n        x += panels[i];\n    }\n    if (zipperOn) {\n        var line = layer.pathItems.add();\n        line.setEntirePath([[72, top - zipperOffset], [72 + total, top - zipperOffset]]);\n        line.filled = false;\n        line.stroked = true;\n        line.strokeDashes = [6, 3];\n    }\n    var label = layer.textFrames.add();\n    label.contents = \"Mockup __MOCKUP_ID__: __ZIPPER_TYPE__\";\n    label.position = [72, 54];\n})();\n", "146": "#target illustrator\n/* Stand-in mockup template for the demo: draws a simple front / gusset / back layout from the request's dimensions.\n   Mockup __MOCKUP_ID__. Sizes are in inches. Not a production dieline. */\n(function () {\n    var PT = 72;\n    var width = __WIDTH__ * PT, height = __HEIGHT__ * PT, gusset = __GUSSET__ * PT;\n    var zipperOn = __ZIPPER_ENABLED__, zipperOffset = __ZIPPER_OFFSET__ * PT;\n    var panels = gusset > 0 ? [width, gusset, width, gusset] : [width, width];\n    var total = 0, i;\n    for (i = 0; i < panels.length; i++) total += panels[i];\n\n    var doc = app.documents.add(DocumentColorSpace.CMYK, total + 144, height + 144);\n    var layer = doc.layers[0];\n    layer.name = \"Dieline\";\n\n    function box(left, top, w, h) {\n        var item = layer.pathItems.rectangle(top, left, w, h);\n        item.filled = false;\n        item.stroked = true;\n        item.strokeWidth = 0.75;\n        return item;\n    }\n\n    var x = 72, top = height + 72;\n    for (i = 0; i < panels.length; i++) {\n        box(x, top, panels[i], height);\n        x += panels[i];\n    }\n    if (zipperOn) {\n        var line = layer.pathItems.add();\n        line.setEntirePath([[72, top - zipperOffset], [72 + total, top - zipperOffset]]);\n        line.filled = false;\n        line.stroked = true;\n        line.strokeDashes = [6, 3];\n    }\n    var label = layer.textFrames.add();\n    label.contents = \"Mockup __MOCKUP_ID__: __ZIPPER_TYPE__\";\n    label.position = [72, 54];\n})();\n", "147": "#target illustrator\n/* Stand-in mockup template for the demo: draws a simple front / gusset / back layout from the request's dimensions.\n   Mockup __MOCKUP_ID__. Sizes are in inches. Not a production dieline. */\n(function () {\n    var PT = 72;\n    var width = __WIDTH__ * PT, height = __HEIGHT__ * PT, gusset = __GUSSET__ * PT;\n    var zipperOn = __ZIPPER_ENABLED__, zipperOffset = __ZIPPER_OFFSET__ * PT;\n    var panels = gusset > 0 ? [width, gusset, width, gusset] : [width, width];\n    var total = 0, i;\n    for (i = 0; i < panels.length; i++) total += panels[i];\n\n    var doc = app.documents.add(DocumentColorSpace.CMYK, total + 144, height + 144);\n    var layer = doc.layers[0];\n    layer.name = \"Dieline\";\n\n    function box(left, top, w, h) {\n        var item = layer.pathItems.rectangle(top, left, w, h);\n        item.filled = false;\n        item.stroked = true;\n        item.strokeWidth = 0.75;\n        return item;\n    }\n\n    var x = 72, top = height + 72;\n    for (i = 0; i < panels.length; i++) {\n        box(x, top, panels[i], height);\n        x += panels[i];\n    }\n    if (zipperOn) {\n        var line = layer.pathItems.add();\n        line.setEntirePath([[72, top - zipperOffset], [72 + total, top - zipperOffset]]);\n        line.filled = false;\n        line.stroked = true;\n        line.strokeDashes = [6, 3];\n    }\n    var label = layer.textFrames.add();\n    label.contents = \"Mockup __MOCKUP_ID__: __ZIPPER_TYPE__\";\n    label.position = [72, 54];\n})();\n"};</script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mockup Studio</title>
+<link rel="icon" id="app-favicon" type="image/webp" href="">
+<script>try{const savedTheme=localStorage.getItem("mockup-studio-theme"),preferredDark=matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.dataset.theme=savedTheme||(preferredDark?"dark":"light")}catch(error){document.documentElement.dataset.theme="light"}</script>
+<style>
+:root{--teal:#0b5668;--deep:#003d4d;--mint:#d7ece8;--pale:#edf7f5;--coral:#df7956;--ink:#17343d;--muted:#60757b;--line:#d3e0e3;--surface:#fff;--canvas:#edf2f3;--shadow:0 12px 34px rgba(17,61,72,.1)}html[data-theme=dark]{--ink:#e6f0f2;--muted:#a9bec3;--line:#2d4a53;--surface:#102b33;--canvas:#071a20;--pale:#173943;--mint:#244c55}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--canvas);color:var(--ink);font:300 15px "Demo Grotesk UI",Avenir,"Segoe UI",sans-serif}h1,h2{font-weight:800}.theme-icon{width:17px;height:17px;flex:0 0 auto}.theme-icon-sun{display:none}.theme-toggle-label{white-space:nowrap}html[data-theme=dark] .theme-icon-moon{display:none}html[data-theme=dark] .theme-icon-sun{display:block}.shell{display:grid;grid-template-columns:minmax(300px,400px) minmax(600px,1fr);gap:18px;width:100%;margin:0;padding:18px 18px 44px}.sticky{position:sticky;top:calc(var(--xh-height) + 18px);display:grid;gap:14px}.panel{padding:20px;border:1px solid var(--line);border-radius:16px;background:var(--surface);box-shadow:var(--shadow)}h1,h2,p{margin-top:0}.panel h1{margin-bottom:6px;font-size:1.35rem}.panel h2{font-size:1.05rem}.intro{color:var(--muted);line-height:1.45}.lookup-label,.field{display:grid;gap:7px}.lookup-label{margin-top:18px}.lookup-label>span,.field>span{font-size:.78rem;font-weight:800}.rid-row{display:flex}.rid-row input{min-width:0;border-radius:10px 0 0 10px}.rid-row button{min-width:142px;border-radius:0 10px 10px 0}input,textarea,button{font:inherit}input,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfdfd;color:#17343d}textarea{min-height:118px;resize:vertical;line-height:1.45}input:focus,textarea:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 3px rgba(11,86,104,.12)}html[data-theme=dark] input,html[data-theme=dark] textarea{background:#15343d;color:var(--ink)}button{min-height:44px;padding:9px 14px;border:0;border-radius:10px;background:var(--teal);color:#fff;font-weight:800;cursor:pointer}button:hover{filter:brightness(1.05)}button:disabled{background:#aeb9bc;cursor:not-allowed}.status{margin:13px 0 0;padding:11px 12px;border-left:3px solid var(--teal);border-radius:0 9px 9px 0;background:var(--pale);color:var(--muted);line-height:1.4}.status.error{border-color:var(--coral);background:#fff1ec;color:#8a3f28}.status.success{border-color:#2d8a67;color:#266b54}.steps{display:grid;gap:12px;margin-top:15px}.step{display:grid;grid-template-columns:30px 1fr;gap:10px}.num{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--mint);color:var(--teal);font-weight:800}.step strong{display:block;font-weight:800}.step small{color:var(--muted)}.request{padding:24px}.request-head{display:flex;justify-content:space-between;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--line)}.request-head p{margin:6px 0 0;color:var(--muted)}.badge{height:max-content;padding:7px 10px;border-radius:9px;background:var(--pale);color:var(--teal);font-size:.76rem;font-weight:800}.section{padding-top:22px}.section-title{display:flex;align-items:center;gap:10px;margin-bottom:14px}.section-title i{width:8px;height:26px;border-radius:99px;background:var(--coral)}.section-title h2{margin:0}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}.s12{grid-column:span 12}.s8{grid-column:span 8}.s6{grid-column:span 6}.s4{grid-column:span 4}.s3{grid-column:span 3}.hint{color:var(--muted);font-size:.74rem}.submit-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:24px;padding:18px;border:1px solid #f0ad95;border-radius:14px;background:#fff5f1}.submit-copy strong{display:block;color:#71311f}.submit-copy small{color:#8a5b4c}.submit{min-width:220px;background:var(--coral)}.banner{position:fixed;left:50%;top:calc(var(--xh-height) + 14px);z-index:50;display:flex;align-items:center;gap:16px;width:min(680px,calc(100vw - 28px));padding:14px 16px;border:1px solid #91cdb7;border-radius:13px;background:#effaf5;color:#225f49;box-shadow:0 14px 38px rgba(36,91,70,.2);transform:translateX(-50%)}.banner[hidden]{display:none}.banner strong{flex:1}.banner button{min-height:38px;background:#2d8061}.dot{display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;background:currentColor;animation:pulse 1s infinite}@keyframes pulse{50%{opacity:.25}}
+@media(max-width:850px){.shell{grid-template-columns:1fr}.sticky{position:static}.s8,.s6,.s4,.s3{grid-column:span 12}.submit-bar{align-items:stretch;flex-direction:column}.submit{width:100%}}@media(max-width:540px){.theme-toggle-label{display:none}#themeToggle{width:36px;padding:0}.shell{width:calc(100vw - 16px);padding-top:8px}.panel,.request{padding:16px}.rid-row{display:grid}.rid-row input,.rid-row button{border-radius:10px}.rid-row button{margin-top:8px}.request-head{display:grid}.badge{justify-self:start}}
+/* Visual-system parity with 139. Layout and Quickbase workflow are unchanged. */
+:root{color-scheme:light;--ink:#17323b;--muted:#60777f;--teal:#0b5668;--deep:#063f4d;--mint:#dcedf1;--pale:#edf6f8;--coral:#df7956;--surface:#fff;--canvas:#e8eff1;--line:#d6e1e4;--shadow:0 10px 30px rgba(22,57,67,.09)}
+html[data-theme=dark]{color-scheme:dark;--ink:#e8f2f4;--muted:#9eb3b9;--teal:#2d8498;--deep:#061b21;--mint:#1c424c;--pale:#15343d;--surface:#102b33;--canvas:#0a2027;--line:#294750;--shadow:0 12px 34px rgba(0,0,0,.3)}
+body{font-family:"Demo Grotesk UI","Segoe UI",sans-serif;font-size:15px;font-weight:300;color:var(--ink);background:#edf2f3}
+.panel{padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--surface);box-shadow:0 4px 16px rgba(22,57,67,.045)}h1,h2,.panel h1,.panel h2,.section-title h2,.step strong,.lookup-label>span,.field>span{color:var(--ink)}.intro,.request-head p,.hint,.step small,.status{color:var(--muted)}
+input,textarea{border:1px solid #cbdadd;border-radius:10px;background:#fbfdfd;color:var(--ink);font-weight:300}input::placeholder,textarea::placeholder{color:#788b91;opacity:1}input:focus,textarea:focus{border-color:var(--teal);background:#fff;box-shadow:0 0 0 3px rgba(11,86,104,.12)}button{min-height:40px;padding:9px 13px;border-radius:10px;background:var(--teal);color:#fff;font-size:.8rem;font-weight:800;transition:transform 150ms ease,filter 150ms ease,box-shadow 150ms ease}button:hover{filter:brightness(1.05);box-shadow:0 5px 14px rgba(11,86,104,.16);transform:translateY(-1px)}button:disabled{background:#aeb9bc!important;color:#eef2f3!important;opacity:1}.rid-row button{min-height:44px}.badge{background:var(--pale);color:var(--teal)}.num{background:var(--mint);color:var(--teal)}.status{background:var(--pale)}.status.error{border-color:var(--coral);background:#fff1ec;color:#8a3f28}.status.success{border-color:#2d8a67;color:#266b54}.submit{background:var(--coral)}
+html[data-theme=dark] body{background:#071a20}html[data-theme=dark] .panel{border-color:#294750;background:var(--surface);box-shadow:0 6px 20px rgba(0,0,0,.14)}html[data-theme=dark] input,html[data-theme=dark] textarea{border-color:#36545d;background:#15343d;color:var(--ink)}html[data-theme=dark] input::placeholder,html[data-theme=dark] textarea::placeholder{color:#8fa7ad}html[data-theme=dark] input:focus,html[data-theme=dark] textarea:focus{border-color:#55a4b6;background:#183b45;box-shadow:0 0 0 3px rgba(85,164,182,.18)}html[data-theme=dark] button:disabled{background:#3d4d52!important;color:#89999e!important}html[data-theme=dark] .status.success{color:#8bd6b8}html[data-theme=dark] .status.error{background:#40271f;color:#ffb49b}html[data-theme=dark] .submit-bar{border-color:#8f513c;background:#3a2722}html[data-theme=dark] .submit-copy strong{color:#ffd0c0}html[data-theme=dark] .submit-copy small{color:#d8aaa0}
+/* Global typography increase: 4pt = 5.333px at standard CSS scale. */
+body{font-size:20.333px}.panel h1{font-size:26.933px}.panel h2,.section-title h2{font-size:22.133px}.lookup-label>span,.field>span{font-size:17.813px}.hint{font-size:17.173px}.badge{font-size:17.493px}button{font-size:18.133px}.step small,.submit-copy small{font-size:17.833px}
+
+    /* Demo Packaging app header - shared standard (see App Development/HEADER-STANDARD.md) */
+    :root{--xh-height:60px}
+    .xh{position:relative;z-index:20;background:#3b3f8f;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.18);font-family:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.2}
+    .xh-inner{height:var(--xh-height);padding:0 24px;display:flex;align-items:center;gap:16px}
+    .xh-logo{flex:none;display:block;width:auto;height:26px}
+    .xh-home{flex:none;display:flex;align-items:center;border-radius:6px;text-decoration:none;transition:opacity .15s}.xh-home:hover{opacity:.82}.xh-home:focus-visible{outline:2px solid #8fd6e1;outline-offset:5px}
+    .xh-symbol{flex:none;display:none;width:22px;height:22px}
+    .xh-divider{flex:none;width:1px;height:28px;background:rgba(255,255,255,.28)}
+    .xh-title{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .xh-title strong{overflow:hidden;color:#fff;font-size:16px;font-weight:700;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+    .xh-title span{overflow:hidden;color:#a3c9d1;font-size:11px;font-weight:700;letter-spacing:.1em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    .xh-badge{flex:none;padding:4px 7px;border:1px solid rgba(255,255,255,.3);border-radius:6px;color:#d9eef2;font:700 11px/1 ui-monospace,Consolas,monospace}
+    .xh-actions{flex:none;margin-left:auto;display:flex;align-items:center;gap:8px}
+    .xh-button{height:36px;min-height:0;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(255,255,255,.26);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;box-shadow:none;transform:none;cursor:pointer;font:inherit;font-size:13px;font-weight:700;line-height:1;list-style:none;text-decoration:none;white-space:nowrap}
+    .xh-button:hover{background:rgba(255,255,255,.16);box-shadow:none;transform:none}
+    .xh-button:focus-visible{outline:2px solid #8fd6e1;outline-offset:2px}
+    .xh-button:disabled{cursor:not-allowed;opacity:.45}
+    .xh-button[aria-pressed="true"],details[open]>summary.xh-button{border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.2)}
+    .xh-button.primary{border-color:#fff;background:#fff;color:#3b3f8f}.xh-button.primary:hover:not(:disabled){background:#dff0f3}
+    .xh-button::-webkit-details-marker{display:none}
+    .xh-button svg{flex:none;width:16px;height:16px}
+    @media(max-width:640px){:root{--xh-height:52px}.xh-inner{padding:0 14px;gap:11px}.xh-logo{height:21px}.xh-inner:has(.xh-actions) .xh-logo{display:none}.xh-inner:has(.xh-actions) .xh-symbol{display:block}.xh-divider{height:24px}.xh-title strong{font-size:15px}.xh-title span{display:none}.xh-button{height:34px;padding:0 10px;font-size:12px}}
+    @media print{.xh{display:none!important}}
+    /* This page's header stays pinned while the form scrolls, as the original did. */
+    .xh{position:sticky;top:0}
+  </style>
+  <style id="demo-theme">
+    /* Demo Packaging app theme - shared tokens (see tools/README.md) */
+    :root{--x-brand:#3b3f8f;--x-brand-hover:#2d3070;--x-accent:#5257b8;--x-accent-soft:#e4f0f2;--x-ink:#132a35;--x-muted:#62757c;--x-line:#d6e0e3;--x-line-strong:#c3d2d6;--x-soft:#eef4f5;--x-paper:#fff;--x-canvas:#f3f6f7;--x-danger:#a73543;--x-success:#18705f;--x-warning:#8a5a00;--x-radius-card:14px;--x-radius-inner:11px;--x-radius-control:9px;--x-radius-small:7px;--x-shadow-card:0 1px 2px rgba(3,61,75,.05),0 6px 18px rgba(3,61,75,.06);--x-shadow-pop:0 14px 32px rgba(3,61,75,.16);--x-shadow-modal:0 24px 70px rgba(2,32,40,.3);--x-focus:0 0 0 3px rgba(13,99,114,.18);--x-font:"Demo Grotesk UI",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    body{font-family:var(--x-font)}
+    /* App mapping */
+    :root{--teal:var(--x-brand);--deep:var(--x-brand);--mint:var(--x-accent-soft);--pale:var(--x-accent-soft);--ink:var(--x-ink);--muted:var(--x-muted);--line:var(--x-line);--surface:var(--x-paper);--canvas:var(--x-canvas);--shadow:var(--x-shadow-card)}
+    body{background:var(--x-canvas);font-weight:400}
+    .panel{border-radius:var(--x-radius-card);box-shadow:var(--x-shadow-card)}
+    .panel h1{font-weight:750;letter-spacing:-.02em}.panel h2,.section-title h2{font-weight:700}
+    button{border-radius:var(--x-radius-control);font-weight:700}
+    button:hover:not(:disabled){transform:none;box-shadow:none}
+    input,textarea{border-radius:var(--x-radius-control);font-weight:400}
+    html:not([data-theme=dark]) input,html:not([data-theme=dark]) textarea{border-color:var(--x-line-strong);background:#fff}
+    html:not([data-theme=dark]) input:focus,html:not([data-theme=dark]) textarea:focus{border-color:var(--x-accent);box-shadow:var(--x-focus)}
+    .rid-row input{border-radius:var(--x-radius-control) 0 0 var(--x-radius-control)}.rid-row button{border-radius:0 var(--x-radius-control) var(--x-radius-control) 0}
+    .submit-bar{border-radius:var(--x-radius-inner)}.badge{border-radius:var(--x-radius-small)}
+    @media(max-width:540px){.rid-row input,.rid-row button{border-radius:var(--x-radius-control)}}
+  </style>
+  <style id="no-sideways-scroll">
+    /* Phones never scroll sideways. clip (unlike hidden) keeps sticky headers and inner scroll areas working. */
+    @media (max-width:760px){html,body{max-width:100%;overflow-x:clip}body{min-width:0!important}}
+  </style>
+  
+<!-- app-version:start (managed by demo_versions.py: change versions.json, not this copy) -->
+
+
+
+
+</head><body>
+<div id="submittedBanner" class="banner" role="status" hidden><strong>Submitted</strong><button id="backButton" type="button">Back to Request</button></div>
+<header class="xh">
+    <div class="xh-inner">
+      <a class="xh-home" href="#" title="All demo apps" aria-label="Demo Apps: all our tools"><img class="xh-logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%2726%27%3E%3Ctext%20x%3D%270%27%20y%3D%2719%27%20font-family%3D%27system-ui%2Csans-serif%27%20font-size%3D%2717%27%20font-weight%3D%27700%27%20fill%3D%27white%27%3EDemo%20Packaging%3C/text%3E%3C/svg%3E" alt="Demo Packaging" width="89" height="26">
+      <img class="xh-symbol" src="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2722%27%20height%3D%2722%27%3E%3Crect%20width%3D%2722%27%20height%3D%2722%27%20rx%3D%275%27%20fill%3D%27white%27/%3E%3C/svg%3E" alt="Demo Packaging" width="22" height="22"></a>
+      <span class="xh-divider" aria-hidden="true"></span>
+      <div class="xh-title"><strong>Mockup Studio</strong><span>Mockup request</span></div>
+      <div class="xh-actions">
+        <button id="themeToggle" class="xh-button" type="button" aria-pressed="false" aria-label="Switch to dark mode"><svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg><svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span id="themeToggleLabel" class="theme-toggle-label">Dark mode</span></button>
+      </div>
+    </div>
+  </header>
+<main class="shell"><aside><div class="sticky"><section class="panel"><h1>Load Mockup</h1><p class="intro">Enter the Quickbase Mockup ID to load the request directly.</p><label class="lookup-label"><span>Revision / Mockup ID</span><div class="rid-row"><input id="ridInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Enter Mockup ID"><button id="loadButton" type="button">Search Mockup</button></div></label><p id="status" class="status" aria-live="polite">Ready</p></section><section class="panel"><h2>Simple workflow</h2><div class="steps"><div class="step"><span class="num">1</span><span><strong>Load</strong><small>Open the Quickbase record.</small></span></div><div class="step"><span class="num">2</span><span><strong>Review</strong><small>Edit the populated information.</small></span></div><div class="step"><span class="num">3</span><span><strong>Submit</strong><small>Generate and submit the completed mockup request.</small></span></div></div></section></div></aside>
+<section id="requestPanel" class="panel request"><div class="request-head"><div><h1>Mockup Request</h1><p>Review the record information, make any changes, and submit.</p></div><span id="ridBadge" class="badge">No record loaded</span></div>
+<div class="section"><div class="section-title"><i></i><h2>Record details</h2></div><div class="grid"><label class="field s8"><span>Customer Name</span><input id="customerInput" type="text"></label><label class="field s4"><span>Opportunity Name</span><input id="opportunityInput" type="text"></label></div></div>
+<div class="section"><div class="section-title"><i></i><h2>Package specifications</h2></div><div class="grid"><label class="field s4"><span>Format</span><input id="formatInput" list="formatOptions"></label><label class="field s4"><span>Style</span><input id="styleInput" list="styleOptions"></label><label class="field s4"><span>Gusset Style</span><input id="gussetStyleInput" list="gussetOptions"></label><label class="field s3"><span>Width (in)</span><input id="widthInput" type="number" step=".01"></label><label class="field s3"><span>Height (in)</span><input id="heightInput" type="number" step=".01"></label><label class="field s3"><span>Gusset (in)</span><input id="gussetInput" type="number" step=".01"></label><label class="field s3"><span>Weight (lbs)</span><input id="weightInput" type="number" step=".01"></label><label class="field s6"><span>Closure</span><input id="closureInput" list="closureOptions"></label><label class="field s6"><span>Closure Position (in)</span><input id="closurePositionInput" type="number" step=".01"></label><label class="field s12"><span>Layers</span><textarea id="layersInput"></textarea></label></div></div>
+<div class="section"><div class="section-title"><i></i><h2>Mockup notes</h2></div><label class="field"><span>Notes</span><textarea id="notesInput" placeholder="Add special instructions..."></textarea></label></div><div class="submit-bar"><div class="submit-copy"><strong>Ready to generate the mockup?</strong><small>Review the information above before submitting.</small></div><button id="submitButton" class="submit" disabled>Submit Mockup</button></div></section></main>
+<datalist id="formatOptions"><option value="Quad Seal Bag"><option value="Stand-Up Pouch"></datalist><datalist id="styleOptions"><option value="Flat Bottom"><option value="Pinched Bottom"><option value="Angle Plow"><option value="K-Seal"></datalist><datalist id="gussetOptions"><option value="Terminated Gusset"><option value="Non-Terminated Gusset"></datalist><datalist id="closureOptions"><option value="No Zipper"><option value="Zipper"><option value="Custom"></datalist>
+<script>
+const REALM="demo.quickbase.example",TABLE="bdemomock",TEMPLATE_APP="bdemoapp0",JSX_FIELD=109,NOTES_FIELD=110,USER_VAR="usertoken",APP_VAR="q_apptoken";
+const SOURCE_DIR="C:\\Demo\\Output",OUTPUT_DIR="C:\\Demo\\Output",DEFAULTS={measure:"Top",zipWidth:0,bottom:0,threshold:12,angle:90};
+const TEMPLATES={"quad seal bag|flat bottom|terminated gusset":{file:"quad_flat_terminated_gusset_template.jsx",page:143},"quad seal bag|pinched bottom|non-terminated gusset":{file:"quad_pinched_nonterminated_gusset_template.jsx",page:144},"quad seal bag|pinched bottom|terminated gusset":{file:"quad_pinched_terminated_gusset_template.jsx",page:145},"stand-up pouch|angle plow|":{file:"stand_up_pouch_angle_plow_template.jsx",page:146},"stand-up pouch|k-seal|":{file:"stand_up_pouch_k_seal_template.jsx",page:147}};
+const $=id=>document.getElementById(id),state={rid:"",user:"",app:"",credentials:null,loaded:false},clean=v=>String(v??"").replace(/\s+/g," ").trim(),xml=t=>new DOMParser().parseFromString(t,"text/xml");
+function errorFrom(doc){const code=clean(doc.querySelector("errcode")?.textContent),text=clean(doc.querySelector("errtext")?.textContent),detail=clean(doc.querySelector("errdetail")?.textContent);return code&&code!=="0"?`Quickbase Error ${code}: ${text} ${detail}`:""}function ridFrom(v){const t=clean(v),m=t.match(/(?:^|[?&])rid=(\d+)/i);return m?m[1]:(/^\d+$/.test(t)?t:"")}function varApp(){const m=location.pathname.match(/^\/(?:db|up)\/([^/?#]+)/i);return m?m[1]:TEMPLATE_APP}
+async function dbVar(name){const p=new URLSearchParams({a:"API_GetDBVar",varname:name}),r=await fetch(`https://${REALM}/db/${encodeURIComponent(varApp())}?${p}`,{credentials:"include"});if(!r.ok)throw Error(`Variable request failed (${r.status}).`);const d=xml(await r.text()),e=errorFrom(d);if(e)throw Error(e);const v=clean(d.querySelector("value")?.textContent);if(!v)throw Error(`${name} is empty.`);return v}async function credentials(){if(state.user&&state.app)return;if(!state.credentials)state.credentials=Promise.all([dbVar(USER_VAR),dbVar(APP_VAR)]).then(([u,a])=>{state.user=u;state.app=a}).catch(e=>{state.credentials=null;throw Error(`Could not load ${USER_VAR} and ${APP_VAR}: ${e.message}`)});await state.credentials}
+function url(action,extra={}){return`https://${REALM}/db/${TABLE}?${new URLSearchParams({a:action,...extra,usertoken:state.user,apptoken:state.app})}`}async function get(action,extra={}){await credentials();const r=await fetch(url(action,extra),{credentials:"include"});if(!r.ok)throw Error(`Quickbase request failed (${r.status}).`);return r.text()}
+function fields(doc){const m=new Map;doc.querySelectorAll("field").forEach(n=>{const id=n.getAttribute("id")||n.querySelector("fid")?.textContent||"",v=n.querySelector("value")?.textContent??Array.from(n.childNodes).filter(c=>c.nodeType===3).map(c=>c.textContent).join("");if(id)m.set(String(Number(id)||id),clean(v))});return m}function prefill(m){const v=id=>clean(m.get(String(id))||""),isSpec=/spec/i.test(v(49)),a={format:9,style:11,width:12,height:13,gusset:14,closure:26,gStyle:33,position:40},s={format:53,style:54,width:57,height:58,gusset:59,closure:62,gStyle:56,position:63},x=isSpec?s:a,p=k=>v(x[k]);const weightMatch=v(17).match(/-?\d+(?:\.\d+)?/);return{customer:v(36),opp:v(51),format:p("format"),style:p("style"),gStyle:p("gStyle"),width:p("width"),height:p("height"),gusset:p("gusset"),weight:weightMatch?weightMatch[0]:"",closure:p("closure"),position:v(40),layers:v(64),notes:v(110)}}
+function status(message,type=""){$("status").textContent=message;$("status").className=`status ${type}`.trim()}function set(id,v){$(id).value=v??""}function apply(d){set("customerInput",d.customer);set("opportunityInput",d.opp);set("formatInput",d.format);set("styleInput",d.style);set("gussetStyleInput",d.gStyle);set("widthInput",d.width);set("heightInput",d.height);set("gussetInput",d.gusset);set("weightInput",d.weight);set("closureInput",d.closure);set("closurePositionInput",d.position);set("layersInput",d.layers);set("notesInput",d.notes)}
+async function load(){const rid=ridFrom($("ridInput").value);if(!rid){status("Enter a numeric Mockup ID.","error");return}const b=$("loadButton");b.disabled=true;b.innerHTML='<span class="dot"></span>Loading';status(`Loading mockup ${rid}...`);try{const d=xml(await get("API_GetRecordInfo",{rid})),e=errorFrom(d);if(e)throw Error(e);state.rid=rid;state.loaded=true;$("ridInput").value=rid;$("ridBadge").textContent=`Mockup ${rid}`;apply(prefill(fields(d)));$("submitButton").disabled=false;status(`Loaded mockup ${rid}.`,"success");$("requestPanel").scrollIntoView({behavior:"smooth"})}catch(e){console.error(e);state.loaded=false;$("submitButton").disabled=true;status(e.message,"error")}finally{b.disabled=false;b.textContent="Search Mockup"}}
+const fv=id=>clean($(id).value),num=v=>{const text=clean(v);if(!text)return null;const n=Number(text);return Number.isFinite(n)?n:null};function data(){return{request:{customer:fv("customerInput"),opportunity:fv("opportunityInput"),format:fv("formatInput"),style:fv("styleInput"),gStyle:fv("gussetStyleInput"),width:num(fv("widthInput")),height:num(fv("heightInput")),gusset:num(fv("gussetInput")),closure:fv("closureInput"),position:num(fv("closurePositionInput")),weight:num(fv("weightInput")),layers:fv("layersInput"),notes:fv("notesInput")}}}function key(d){return[d.request.format,d.request.style,d.request.gStyle].map(v=>clean(v).toLowerCase()).join("|")}function slug(v,f="mockup"){return clean(v).toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"")||f}const path=(d,f)=>`${d.replace(/[\\/]+$/,"")}\\${f}`;
+async function source(t){const r=await fetch(`https://${REALM}/db/${TEMPLATE_APP}?a=dbpage&pageid=${t.page}`,{credentials:"include"});if(!r.ok)throw Error(`Failed to load template page ${t.page}.`);return(await r.text()).replace(/^\uFEFF/,"")}function replacements(d,t,name){const z=clean(d.request.closure),enabled=z&&z.toLowerCase()!=="no zipper";return{"__MOCKUP_ID__":state.rid,"__TEMPLATE_PATH__":path(SOURCE_DIR,t.file),"__OUTPUT_PATH__":path(OUTPUT_DIR,name),"__WIDTH__":String(d.request.width??0),"__HEIGHT__":String(d.request.height??0),"__GUSSET__":String(d.request.gusset??0),"__ZIPPER_ENABLED__":enabled?"true":"false","__ZIPPER_OFFSET__":String(d.request.position??0),"__ZIPPER_TYPE__":z||"No Zipper","__CUSTOM_MEASURE_FROM__":DEFAULTS.measure,"__CUSTOM_ZIPPER_WIDTH__":String(DEFAULTS.zipWidth),"__CUSTOM_BOTTOM_TO_GUSSET__":String(DEFAULTS.bottom),"__ROTATE_THRESHOLD__":String(DEFAULTS.threshold),"__ROTATE_ANGLE__":String(DEFAULTS.angle)}}function replace(src,map){return Object.entries(map).reduce((o,[k,v])=>o.split(k).join(String(v).replaceAll("\\","\\\\").replaceAll('"','\\"')),src)}function b64(v){const bytes=new TextEncoder().encode(v);let s="";for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(s)}function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&apos;")}
+async function upload(result){await credentials();const body=`<?xml version="1.0"?><qdbapi><rid>${esc(state.rid)}</rid><field fid="109" filename="${esc(result.name)}">${b64(result.src)}</field><field fid="110">${esc(result.notes)}</field></qdbapi>`,r=await fetch(url("API_UploadFile"),{method:"POST",credentials:"include",headers:{"Content-Type":"application/xml"},body});if(!r.ok)throw Error(`Upload failed (${r.status}).`);const d=xml(await r.text()),e=errorFrom(d);if(e)throw Error(e)}
+async function submit(){if(!state.loaded)return status("Load a Mockup ID first.","error");const b=$("submitButton");b.disabled=true;b.innerHTML='<span class="dot"></span>Submitting';try{const d=data(),t=TEMPLATES[key(d)];if(!t)throw Error(`No JSX template matches ${d.request.format||"(blank)"} / ${d.request.style||"(blank)"} / ${d.request.gStyle||"(blank)"}.`);const name=`${slug(d.request.customer,"customer")}_${slug(d.request.opportunity)}_${slug(t.file.replace(/\.jsx?$/i,""))}.jsx`,src=replace(await source(t),replacements(d,t,name));await upload({name,src,notes:d.request.notes});$("submittedBanner").hidden=false;status(`Submitted mockup ${state.rid}.`,"success");scrollTo({top:0,behavior:"smooth"})}catch(e){console.error(e);status(e.message,"error")}finally{b.disabled=false;b.textContent="Submit Mockup"}}
+$("loadButton").onclick=load;$("ridInput").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();load()}};$("submitButton").onclick=submit;$("backButton").onclick=()=>{$("submittedBanner").hidden=true;$("requestPanel").scrollIntoView({behavior:"smooth"})};(()=>{const root=document.documentElement,toggle=document.getElementById("themeToggle"),label=document.getElementById("themeToggleLabel");function applyTheme(theme,persist=false){const dark=theme==="dark";root.dataset.theme=dark?"dark":"light";toggle.setAttribute("aria-pressed",String(dark));toggle.setAttribute("aria-label",dark?"Switch to light mode":"Switch to dark mode");label.textContent=dark?"Light mode":"Dark mode";if(persist)try{localStorage.setItem("mockup-studio-theme",root.dataset.theme)}catch(error){}}applyTheme(root.dataset.theme||"light");toggle.addEventListener("click",()=>applyTheme(root.dataset.theme==="dark"?"light":"dark",true))})();const queryParams=new URLSearchParams(location.search),initial=ridFrom(location.href),autoSubmit=queryParams.has("submit");if(initial){$("ridInput").value=initial;if(autoSubmit)load().then(()=>{if(state.loaded)submit()});else load()}else $("ridInput").focus();
+</script><!-- demo-launcher:start (managed by demo_launcher.py: edit demo_launcher_snippet.html, not this copy) -->
+
+
+
+</body></html>
