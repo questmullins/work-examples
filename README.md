@@ -17,9 +17,12 @@ Six of them are rebuilt as working demos on [kno.plus/examples](https://kno.plus
 | [Have we made it before?](https://kno.plus/examples/made-before/) | `sales-lookup` |
 | [Press sheet labels](https://kno.plus/examples/labels/) | `press-sheet-label-maker`, `mockup-labels` |
 
+## Swimlane Creator is now Freestyle
+
+Swimlane Creator grew into [Freestyle](https://github.com/questmullins/freestyle), a free swimlane diagram tool with its own repo. Try it at [kno.plus/webtools/freestyle](https://kno.plus/webtools/freestyle/).
+
 ## Start with these
 
-- `swimlane-creator`
 - `annotation-generator`
 - `mockup-jsx-generator`
 - `sales-lookup`
@@ -29,7 +32,7 @@ Six of them are rebuilt as working demos on [kno.plus/examples](https://kno.plus
 
 ## How it fits together
 
-- Each browser tool is a folder with its own `index.html`, and each works on its own. Swimlane Creator also needs its `swimlane.js`.
+- Each browser tool is a folder with its own `index.html`, and each works on its own.
 - A `<script id="demo-backend">` block at the top of each page is a fake Quickbase: it answers the page's calls from made-up records held in the browser. Changes last until reload.
 - Annotation Generator and Mockup Studio also carry a `<script id="demo-pages">` block with their Illustrator script templates.
 - The `illustrator-*` folders and `quickbase-page-tools` are source only. They need Illustrator or a real Quickbase account.
